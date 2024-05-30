@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Core resources and components for Ready, Set, Cloud
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: readysetcloud
+  GitHubRepo:
+    Type: String
+    Default: ready-set-cloud
+  UpdateGitHubSourceCode:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  AdminEmail:
+    Type: String
+    Default: allenheltondev@gmail.com
+  BucketName:
+    Type: String
+    Default: readysetcloud
+  AmplifyAppId:
+    Type: String
+    Default: d31uo0a8ezw8ek
+  DefaultCacheName:
+    Type: String
+    Default: readysetcloud
+
+Metadata:
+  esbuild-properties: &esbuild-properties
+    Format: esm
+    Minify: true
+    OutExtension:
+      - .js=.mjs
+    Target: es2020
+    Sourcemap: false
+    EntryPoints:
+      - index.mjs
+    Banner:
+      - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+    External:
+      - '@aws-sdk/*'
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    CodeUri: functions
+    Architectures:
+      - arm64
+    Tracing: Active
+    Timeout: 3
+    MemorySize: 1024
+    Handler: index.handler
+    Environment:
+      Variables:
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+
+Resources:
+  TriggerAmplifyBuildFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - trigger-amplify-build.mjs
+    Properties:
+      Handler: trigger-amplify-build.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: amplify:StartJob
+              Resource: !Sub arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/master/jobs/*
+      Environment:
+        Variables:
+          APP_ID: !Ref AmplifyAppId
+      Events:
+        Build:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Trigger Site Rebuild
+
+  NotifyOfBuildFailureFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - notify-of-build-failure.mjs
+    Properties:
+      Handler: notify-of-build-failure.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: amplify:ListJobs
+              Resource: !Sub arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/master/jobs/*
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: "{{resolve:ssm:/serverless-toolbox/secrets}}"
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Environment:
+        Variables:
+          APP_ID: !Ref AmplifyAppId
+          OWNER: !Ref GitHubOwner
+          REPO: !Ref GitHubRepo
+          SECRET_ID: "{{resolve:ssm:/serverless-toolbox/secrets}}"
+      Events:
+        AmplifyBuildFailed:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.amplify
+              detail-type:
+                - Amplify Deployment Status Change
+              detail:
+                appId:
+                  - !Ref AmplifyAppId
+                jobStatus:
+                  - FAILED
+
+  GitHubOwnerParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/github-owner
+      Type: String
+      Value: !Ref GitHubOwner
+      Description: Owner of the Ready, Set, Cloud GitHub repository
+
+  GitHubRepoParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/github-repo
+      Type: String
+      Value: !Ref AmplifyAppId
+      Description: Repository name of the Ready, Set, Cloud GitHub repository
+
+  UpdateGitHubSourceCodeParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/update-github-source-code
+      Type: String
+      Value: !Ref UpdateGitHubSourceCode
+      Description: Whether to update the GitHub source code automatically
+
+  AdminEmailParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/admin-email
+      Type: String
+      Value: !Ref AdminEmail
+      Description: Email address of the Ready, Set, Cloud administrator
+
+  AssetsBucketParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/assets-bucket
+      Type: String
+      Value: !Ref BucketName
+      Description: Name of the S3 bucket where static assets are stored
+
+  AmplifyAppIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/amplify-app-id
+      Type: String
+      Value: !Ref AmplifyAppId
+      Description: App identifier for the Ready, Set, Cloud Amplify app
+
+  CacheNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/cache-name
+      Type: String
+      Value: !Ref DefaultCacheName
+      Description: Name of the Momento cache to use by default
