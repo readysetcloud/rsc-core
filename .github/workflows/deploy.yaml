@@ -45,8 +45,6 @@ jobs:
           --no-fail-on-empty-changeset \
           --parameter-overrides UpdateGitHubSourceCode=true DefaultCacheName=readysetcloud BucketName=readysetcloud AmplifyAppId=${{ secrets.PROD_AMPLIFY_APP_ID }}
 
-    secrets: inherit
-
   auto-merge-dependabot-update:
     name: Auto Merge Dependabot Update
     needs: [postdeploy-validations]
