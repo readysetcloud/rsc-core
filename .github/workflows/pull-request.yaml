@@ -48,7 +48,7 @@ jobs:
 
   auto-merge-dependabot-update:
     name: Auto Merge Dependabot Update
-    needs: [postdeploy-validations]
+    needs: [deploy]
     if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
