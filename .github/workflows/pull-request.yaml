@@ -44,7 +44,7 @@ jobs:
           --stack-name rsc-core \
           --resolve-s3 \
           --no-fail-on-empty-changeset \
-          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }}
+          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }}
 
   auto-merge-dependabot-update:
     name: Auto Merge Dependabot Update

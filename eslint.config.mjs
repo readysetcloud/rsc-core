@@ -8,7 +8,8 @@ export default [
       sourceType: 'module',
       globals: {
         process: 'readonly',
-        console: 'readonly'
+        console: 'readonly',
+        fetch: 'readonly'
       }
     }
   },
