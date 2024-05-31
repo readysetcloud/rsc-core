@@ -38,6 +38,6 @@ The configured deployment parameters above will be accessible by using the follo
 * BucketName - `{{resolve:ssm:/readysetcloud/assets-bucket}}`
 * AmplifyAppId - `{{resolve:ssm:/readysetcloud/amplify-app-id}}`
 * DefaultCacheName - `{{resolve:ssm:/readysetcloud/cache-name}}`
-* Secrets - `{{resolve::ssm:/readysetcloud/secrets}}`
-* Sending an HTTP API Request - `{{resolve::ssm/readysetcloud/send-api-request}}`
-* Querying OpenAI - `{{resolve::ssm/readysetcloud/ask-openai}}`
+* Secrets - `{{resolve:ssm:/readysetcloud/secrets}}`
+* Sending an HTTP API Request - `{{resolve:ssm:/readysetcloud/send-api-request}}`
+* Querying OpenAI - `{{resolve:ssm:/readysetcloud/ask-openai}}`
