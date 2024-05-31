@@ -7,7 +7,7 @@ let octokit;
 const amplify = new AmplifyClient();
 const eventBridge = new EventBridgeClient();
 
-export const handler = async (event) => {
+export const handler = async () => {
   await setupOctokit();
 
   const response = await amplify.send(new ListJobsCommand({
