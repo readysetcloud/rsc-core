@@ -55,7 +55,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-      steps:
+    steps:
       - uses: actions/checkout@v4
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
