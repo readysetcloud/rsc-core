@@ -24,12 +24,18 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
-    steps:
-      - name: Call reusable deploy workflow
-        uses: ./.github/workflows/sam.yaml
-        with:
-          aws-access-key-id: ${{ secrets.STAGE_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.STAGE_SECRET_KEY }}
+    uses: ./.github/workflows/sam.yaml
+    with:
+      aws-access-key-id: ${{ secrets.STAGE_ACCESS_KEY }}
+      aws-secret-access-key: ${{ secrets.STAGE_SECRET_KEY }}
+      update-github-source-code: false
+      cache-name: readysetcloud-stage
+      bucket-name: readysetcloud-stage
+      amplify-app-id: ${{ secrets.STAGE_AMPLIFY_APP_ID }}
+      sendgrid-api-key: ${{ secrets.SENDGRID }}
+      openai-api-key: ${{ secrets.OPENAI }}
+      momento-api-key: ${{ secrets.MOMENTO }}
+      github-pat: ${{ secrets.GITHUB }}
 
   deploy-dependabot:
     name: Deploy Dependabot Updates
@@ -38,12 +44,18 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-    steps:
-      - name: Call reusable deploy workflow
-        uses: ./.github/workflows/sam.yaml
-        with:
-          aws-access-key-id: ${{ secrets.DEPENDABOT_STAGE_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.DEPENDABOT_STAGE_SECRET_KEY }}
+    uses: ./.github/workflows/sam.yaml
+    with:
+      aws-access-key-id: ${{ secrets.DEPENDABOT_STAGE_ACCESS_KEY }}
+      aws-secret-access-key: ${{ secrets.DEPENDABOT_STAGE_SECRET_KEY }}
+      update-github-source-code: false
+      cache-name: readysetcloud-stage
+      bucket-name: readysetcloud-stage
+      amplify-app-id: ${{ secrets.STAGE_AMPLIFY_APP_ID }}
+      sendgrid-api-key: ${{ secrets.SENDGRID }}
+      openai-api-key: ${{ secrets.OPENAI }}
+      momento-api-key: ${{ secrets.MOMENTO }}
+      github-pat: ${{ secrets.GITHUB
 
   auto-merge-dependabot-update:
     name: Auto Merge Dependabot Update

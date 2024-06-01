@@ -9,6 +9,30 @@ on:
       aws-secret-access-key:
         required: true
         type: string
+      update-github-source-code:
+        required: true
+        type: boolean
+      cache-name:
+        required: true
+        type: string
+      bucket-name:
+        required: true
+        type: string
+      amplify-app-id:
+        required: true
+        type: string
+      sendgrid-api-key:
+        required: true
+        type: string
+      github-pat:
+        required: true
+        type: string
+      openai-api-key:
+        required: true
+        type: string
+      momento-api-key:
+        required: true
+        type: string
 
 jobs:
   deploy:
@@ -35,4 +59,4 @@ jobs:
           --resolve-s3 \
           --no-fail-on-empty-changeset \
           --capabilities CAPABILITY_IAM \
-          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }}
+          --parameter-overrides UpdateGitHubSourceCode=${{ inputs.update-github-source-code }} CacheName=${{ inputs.cache-name }} BucketName=${{ inputs.bucket-name }} AmplifyAppId=${{ inputs.amplify-app-id }} SendgridApiKey=${{ inputs.sendgrid-api-key }} GitHubPAT=${{ inputs.github-pat }} MomentoApiKey=${{ inputs.momento-api-key }} OpenAIApiKey=${{ inputs.openai-api-key }}
