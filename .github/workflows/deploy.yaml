@@ -34,3 +34,4 @@ jobs:
       openai-api-key: ${{ secrets.OPENAI }}
       momento-api-key: ${{ secrets.MOMENTO }}
       github-pat: ${{ secrets.GITHUB }}
+    secrets: inherit

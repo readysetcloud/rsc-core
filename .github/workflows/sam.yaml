@@ -33,8 +33,7 @@ on:
       momento-api-key:
         required: true
         type: string
-    secrets:
-      inherit: true
+    secrets: inherit
 
 jobs:
   deploy:
