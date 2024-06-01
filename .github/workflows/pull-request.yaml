@@ -22,7 +22,6 @@ jobs:
 
   deploy:
     name: Deploy
-    runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
     uses: ./.github/workflows/sam.yaml
     with:
@@ -40,7 +39,6 @@ jobs:
   deploy-dependabot:
     name: Deploy Dependabot Updates
     if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: write

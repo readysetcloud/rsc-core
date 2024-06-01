@@ -21,7 +21,6 @@ jobs:
 
   deploy:
     name: Deploy
-    runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
     uses: ./.github/workflows/sam.yaml
     with:
