@@ -59,7 +59,7 @@ Globals:
       - arm64
     Tracing: Active
     Timeout: 3
-    MemorySize: 1024
+    MemorySize: 1280
     Environment:
       Variables:
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
