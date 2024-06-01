@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Core resources and components for Ready, Set, Cloud
+  Core resources, components, and configuration for Ready, Set, Cloud!
 
 Parameters:
   GitHubOwner:
@@ -19,13 +19,22 @@ Parameters:
     Default: allenheltondev@gmail.com
   BucketName:
     Type: String
-    Default: readysetcloud
   AmplifyAppId:
     Type: String
-    Default: d31uo0a8ezw8ek
   DefaultCacheName:
     Type: String
-    Default: readysetcloud
+  SendgridApiKey:
+    Type: String
+    NoEcho: true
+  GitHubPAT:
+    Type: String
+    NoEcho: true
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+  MomentoApiKey:
+    Type: String
+    NoEcho: true
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -51,7 +60,6 @@ Globals:
     Tracing: Active
     Timeout: 3
     MemorySize: 1024
-    Handler: index.handler
     Environment:
       Variables:
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
@@ -104,7 +112,7 @@ Resources:
               Resource: !Sub arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/master/jobs/*
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
-              Resource: "{{resolve:ssm:/serverless-toolbox/secrets}}"
+              Resource: !Ref Secrets
             - Effect: Allow
               Action: events:PutEvents
               Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
@@ -113,7 +121,7 @@ Resources:
           APP_ID: !Ref AmplifyAppId
           OWNER: !Ref GitHubOwner
           REPO: !Ref GitHubRepo
-          SECRET_ID: "{{resolve:ssm:/serverless-toolbox/secrets}}"
+          SECRET_ID: !Ref Secrets
       Events:
         AmplifyBuildFailed:
           Type: EventBridgeRule
@@ -128,6 +136,121 @@ Resources:
                   - !Ref AmplifyAppId
                 jobStatus:
                   - FAILED
+
+  AskOpenAIFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - ask-openai.mjs
+    Properties:
+      Handler: ask-openai.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref Secrets
+      Environment:
+        Variables:
+          SECRET_ID: !Ref Secrets
+          CACHE_NAME: !Ref DefaultCacheName
+          CACHE_TTL: 3600
+
+  AskOpenAIParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/ask-openai
+      Type: String
+      Value: !GetAtt AskOpenAIFunction.Arn
+      Description: Arn for the Ask ChatGPT Lambda function
+
+  SendApiRequestFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-api-request.mjs
+    Properties:
+      Handler: send-api-request.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref Secrets
+      Environment:
+        Variables:
+          SECRET_ID: !Ref Secrets
+
+  SendApiRequestParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/send-api-request
+      Type: String
+      Value: !GetAtt SendApiRequestFunction.Arn
+      Description: Arn for the Send API Request Lambda function
+
+  SendEmailFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-email.mjs
+    Properties:
+      Handler: send-email.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref Secrets
+      Environment:
+        Variables:
+          SECRET_ID: !Ref Secrets
+          FROM_EMAIL: !Ref AdminEmail
+      Events:
+        SendMailEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Send Email
+
+  Secrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      SecretString:
+        Fn::Sub:
+          - |-
+            {
+              "momento": "${MomentoApiKey}",
+              "github": "${GitHubPAT}",
+              "sendgrid":"${SendgridApiKey}",
+              "openai": "${OpenAIApiKey}"
+            }
+          - GitHubPAT: !Ref GitHubPAT
+            SendgridApiKey: !Ref SendgridApiKey
+            MomentoApiKey: !Ref MomentoApiKey
+            OpenAIApiKey: !Ref OpenAIApiKey
+
+  SecretsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/secrets
+      Type: String
+      Value: !Ref Secrets
+      Description: Arn for the Secrets Manager Secret for API Keys
 
   GitHubOwnerParameter:
     Type: AWS::SSM::Parameter
