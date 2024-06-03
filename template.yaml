@@ -265,7 +265,7 @@ Resources:
     Properties:
       Name: /readysetcloud/github-repo
       Type: String
-      Value: !Ref AmplifyAppId
+      Value: !Ref GitHubRepo
       Description: Repository name of the Ready, Set, Cloud GitHub repository
 
   UpdateGitHubSourceCodeParameter:
