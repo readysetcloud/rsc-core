@@ -11,9 +11,11 @@ export const handler = async (event) => {
 };
 
 const handleRecord = async (record) => {
+  // eslint-disable-next-line no-unused-vars
+  const { pk, sk, ...tenant } = unmarshall(record.dynamodb.NewImage);
+
   switch (record.eventName) {
     case 'MODIFY':
-      const { pk, sk, ...tenant } = unmarshall(record.dynamodb.NewImage);
       await eventBridge.send(new PutEventsCommand({
         Entries: [
           {
