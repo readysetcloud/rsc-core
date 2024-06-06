@@ -35,6 +35,12 @@ Parameters:
   MomentoApiKey:
     Type: String
     NoEcho: true
+  RootDomainName:
+    Type: String
+    Default: ''
+  HostedZoneId:
+    Type: String
+    Default: ''
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -51,6 +57,10 @@ Metadata:
     External:
       - '@aws-sdk/*'
 
+Conditions:
+  DeployCustomDomainSupport:
+    !Not [!Equals [!Ref RootDomainName, '']]
+
 Globals:
   Function:
     Runtime: nodejs20.x
@@ -65,6 +75,98 @@ Globals:
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
 
 Resources:
+  RSCCoreTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  TableStreamFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - ddb-stream-handler.mjs
+    Properties:
+      Handler: ddb-stream-handler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+            - Effect: Allow
+              Action:
+                - dynamodb:DescribeStream
+                - dynamodb:GetRecords
+                - dynamodb:GetShardIterator
+                - dynamodb:ListStreams
+              Resource: !Sub ${RSCCoreTable.Arn}/stream/*
+
+  TableStream:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt RSCCoreTable.StreamArn
+      FunctionName: !GetAtt TableStreamFunction.Arn
+      StartingPosition: TRIM_HORIZON
+      MaximumBatchingWindowInSeconds: 60
+      BatchSize: 20
+      FilterCriteria:
+        Filters:
+          - Pattern: '{ "dynamodb" : { "Keys" : { "sk" : { "S" : [ "tenant" ] } } } }'
+
+  AddTenantPostConfirmationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - add-tenant-post-confirmation.mjs
+    Properties:
+      Handler: add-tenant-post-confirmation.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt RSCCoreTable.Arn
+
+  UpdateTenantFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - update-tenant.mjs
+    Properties:
+      Handler: update-tenant.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dyanodb:GetItem
+              Resource: !GetAtt RSCCoreTable.Arn
+
   TriggerAmplifyBuildFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -307,3 +409,118 @@ Resources:
       Type: String
       Value: !Ref DefaultCacheName
       Description: Name of the Momento cache to use by default
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: RSCUserPool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  FreeMembershipGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: Free membership. Default group for new users
+      GroupName: rsc-free
+      UserPoolId: !Ref CognitoUserPool
+      Precedence: 10
+
+  ProMembershipGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: Pro membership
+      GroupName: rsc-pro
+      UserPoolId: !Ref CognitoUserPool
+      Precedence: 5
+
+  AuthCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub authenticate.${RootDomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub authenticate.${RootDomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Condition: DeployCustomDomainSupport
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      Domain: !Sub authenticate.${RootDomainName}
+      CustomDomainConfig:
+        CertificateArn: !Ref AuthCertificate
+
+  CustomDomainDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: DeployCustomDomainSupport
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub authenticate.${RootDomainName}
+      ResourceRecords:
+        - !GetAtt CognitoUserPoolDomain.CloudFrontDistribution
+      TTL: 300
+      Type: CNAME
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: RSCUserPoolClient
+      UserPoolId: !Ref CognitoUserPool
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - http://localhost:3000
+        - http://localhost:3000/oauth2/idpresponse
+      LogoutURLs:
+        - http://localhost:3000/logout
+      AllowedOAuthFlowsUserPoolClient: true
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  CognitoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: RSCIdentityPool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref CognitoUserPoolClient
+          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: 'Allow'
+          Principal:
+            Federated: 'cognito-identity.amazonaws.com'
+          Action: 'sts:AssumeRoleWithWebIdentity'
+          Condition:
+            StringEquals:
+              'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPool
+            'ForAnyValue:StringLike':
+              'cognito-identity.amazonaws.com:amr': authenticated
+
+  CognitoIdentityPoolRoles:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref CognitoIdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
