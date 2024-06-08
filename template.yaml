@@ -146,6 +146,9 @@ Resources:
             - Effect: Allow
               Action: dynamodb:PutItem
               Resource: !GetAtt RSCCoreTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref RSCCoreTable
 
   UpdateTenantFunction:
     Type: AWS::Serverless::Function
@@ -166,6 +169,10 @@ Resources:
                 - dynamodb:PutItem
                 - dyanodb:GetItem
               Resource: !GetAtt RSCCoreTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref RSCCoreTable
+
 
   TriggerAmplifyBuildFunction:
     Type: AWS::Serverless::Function
