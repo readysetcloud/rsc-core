@@ -35,7 +35,7 @@ export const handler = async (event) => {
       body: JSON.stringify({ message: 'Name is required.' })
     };
   } else if (!data.tenantId) {
-    data.tenantId = data.name.replace(/[^A-Za-z0-9]+/g).toLowerCase();
+    data.tenantId = data.name.replace(/[^A-Za-z0-9]+/g, '').toLowerCase();
     data.apiKeyParameter = `/rsc/${data.tenantId}`;
     await ssm.send(new PutParameterCommand({
       Name: `/rsc/${data.tenantId}`,
