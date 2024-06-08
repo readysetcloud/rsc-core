@@ -7,7 +7,6 @@ const ssm = new SSMClient();
 
 export const handler = async (event) => {
   const { sub } = event.requestContext.authorizer.claims;
-  console.log(sub);
   const result = await ddb.send(new GetItemCommand({
     TableName: process.env.TABLE_NAME,
     Key: marshall({
@@ -51,10 +50,10 @@ export const handler = async (event) => {
       Overwrite: true
     }));
   }
-  console.log(data);
+  delete data.apiKeys;
   await ddb.send(new PutItemCommand({
     TableName: process.env.TABLE_NAME,
-    Item: marshall({ data })
+    Item: marshall(data)
   }));
   return { statusCode: 204 };
 };
