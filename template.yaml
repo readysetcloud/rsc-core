@@ -167,7 +167,7 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:PutItem
-                - dyanodb:GetItem
+                - dynamodb:GetItem
               Resource: !GetAtt RSCCoreTable.Arn
       Environment:
         Variables:
