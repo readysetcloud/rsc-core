@@ -37,7 +37,7 @@ export const handler = async (event) => {
     data.tenantId = data.name.replace(/[^A-Za-z0-9]+/g).toLowerCase();
     data.apiKeyParameter = `/rsc/${data.tenantId}`;
     await ssm.send(new PutParameterCommand({
-      Name: `/rsc/${data.id}`,
+      Name: `/rsc/${data.tenantId}`,
       Value: data.apiKeys ? JSON.stringify(data.apiKeys) : '{}',
       Type: 'SecureString',
       Overwrite: true
