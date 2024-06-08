@@ -167,8 +167,11 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:PutItem
-                - dyanodb:GetItem
+                - dynamodb:GetItem
               Resource: !GetAtt RSCCoreTable.Arn
+            - Effect: Allow
+              Action: ssm:PutParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/rsc/*
       Environment:
         Variables:
           TABLE_NAME: !Ref RSCCoreTable

@@ -34,10 +34,10 @@ export const handler = async (event) => {
       body: JSON.stringify({ message: 'Name is required.' })
     };
   } else if (!data.tenantId) {
-    data.tenantId = data.name.replace(/[^A-Za-z0-9]+/g).toLowerCase();
+    data.tenantId = data.name.replace(/[^A-Za-z0-9]+/g, '').toLowerCase();
     data.apiKeyParameter = `/rsc/${data.tenantId}`;
     await ssm.send(new PutParameterCommand({
-      Name: `/rsc/${data.id}`,
+      Name: `/rsc/${data.tenantId}`,
       Value: data.apiKeys ? JSON.stringify(data.apiKeys) : '{}',
       Type: 'SecureString',
       Overwrite: true
@@ -50,10 +50,10 @@ export const handler = async (event) => {
       Overwrite: true
     }));
   }
-
+  delete data.apiKeys;
   await ddb.send(new PutItemCommand({
     TableName: process.env.TABLE_NAME,
-    Item: marshall({ tenant })
+    Item: marshall(data)
   }));
   return { statusCode: 204 };
 };
