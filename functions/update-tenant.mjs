@@ -51,10 +51,10 @@ export const handler = async (event) => {
       Overwrite: true
     }));
   }
-  console.log(tenant);
+  console.log(data);
   await ddb.send(new PutItemCommand({
     TableName: process.env.TABLE_NAME,
-    Item: marshall({ tenant })
+    Item: marshall({ data })
   }));
   return { statusCode: 204 };
 };
