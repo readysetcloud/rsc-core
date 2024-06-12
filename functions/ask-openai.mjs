@@ -66,11 +66,25 @@ export const handler = async (state) => {
     let response = message.content;
     if (state.schema) {
       try {
-        response = JSON.parse(message.function_call.arguments);
-        return { response };
+        if (message.function_call) {
+          console.log('returning function_call result');
+          response = JSON.parse(message.function_call.arguments);
+        } else if (typeof response === 'object') {
+          console.log('value returned was the request object');
+        } else if (response.includes('```json')) {
+          console.log('parsing text response');
+          console.log(response);
+          const jsonRegex = /```json\s*([^]*?)\s*```/g;
+          response = JSON.parse(response.matchAll(jsonRegex)[1].trim());
+        } else {
+          console.log('response was string version of object');
+          response = JSON.parse(response);
+        }
       } catch (err) {
         throwCustomError('ResponseFormatError', err.message);
       }
+
+      return { response };
     }
 
     if (state.trim) {
