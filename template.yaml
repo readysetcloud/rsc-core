@@ -259,6 +259,7 @@ Resources:
           - ask-openai.mjs
     Properties:
       Handler: ask-openai.handler
+      Timeout: 180
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
