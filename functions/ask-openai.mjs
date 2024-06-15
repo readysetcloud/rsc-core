@@ -6,7 +6,7 @@ let cacheClient;
 let topicClient;
 let openai;
 
-const JSON_MODE_MODELS = ['gpt-4-1106-preview', 'gpt-4-vision-preview', 'gpt-4-turbo'];
+const JSON_MODE_MODELS = ['gpt-4-1106-preview', 'gpt-4-vision-preview', 'gpt-4-turbo', 'gpt-4o'];
 
 export const handler = async (state) => {
   let messages = [];
