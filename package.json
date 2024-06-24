@@ -20,7 +20,7 @@
     "@aws-sdk/client-amplify": "^3.600.0",
     "@aws-sdk/client-dynamodb": "^3.602.0",
     "@aws-sdk/client-eventbridge": "^3.600.0",
-    "@aws-sdk/client-ssm": "^3.600.0",
+    "@aws-sdk/client-ssm": "^3.603.0",
     "@aws-sdk/util-dynamodb": "^3.602.0",
     "@eslint/js": "^9.5.0",
     "eslint": "^9.5.0",
