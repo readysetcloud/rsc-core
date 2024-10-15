@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/readysetcloud/rsc-core#readme",
   "devDependencies": {
-    "@aws-sdk/client-amplify": "^3.670.0",
+    "@aws-sdk/client-amplify": "^3.672.0",
     "@aws-sdk/client-dynamodb": "^3.670.0",
     "@aws-sdk/client-eventbridge": "^3.670.0",
     "@aws-sdk/client-ssm": "^3.670.0",
