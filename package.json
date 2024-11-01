@@ -19,11 +19,11 @@
   "devDependencies": {
     "@aws-sdk/client-amplify": "^3.682.0",
     "@aws-sdk/client-dynamodb": "^3.682.0",
-    "@aws-sdk/client-eventbridge": "^3.682.0",
+    "@aws-sdk/client-eventbridge": "^3.685.0",
     "@aws-sdk/client-ssm": "^3.682.0",
-    "@aws-sdk/util-dynamodb": "^3.682.0",
-    "@eslint/js": "^9.13.0",
-    "eslint": "^9.13.0",
+    "@aws-sdk/util-dynamodb": "^3.685.0",
+    "@eslint/js": "^9.14.0",
+    "eslint": "^9.14.0",
     "eslint-config-google": "^0.14.0",
     "globals": "^15.11.0"
   },
@@ -32,6 +32,6 @@
     "@gomomento/sdk": "^1.99.1",
     "@sendgrid/mail": "^8.1.4",
     "octokit": "^4.0.2",
-    "openai": "^4.69.0"
+    "openai": "^4.70.2"
   }
 }
