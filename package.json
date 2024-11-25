@@ -32,6 +32,6 @@
     "@gomomento/sdk": "^1.101.2",
     "@sendgrid/mail": "^8.1.4",
     "octokit": "^4.0.2",
-    "openai": "^4.73.0"
+    "openai": "^4.73.1"
   }
 }
