@@ -31,7 +31,7 @@
     "@aws-lambda-powertools/parameters": "^2.12.0",
     "@gomomento/sdk": "^1.103.0",
     "@sendgrid/mail": "^8.1.4",
-    "octokit": "^4.0.3",
-    "openai": "^4.77.3"
+    "octokit": "^4.1.0",
+    "openai": "^4.77.4"
   }
 }
