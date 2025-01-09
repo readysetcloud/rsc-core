@@ -17,11 +17,11 @@
   },
   "homepage": "https://github.com/readysetcloud/rsc-core#readme",
   "devDependencies": {
-    "@aws-sdk/client-amplify": "^3.723.0",
-    "@aws-sdk/client-dynamodb": "^3.724.0",
-    "@aws-sdk/client-eventbridge": "^3.723.0",
-    "@aws-sdk/client-ssm": "^3.723.0",
-    "@aws-sdk/util-dynamodb": "^3.724.0",
+    "@aws-sdk/client-amplify": "^3.726.0",
+    "@aws-sdk/client-dynamodb": "^3.726.0",
+    "@aws-sdk/client-eventbridge": "^3.726.0",
+    "@aws-sdk/client-ssm": "^3.726.0",
+    "@aws-sdk/util-dynamodb": "^3.726.0",
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
     "eslint-config-google": "^0.14.0",
@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "@aws-lambda-powertools/parameters": "^2.12.0",
-    "@gomomento/sdk": "^1.103.0",
+    "@gomomento/sdk": "^1.103.1",
     "@sendgrid/mail": "^8.1.4",
     "octokit": "^4.1.0",
-    "openai": "^4.77.4"
+    "openai": "^4.78.0"
   }
 }
