@@ -28,7 +28,7 @@
     "globals": "^15.14.0"
   },
   "dependencies": {
-    "@aws-lambda-powertools/parameters": "^2.13.0",
+    "@aws-lambda-powertools/parameters": "^2.13.1",
     "@gomomento/sdk": "^1.106.0",
     "@sendgrid/mail": "^8.1.4",
     "octokit": "^4.1.0",
