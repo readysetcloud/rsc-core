@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "@aws-lambda-powertools/parameters": "^2.13.1",
-    "@gomomento/sdk": "^1.106.0",
+    "@gomomento/sdk": "^1.107.0",
     "@sendgrid/mail": "^8.1.4",
     "octokit": "^4.1.0",
-    "openai": "^4.82.0"
+    "openai": "^4.83.0"
   }
 }
