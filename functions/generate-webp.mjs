@@ -45,11 +45,11 @@ const handleKey = async (bucketName, key) => {
     await putWebpObject(bucketName, webpKey, webpBody);
   }
 
-  if (!metadata?.width) {
+  const maxWidth = 1440;
+  const widthTargets = targetWidths.filter((width) => width <= maxWidth);
+  if (!widthTargets.length) {
     return;
   }
-
-  const widthTargets = targetWidths.filter((width) => width <= metadata.width);
   await Promise.allSettled(widthTargets.map(async (width) => {
     const sizedKey = toSizedWebpKey(key, width);
     const sizedExists = await objectExists(bucketName, sizedKey);
