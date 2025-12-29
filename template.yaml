@@ -56,6 +56,7 @@ Metadata:
       - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
     External:
       - '@aws-sdk/*'
+      - sharp
 
 Conditions:
   DeployCustomDomainSupport:
@@ -63,7 +64,7 @@ Conditions:
 
 Globals:
   Function:
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
     CodeUri: functions
     Architectures:
       - arm64
@@ -128,6 +129,19 @@ Resources:
       FilterCriteria:
         Filters:
           - Pattern: '{ "dynamodb" : { "Keys" : { "sk" : { "S" : [ "tenant" ] } } } }'
+
+  SharpLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: sharp-layer
+      Description: Sharp library for image processing
+      ContentUri: layers/sharp.zip
+      CompatibleArchitectures:
+        - arm64
+      CompatibleRuntimes:
+        - nodejs24.x
+        - nodejs22.x
+        - nodejs20.x
 
   AddTenantPostConfirmationFunction:
     Type: AWS::Serverless::Function
@@ -340,6 +354,51 @@ Resources:
               detail-type:
                 - Send Email
 
+  GenerateWebpFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - generate-webp.mjs
+    Properties:
+      Handler: generate-webp.handler
+      Timeout: 30
+      MemorySize: 2048
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:PutObjectAcl
+              Resource: !Sub arn:${AWS::Partition}:s3:::${BucketName}/*
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub arn:${AWS::Partition}:s3:::${BucketName}
+      Layers:
+        - !Ref SharpLayer
+      Events:
+        AssetsObjectCreated:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.s3
+              detail-type:
+                - Object Created
+              detail:
+                bucket:
+                  name:
+                    - !Ref BucketName
+                object:
+                  key:
+                    - anything-but:
+                        suffix: ".webp"
+
   Secrets:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -487,7 +546,9 @@ Resources:
           CookiesConfig:
             CookieBehavior: none
           HeadersConfig:
-            HeaderBehavior: none
+            HeaderBehavior: whitelist
+            Headers:
+              - Accept
           QueryStringsConfig:
             QueryStringBehavior: none
 
