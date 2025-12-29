@@ -26,9 +26,8 @@ const handleKey = async (bucketName, key) => {
     return;
   }
 
-  let metadata;
   try {
-    metadata = await sharp(body).metadata();
+    await sharp(body).metadata();
   } catch (err) {
     console.warn('Skipping non-image object', { key, err });
     return;
