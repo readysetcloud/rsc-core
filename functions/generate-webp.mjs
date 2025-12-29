@@ -30,7 +30,7 @@ const handleKey = async (bucketName, key) => {
   try {
     metadata = await sharp(body).metadata();
   } catch (err) {
-    console.warn('Skipping non-image object', { key });
+    console.warn('Skipping non-image object', { key, err });
     return;
   }
 
