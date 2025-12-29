@@ -552,6 +552,37 @@ Resources:
           QueryStringsConfig:
             QueryStringBehavior: none
 
+  AssetsWebpRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub assets-webp-rewrite-${AWS::StackName}
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Rewrite image requests to WebP when supported.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var headers = request.headers || {};
+          var accept = headers.accept ? headers.accept.value : '';
+          if (accept.indexOf('image/webp') === -1) {
+            return request;
+          }
+
+          var uri = request.uri || '';
+          if (uri.endsWith('.webp')) {
+            return request;
+          }
+
+          var pattern = /\.(jpe?g|png|gif|tiff|bmp)$/i;
+          if (!pattern.test(uri)) {
+            return request;
+          }
+
+          request.uri = uri.replace(pattern, '.webp');
+          return request;
+        }
+
   AssetsDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -577,6 +608,9 @@ Resources:
             - HEAD
           Compress: true
           CachePolicyId: !Ref AssetsCachePolicy
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt AssetsWebpRewriteFunction.FunctionARN
         PriceClass: PriceClass_100
         ViewerCertificate: !If
           - DeployCustomDomainSupport
