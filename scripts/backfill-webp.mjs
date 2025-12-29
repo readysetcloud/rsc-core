@@ -17,13 +17,17 @@ const credentials = profile ? fromIni({ profile }) : undefined;
 const s3 = new S3Client(credentials ? { credentials } : {});
 const lambda = new LambdaClient(credentials ? { credentials } : {});
 
-await listAndInvoke({
-  bucket: args.bucket,
-  functionName: args.functionName,
-  prefix,
-  concurrency,
-  dryRun
-});
+await main();
+
+async function main() {
+  await listAndInvoke({
+    bucket: args.bucket,
+    functionName: args.functionName,
+    prefix,
+    concurrency,
+    dryRun
+  });
+}
 
 async function listAndInvoke({ bucket, functionName, prefix, concurrency, dryRun }) {
   let continuationToken;

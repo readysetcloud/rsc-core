@@ -4,13 +4,14 @@ export default [
   {
     files: ['**/*.mjs'],
     languageOptions: {
-      ecmaVersion: 2021,
+      ecmaVersion: 2022,
       sourceType: 'module',
       globals: {
         process: 'readonly',
         console: 'readonly',
         fetch: 'readonly',
-        Buffer: 'readonly'
+        Buffer: 'readonly',
+        TextEncoder: 'readonly'
       }
     }
   },
