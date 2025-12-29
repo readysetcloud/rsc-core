@@ -463,6 +463,78 @@ Resources:
         - DomainName: !Sub authenticate.${RootDomainName}
           HostedZoneId: !Ref HostedZoneId
 
+  AssetsCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub assets.${RootDomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub assets.${RootDomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  AssetsCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub assets-cache-${AWS::StackName}
+        DefaultTTL: 86400
+        MaxTTL: 31536000
+        MinTTL: 3600
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  AssetsDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub Assets distribution for ${RootDomainName}
+        Aliases: !If
+          - DeployCustomDomainSupport
+          - - !Sub assets.${RootDomainName}
+          - !Ref AWS::NoValue
+        Origins:
+          - Id: AssetsS3Origin
+            DomainName: !Sub ${BucketName}.s3.${AWS::Region}.amazonaws.com
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: AssetsS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: !Ref AssetsCachePolicy
+        PriceClass: PriceClass_100
+        ViewerCertificate: !If
+          - DeployCustomDomainSupport
+          - AcmCertificateArn: !Ref AssetsCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+  AssetsDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: DeployCustomDomainSupport
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub assets.${RootDomainName}
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt AssetsDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Condition: DeployCustomDomainSupport
