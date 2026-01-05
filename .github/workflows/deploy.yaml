@@ -43,5 +43,5 @@ jobs:
           --stack-name rsc-core \
           --resolve-s3 \
           --no-fail-on-empty-changeset \
-          --capabilities CAPABILITY_IAM \
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
           --parameter-overrides UpdateGitHubSourceCode=true DefaultCacheName=readysetcloud BucketName=readysetcloud AmplifyAppId=${{ secrets.PROD_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }} RootDomainName=readysetcloud.io HostedZoneId=${{ secrets.HOSTED_ZONE_ID }}
