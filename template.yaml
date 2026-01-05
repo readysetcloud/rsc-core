@@ -537,13 +537,13 @@ Resources:
       Roles:
         authenticated: !GetAtt CognitoAuthenticatedRole.Arn
 
-  ImageResizing:
-    Type: AWS::Serverless::Application
-    Properties:
-      Location:
-        ApplicationId: arn:aws:serverlessrepo:us-east-1:745159065988:applications/image-optimizer-for-blogs
-        SemanticVersion: 1.0.0
-      Parameters:
-        RootDomainName: !Ref RootDomainName
-        HostedZoneId: !Ref HostedZoneId
-        S3BucketName: !Ref BucketName
+  # ImageResizing:
+  #   Type: AWS::Serverless::Application
+  #   Properties:
+  #     Location:
+  #       ApplicationId: arn:aws:serverlessrepo:us-east-1:745159065988:applications/image-optimizer-for-blogs
+  #       SemanticVersion: 1.0.0
+  #     Parameters:
+  #       RootDomainName: !Ref RootDomainName
+  #       HostedZoneId: !Ref HostedZoneId
+  #       S3BucketName: !Ref BucketName
