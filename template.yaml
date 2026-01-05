@@ -130,19 +130,6 @@ Resources:
         Filters:
           - Pattern: '{ "dynamodb" : { "Keys" : { "sk" : { "S" : [ "tenant" ] } } } }'
 
-  SharpLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: sharp-layer
-      Description: Sharp library for image processing
-      ContentUri: layers/sharp.zip
-      CompatibleArchitectures:
-        - arm64
-      CompatibleRuntimes:
-        - nodejs24.x
-        - nodejs22.x
-        - nodejs20.x
-
   AddTenantPostConfirmationFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -354,51 +341,6 @@ Resources:
               detail-type:
                 - Send Email
 
-  GenerateWebpFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        <<: *esbuild-properties
-        EntryPoints:
-          - generate-webp.mjs
-    Properties:
-      Handler: generate-webp.handler
-      Timeout: 30
-      MemorySize: 2048
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:PutObject
-                - s3:PutObjectAcl
-              Resource: !Sub arn:${AWS::Partition}:s3:::${BucketName}/*
-            - Effect: Allow
-              Action: s3:ListBucket
-              Resource: !Sub arn:${AWS::Partition}:s3:::${BucketName}
-      Layers:
-        - !Ref SharpLayer
-      Events:
-        AssetsObjectCreated:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              source:
-                - aws.s3
-              detail-type:
-                - Object Created
-              detail:
-                bucket:
-                  name:
-                    - !Ref BucketName
-                object:
-                  key:
-                    - anything-but:
-                        suffix: ".webp"
-
   Secrets:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -522,114 +464,6 @@ Resources:
         - DomainName: !Sub authenticate.${RootDomainName}
           HostedZoneId: !Ref HostedZoneId
 
-  AssetsCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Condition: DeployCustomDomainSupport
-    Properties:
-      DomainName: !Sub assets.${RootDomainName}
-      ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Sub assets.${RootDomainName}
-          HostedZoneId: !Ref HostedZoneId
-
-  AssetsCachePolicy:
-    Type: AWS::CloudFront::CachePolicy
-    Properties:
-      CachePolicyConfig:
-        Name: !Sub assets-cache-${AWS::StackName}
-        DefaultTTL: 86400
-        MaxTTL: 31536000
-        MinTTL: 3600
-        ParametersInCacheKeyAndForwardedToOrigin:
-          EnableAcceptEncodingBrotli: true
-          EnableAcceptEncodingGzip: true
-          CookiesConfig:
-            CookieBehavior: none
-          HeadersConfig:
-            HeaderBehavior: whitelist
-            Headers:
-              - Accept
-          QueryStringsConfig:
-            QueryStringBehavior: none
-
-  AssetsWebpRewriteFunction:
-    Type: AWS::CloudFront::Function
-    Properties:
-      Name: !Sub assets-webp-rewrite-${AWS::StackName}
-      AutoPublish: true
-      FunctionConfig:
-        Comment: Rewrite image requests to WebP when supported.
-        Runtime: cloudfront-js-2.0
-      FunctionCode: |
-        function handler(event) {
-          var request = event.request;
-          var headers = request.headers || {};
-          var accept = headers.accept ? headers.accept.value : '';
-          if (accept.indexOf('image/webp') === -1) {
-            return request;
-          }
-
-          var uri = request.uri || '';
-          if (uri.endsWith('.webp')) {
-            return request;
-          }
-
-          var pattern = /\.(jpe?g|png|gif|tiff|bmp)$/i;
-          if (!pattern.test(uri)) {
-            return request;
-          }
-
-          request.uri = uri.replace(pattern, '.webp');
-          return request;
-        }
-
-  AssetsDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        Comment: !Sub Assets distribution for ${RootDomainName}
-        Aliases: !If
-          - DeployCustomDomainSupport
-          - - !Sub assets.${RootDomainName}
-          - !Ref AWS::NoValue
-        Origins:
-          - Id: AssetsS3Origin
-            DomainName: !Sub ${BucketName}.s3.${AWS::Region}.amazonaws.com
-            S3OriginConfig: {}
-        DefaultCacheBehavior:
-          TargetOriginId: AssetsS3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-          CachedMethods:
-            - GET
-            - HEAD
-          Compress: true
-          CachePolicyId: !Ref AssetsCachePolicy
-          FunctionAssociations:
-            - EventType: viewer-request
-              FunctionARN: !GetAtt AssetsWebpRewriteFunction.FunctionARN
-        PriceClass: PriceClass_100
-        ViewerCertificate: !If
-          - DeployCustomDomainSupport
-          - AcmCertificateArn: !Ref AssetsCertificate
-            SslSupportMethod: sni-only
-            MinimumProtocolVersion: TLSv1.2_2021
-          - CloudFrontDefaultCertificate: true
-
-  AssetsDnsRecord:
-    Type: AWS::Route53::RecordSet
-    Condition: DeployCustomDomainSupport
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub assets.${RootDomainName}
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt AssetsDistribution.DomainName
-        HostedZoneId: Z2FDTNDATAQYW2
-
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Condition: DeployCustomDomainSupport
@@ -702,3 +536,14 @@ Resources:
       IdentityPoolId: !Ref CognitoIdentityPool
       Roles:
         authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+
+  ImageResizing:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location:
+        ApplicationId: arn:aws:serverlessrepo:us-east-1:745159065988:applications/image-optimizer-for-blogs
+        SemanticVersion: 1.0.0
+      Parameters:
+        RootDomainName: !Ref RootDomainName
+        HostedZoneId: !Ref HostedZoneId
+        S3BucketName: !Ref BucketName
