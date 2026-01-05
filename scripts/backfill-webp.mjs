@@ -29,7 +29,7 @@ async function main() {
   });
 }
 
-const listAndInvoke = async ({ bucket, functionName, prefix, concurrency, dryRun }) => {
+async function listAndInvoke({ bucket, functionName, prefix, concurrency, dryRun }) {
   let continuationToken;
   let processed = 0;
   const queue = [];
@@ -82,7 +82,7 @@ const listAndInvoke = async ({ bucket, functionName, prefix, concurrency, dryRun
   console.log(`done: queued ${processed} objects`);
 }
 
-const invokeLambda = async (functionName, payload, key) => {
+async function invokeLambda(functionName, payload, key) {
   try {
     await lambda.send(new InvokeCommand({
       FunctionName: functionName,
@@ -94,7 +94,7 @@ const invokeLambda = async (functionName, payload, key) => {
   }
 }
 
-const parseArgs = (argv) => {
+function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -113,7 +113,7 @@ const parseArgs = (argv) => {
   return out;
 }
 
-const normalizeArgs = (args) => {
+function normalizeArgs(args) {
   if (!args.functionName && args.function) {
     return { ...args, functionName: args.function };
   }
