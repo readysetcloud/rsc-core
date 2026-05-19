@@ -41,3 +41,6 @@ The configured deployment parameters above will be accessible by using the follo
 * Secrets - `{{resolve:ssm:/readysetcloud/secrets}}`
 * Sending an HTTP API Request - `{{resolve:ssm:/readysetcloud/send-api-request}}`
 * Querying OpenAI - `{{resolve:ssm:/readysetcloud/ask-openai}}`
+* Cognito User Pool ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-id}}`
+* Cognito User Pool ARN - `{{resolve:ssm:/readysetcloud/auth/user-pool-arn}}`
+* Cognito User Pool Client ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-client-id}}`

@@ -505,6 +505,30 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
 
+  CognitoUserPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/auth/user-pool-id
+      Type: String
+      Value: !Ref CognitoUserPool
+      Description: Cognito user pool ID for cross-service authorizer references
+
+  CognitoUserPoolArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/auth/user-pool-arn
+      Type: String
+      Value: !GetAtt CognitoUserPool.Arn
+      Description: Cognito user pool ARN for cross-service authorizer references
+
+  CognitoUserPoolClientIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/auth/user-pool-client-id
+      Type: String
+      Value: !Ref CognitoUserPoolClient
+      Description: Cognito user pool client ID for cross-service token issuance
+
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
