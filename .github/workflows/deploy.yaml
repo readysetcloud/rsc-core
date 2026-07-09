@@ -15,16 +15,39 @@ env:
   BRANCH_NAME: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.event_name == 'push' && github.ref }}
 
 jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'template.yaml'
+              - 'samconfig.toml'
+              - 'functions/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/deploy.yaml'
+            ui:
+              - 'ui/**'
+              - 'scripts/publish-ui-assets.mjs'
+              - '.github/workflows/deploy.yaml'
+
   predeploy-validations:
     name: Pre-deploy validations
     uses: ./.github/workflows/pre-deploy-validation.yaml
 
   deploy:
-    name: Deploy
+    name: Deploy backend (SAM)
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # npm Trusted Publishing (OIDC)
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Configure AWS
@@ -49,13 +72,30 @@ jobs:
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
           --parameter-overrides UpdateGitHubSourceCode=true DefaultCacheName=readysetcloud BucketName=readysetcloud AmplifyAppId=${{ secrets.PROD_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }} RootDomainName=readysetcloud.io HostedZoneId=${{ secrets.HOSTED_ZONE_ID }}
 
-      - name: Setup Node for npm publish
-        uses: actions/setup-node@v4
+  publish-ui:
+    name: Publish UI package
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.ui == 'true' }}
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.PROD_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.PROD_SECRET_KEY }}
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Publish UI hosted assets
+      - name: Build and publish hosted assets
         run: |
+          npm ci
           cd ui
           npm ci
           npm test
