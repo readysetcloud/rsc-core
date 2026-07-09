@@ -1,0 +1,9 @@
+/*
+ * Brand fonts via Google Fonts. Optional import — readysetcloud.io already
+ * links these in its <head>; apps that don't can simply:
+ *
+ *   @import '@readysetcloud/ui/fonts.css';
+ *
+ * Raleway is loaded at wordmark weights only (logo lockups, --font-logo).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;600&family=Raleway:wght@700;800&display=swap');

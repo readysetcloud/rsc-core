@@ -15,6 +15,6 @@ export default [
       }
     }
   },
-  { ignores: ['.aws-sam/*'] },
+  { ignores: ['.aws-sam/*', 'ui/dist/*', 'ui/node_modules/*', 'ui/tailwind-preset.cjs'] },
   pluginJs.configs.recommended
 ];
