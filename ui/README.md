@@ -50,14 +50,33 @@ module.exports = {
 
 Every preset color resolves through the token CSS variables, so `bg-primary-600` is always on-brand and dark-mode aware. Semantic aliases (`blue`→primary, `red`→error, `gray`→secondary, …) keep existing utility usage working during migration.
 
-### Non-React consumers (Hugo)
+### Non-React consumers (Hugo, course pages) — hosted assets
 
-The component classes are plain CSS driven by the tokens — no Tailwind, no React needed:
+Every rsc-core deploy publishes the styles and a browser auth bundle to the
+assets bucket (same model as Amplify's hosted UI). Versioned paths are
+immutable; `latest/` is a 5-minute pointer:
+
+```
+ui/<version>/styles/index.css      tokens + base + component classes
+ui/<version>/styles/tokens.css     variables only
+ui/<version>/auth.global.js        IIFE — window.rscAuth (~6KB)
+ui/<version>/auth.js               ESM build of the same core
+ui/latest/...                      short-cache pointer to the newest version
+```
 
 ```html
-<link rel="stylesheet" href=".../styles/index.css">
+<link rel="stylesheet" href="https://<assets-host>/ui/0.1.0/styles/index.css">
 <button class="btn btn-primary">Subscribe</button>
+
+<script src="https://<assets-host>/ui/0.1.0/auth.global.js"></script>
+<script>
+  rscAuth.configureAuth({ region: 'us-east-1', clientId: '...' });
+  if (rscAuth.isSignedIn()) { /* ... */ }
+</script>
 ```
+
+Publishing runs in the deploy workflows via `scripts/publish-ui-assets.mjs`;
+public read comes from the `PublicReadUiAssets` bucket policy statement.
 
 ## Components
 
