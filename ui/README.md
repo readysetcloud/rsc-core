@@ -15,10 +15,9 @@ Shared design tokens, UI components, and Cognito auth for every Ready, Set, Clou
 
 ## Install
 
-```bash
-# .npmrc
-@readysetcloud:registry=https://npm.pkg.github.com
+Published to public npm on every prod deploy (new versions only):
 
+```bash
 npm install @readysetcloud/ui
 ```
 
