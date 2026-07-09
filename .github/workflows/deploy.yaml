@@ -22,6 +22,9 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing (OIDC)
     steps:
       - uses: actions/checkout@v4
       - name: Configure AWS
@@ -50,7 +53,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Publish UI hosted assets
         run: |
@@ -61,11 +63,13 @@ jobs:
           cd ..
           node scripts/publish-ui-assets.mjs --bucket readysetcloud
 
+      # Auth is npm Trusted Publishing (OIDC via id-token: write) — no npm
+      # token secret. The trusted publisher on npmjs.com must point at this
+      # repo + deploy.yaml. Requires a recent npm CLI for OIDC support.
       - name: Publish @readysetcloud/ui to npm
         working-directory: ui
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          npm install -g npm@latest
           VERSION=$(node -p "require('./package.json').version")
           if npm view "@readysetcloud/ui@$VERSION" version > /dev/null 2>&1; then
             echo "@readysetcloud/ui@$VERSION already on npm — skipping publish"
