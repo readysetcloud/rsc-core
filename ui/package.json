@@ -13,8 +13,10 @@
     "access": "public"
   },
   "files": [
+    "assets",
     "dist",
     "styles",
+    "service-registry.json",
     "tailwind-preset.cjs"
   ],
   "main": "./dist/index.js",
@@ -28,6 +30,7 @@
       "types": "./dist/auth/index.d.ts",
       "import": "./dist/auth/index.js"
     },
+    "./service-registry.json": "./service-registry.json",
     "./styles.css": "./styles/index.css",
     "./tokens.css": "./styles/tokens.css",
     "./fonts.css": "./styles/fonts.css",
