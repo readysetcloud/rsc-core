@@ -150,11 +150,12 @@ const { signedIn, user, getToken, signOut } = useAuth();
 
 **Prebuilt flows** (each renders a complete `AuthCard`; pass your router's links):
 ```tsx
-<LoginForm onSuccess={} onNeedsConfirmation={(email)=>} logo={} forgotPasswordLink={} signUpPrompt={} />
-<SignUpForm onSuccess={} logo={} signInPrompt={} initialConfirmEmail={} />
-<ForgotPasswordForm onSuccess={} logo={} signInLink={} />
+<LoginForm onSuccess={} onNeedsConfirmation={(email, password?)=>} onPasswordResetRequired={(email)=>}
+           logo={} forgotPasswordLink={} signUpPrompt={} />
+<SignUpForm onSuccess={} logo={} signInPrompt={} initialConfirmEmail={} initialConfirmPassword={} />
+<ForgotPasswordForm onSuccess={} logo={} signInLink={} initialEmail={} startAtReset autoSignIn />
 ```
-Flow behaviors already handled: NEW_PASSWORD_REQUIRED challenge, unconfirmed-account → resend + confirm step, 6-digit code entry with 60s resend cooldown, friendly Cognito error copy.
+Flow behaviors already handled: NEW_PASSWORD_REQUIRED challenge, unconfirmed-account → resend + confirm step (feed `onNeedsConfirmation`'s email/password to `SignUpForm`'s `initialConfirm*` so confirming finishes sign-in), PasswordResetRequiredException → reset code fired + `onPasswordResetRequired` (feed the email to `ForgotPasswordForm`'s `initialEmail` + `startAtReset`), 6-digit code entry with 60s resend cooldown on both confirm and reset steps, optional auto-sign-in after reset, friendly Cognito error copy. `ResendCodeButton` accepts `onResend` (default `resendConfirmationCode`; pass `forgotPassword` for reset codes).
 
 **Core functions** (framework-agnostic, all promise-based): `signIn`, `signUp(firstName, lastName, email, password)` — the pool REQUIRES given/family name — `confirmSignUp`, `resendConfirmationCode`, `forgotPassword`, `confirmForgotPassword`, `respondNewPassword`, `getFreshIdToken`, `signOut`, `readSession`, `isSignedIn`, `claims`, `onAuthChange`.
 
