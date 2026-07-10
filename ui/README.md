@@ -120,7 +120,10 @@ import { LoginForm, SignUpForm, ForgotPasswordForm } from '@readysetcloud/ui/aut
 
 <LoginForm
   onSuccess={() => navigate('/app')}
-  onNeedsConfirmation={(email) => navigate(`/signup?confirm=${email}`)}
+  // password rides along (memory only) so SignUpForm's confirm step can finish sign-in
+  onNeedsConfirmation={(email, password) => navigate('/signup', { state: { email, password } })}
+  // a reset code is already sent — land on ForgotPasswordForm with initialEmail + startAtReset
+  onPasswordResetRequired={(email) => navigate('/forgot-password', { state: { email } })}
   forgotPasswordLink={<Link className="auth-link" to="/forgot-password">Forgot password?</Link>}
   signUpPrompt={<>New here? <Link to="/signup">Create an account</Link></>}
 />

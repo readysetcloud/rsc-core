@@ -19,16 +19,28 @@ export interface SignUpFormProps {
    * discovers an unconfirmed account — a fresh code is already sent).
    */
   initialConfirmEmail?: string;
+  /**
+   * The password sign-in was attempted with (LoginForm's onNeedsConfirmation
+   * hands it over), so confirming finishes sign-in instead of bouncing the
+   * user back to the sign-in form. Held in memory only — never persisted.
+   */
+  initialConfirmPassword?: string;
 }
 
 type Step = 'details' | 'confirm';
 
-export function SignUpForm({ onSuccess, logo, signInPrompt, initialConfirmEmail }: SignUpFormProps) {
+export function SignUpForm({
+  onSuccess,
+  logo,
+  signInPrompt,
+  initialConfirmEmail,
+  initialConfirmPassword
+}: SignUpFormProps) {
   const [step, setStep] = useState<Step>(initialConfirmEmail ? 'confirm' : 'details');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState(initialConfirmEmail ?? '');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(initialConfirmPassword ?? '');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
@@ -112,12 +124,7 @@ export function SignUpForm({ onSuccess, logo, signInPrompt, initialConfirmEmail 
   }
 
   return (
-    <AuthCard
-      title="Create your account"
-      subtitle="One account across every Ready, Set, Cloud app."
-      logo={logo}
-      footer={signInPrompt}
-    >
+    <AuthCard title="Create your account" logo={logo} footer={signInPrompt}>
       <form onSubmit={submitDetails} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {error && <Alert variant="error">{error}</Alert>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
