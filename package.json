@@ -17,25 +17,25 @@
   },
   "homepage": "https://github.com/readysetcloud/rsc-core#readme",
   "devDependencies": {
-    "@aws-sdk/client-amplify": "^3.750.0",
-    "@aws-sdk/client-dynamodb": "^3.751.0",
-    "@aws-sdk/client-eventbridge": "^3.750.0",
-    "@aws-sdk/client-lambda": "^3.958.0",
-    "@aws-sdk/client-s3": "^3.958.0",
-    "@aws-sdk/client-ssm": "^3.750.0",
-    "@aws-sdk/credential-providers": "^3.958.0",
-    "@aws-sdk/util-dynamodb": "^3.751.0",
-    "@eslint/js": "^9.20.0",
-    "eslint": "^9.20.1",
+    "@aws-sdk/client-amplify": "^3.1084.0",
+    "@aws-sdk/client-dynamodb": "^3.1084.0",
+    "@aws-sdk/client-eventbridge": "^3.1084.0",
+    "@aws-sdk/client-lambda": "^3.1084.0",
+    "@aws-sdk/client-s3": "^3.1084.0",
+    "@aws-sdk/client-ssm": "^3.1084.0",
+    "@aws-sdk/credential-providers": "^3.1084.0",
+    "@aws-sdk/util-dynamodb": "^3.996.6",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
     "eslint-config-google": "^0.14.0",
-    "globals": "^15.15.0",
-    "sharp": "^0.34.5"
+    "globals": "^17.7.0",
+    "sharp": "^0.35.3"
   },
   "dependencies": {
-    "@aws-lambda-powertools/parameters": "^2.14.0",
-    "@gomomento/sdk": "^1.107.0",
-    "@sendgrid/mail": "^8.1.4",
-    "octokit": "^4.1.2",
-    "openai": "^4.85.2"
+    "@aws-lambda-powertools/parameters": "^2.33.1",
+    "@gomomento/sdk": "^1.118.0",
+    "@sendgrid/mail": "^8.1.6",
+    "octokit": "^5.0.5",
+    "openai": "^6.46.0"
   }
 }
