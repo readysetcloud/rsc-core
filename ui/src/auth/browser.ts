@@ -17,6 +17,7 @@ export { configureAuth, getConfig, type AuthConfig } from './config';
 export {
   AUTH_KEY,
   AuthError,
+  bootstrapSharedSession,
   isAuthError,
   errorMessage,
   readSession,
