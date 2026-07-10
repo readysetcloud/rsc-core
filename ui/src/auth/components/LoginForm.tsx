@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { Input, PasswordInput } from '../../components/Input';
-import { isAuthError, respondNewPassword, signIn } from '../core';
+import { forgotPassword, isAuthError, respondNewPassword, signIn } from '../core';
 import { validateEmail, validatePassword } from '../validate';
 import { AuthCard } from './AuthCard';
 import { PasswordRequirements } from './PasswordRequirements';
@@ -11,10 +11,18 @@ export interface LoginFormProps {
   /** Called after a successful sign-in (session already saved). */
   onSuccess: () => void;
   /**
-   * Called when the account still needs email verification —
-   * route to your confirm/sign-up screen (a fresh code is already sent).
+   * Called when the account still needs email verification — route to your
+   * confirm/sign-up screen (a fresh code is already sent). The password is
+   * passed along so the confirm step can finish sign-in (feed it to
+   * SignUpForm's initialConfirmPassword); it never touches storage.
    */
-  onNeedsConfirmation?: (email: string) => void;
+  onNeedsConfirmation?: (email: string, password?: string) => void;
+  /**
+   * Called when the pool demands a password reset before sign-in —
+   * route to your reset screen (a reset code is already on its way;
+   * feed the email to ForgotPasswordForm's initialEmail + startAtReset).
+   */
+  onPasswordResetRequired?: (email: string) => void;
   /** Brand slot above the title. */
   logo?: ReactNode;
   /** e.g. <Link to="/forgot-password">Forgot password?</Link> */
@@ -28,6 +36,7 @@ type Step = { name: 'credentials' } | { name: 'newPassword'; session: string };
 export function LoginForm({
   onSuccess,
   onNeedsConfirmation,
+  onPasswordResetRequired,
   logo,
   forgotPasswordLink,
   signUpPrompt
@@ -57,7 +66,12 @@ export function LoginForm({
       }
     } catch (err) {
       if (isAuthError(err) && err.code === 'UserNotConfirmedException' && onNeedsConfirmation) {
-        onNeedsConfirmation(email.trim());
+        onNeedsConfirmation(email.trim(), password);
+        return;
+      }
+      if (isAuthError(err) && err.code === 'PasswordResetRequiredException' && onPasswordResetRequired) {
+        forgotPassword(email.trim()).catch(() => {});
+        onPasswordResetRequired(email.trim());
         return;
       }
       setError(err instanceof Error ? err.message : 'Something went wrong — please try again.');
@@ -112,12 +126,7 @@ export function LoginForm({
   }
 
   return (
-    <AuthCard
-      title="Sign in"
-      subtitle="One account across every Ready, Set, Cloud app."
-      logo={logo}
-      footer={signUpPrompt}
-    >
+    <AuthCard title="Sign in" logo={logo} footer={signUpPrompt}>
       <form onSubmit={submitCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {error && <Alert variant="error">{error}</Alert>}
         <Input

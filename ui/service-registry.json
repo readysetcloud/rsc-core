@@ -1,0 +1,54 @@
+{
+  "services": [
+    {
+      "id": "readysetcloud",
+      "name": "Ready, Set, Cloud",
+      "href": "https://readysetcloud.io",
+      "description": "Technical blog, newsletter, and podcast by Allen Helton.",
+      "shortName": "RSC",
+      "category": "Media",
+      "external": true,
+      "active": true
+    },
+    {
+      "id": "booked",
+      "name": "Booked",
+      "href": "https://booked.readysetcloud.io",
+      "description": "Content app for creators that helps monitor paid campaigns and social media tracking.",
+      "shortName": "BK",
+      "category": "Creators",
+      "external": true,
+      "active": true
+    },
+    {
+      "id": "outboxed",
+      "name": "Outboxed",
+      "href": "https://newsletter.readysetcloud.io",
+      "description": "Newsletter app that powers the Ready, Set, Cloud Picks of the Week.",
+      "shortName": "OB",
+      "category": "Newsletter",
+      "external": true,
+      "active": true
+    },
+    {
+      "id": "bootcamp",
+      "name": "Bootcamp",
+      "href": "https://bootcamp.readysetcloud.io",
+      "description": "Learning app teaching advanced production lessons for senior engineers.",
+      "shortName": "BC",
+      "category": "Learning",
+      "external": true,
+      "active": true
+    },
+    {
+      "id": "olivias-garden-foundation",
+      "name": "Olivia's Garden Foundation",
+      "href": "https://oliviasgarden.org",
+      "description": "Nonprofit app dedicated to educating others on gardening, homesteading, and animal care.",
+      "shortName": "OG",
+      "category": "Nonprofit",
+      "external": true,
+      "active": true
+    }
+  ]
+}

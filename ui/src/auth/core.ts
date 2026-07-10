@@ -7,15 +7,18 @@
  * localStorage document ({idToken, refreshToken, expiresAt}) plus plain
  * Cognito user pool API calls. No SDK, no Hosted UI — cognito-idp over TLS.
  *
- * NOTE: localStorage is per-origin, so this contract shares a session
- * between surfaces on the SAME subdomain (e.g. a platform SPA and its
- * course pages). True SSO across *.readysetcloud.io subdomains needs a
- * parent-domain cookie and is a deliberate future change to this file.
+ * localStorage is per-origin, so apps can opt into a parent-domain cookie
+ * bridge with AuthConfig.sharedCookieDomain (for example `.readysetcloud.io`).
+ * That lets sibling subdomains bootstrap the same local session while unrelated
+ * domains such as oliviasgarden.org stay isolated.
  */
 
-import { getConfig, type AuthConfig } from './config';
+import { getConfig, peekConfig, type AuthConfig } from './config';
 
 export const AUTH_KEY = 'rsc:auth';
+const DEFAULT_SHARED_COOKIE = 'rsc_auth';
+const DEFAULT_SHARED_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+const SHARED_COOKIE_SIGNED_OUT = 'signed_out';
 
 export interface Session {
   idToken: string;
@@ -77,18 +80,140 @@ export const isAuthError = (e: unknown): e is AuthError => e instanceof AuthErro
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 export function readSession(): Session | null {
+  if (isSharedCookieSignedOut()) {
+    clearLocalSession();
+    return null;
+  }
+
+  const local = readLocalSession();
+  if (local) {
+    return local;
+  }
+
+  const shared = readSharedCookieSession();
+  if (shared) {
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(shared));
+    } catch {
+      /* storage unavailable — the cookie session can still be read */
+    }
+    return shared;
+  }
+
+  return null;
+}
+
+function readLocalSession(): Session | null {
   try {
     const raw = localStorage.getItem(AUTH_KEY);
     if (!raw) return null;
-    const doc = JSON.parse(raw) as Partial<Session> | null;
-    if (!doc || typeof doc.idToken !== 'string' || typeof doc.expiresAt !== 'number') return null;
-    return doc as Session;
+    return coerceSession(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
+function coerceSession(value: unknown): Session | null {
+  const doc = value as Partial<Session> | null;
+  if (!doc || typeof doc.idToken !== 'string' || typeof doc.expiresAt !== 'number') return null;
+  if (doc.refreshToken !== undefined && typeof doc.refreshToken !== 'string') return null;
+  return doc as Session;
+}
+
+function sharedCookieConfig():
+  | { name: string; domain: string; maxAgeSeconds: number }
+  | null {
+  const config = peekConfig();
+  if (!config || typeof document === 'undefined') return null;
+  const domain = config.sharedCookieDomain ?? inferSharedCookieDomain();
+  if (!domain) return null;
+  return {
+    name: config.sharedCookieName || DEFAULT_SHARED_COOKIE,
+    domain,
+    maxAgeSeconds: config.sharedCookieMaxAgeSeconds || DEFAULT_SHARED_COOKIE_MAX_AGE
+  };
+}
+
+function inferSharedCookieDomain(): string | null {
+  if (typeof location === 'undefined') return null;
+  const hostname = location.hostname.toLowerCase();
+  if (hostname === 'readysetcloud.io' || hostname.endsWith('.readysetcloud.io')) {
+    return '.readysetcloud.io';
+  }
+  return null;
+}
+
+function readSharedCookieSession(): Session | null {
+  const raw = readSharedCookieValue();
+  if (!raw || raw === SHARED_COOKIE_SIGNED_OUT) return null;
+  try {
+    return coerceSession(JSON.parse(fromBase64Url(decodeURIComponent(raw))));
+  } catch {
+    return null;
+  }
+}
+
+function readSharedCookieValue(): string | null {
+  const config = sharedCookieConfig();
+  if (!config) return null;
+  const prefix = `${encodeURIComponent(config.name)}=`;
+  return (
+    document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+      ?.slice(prefix.length) ?? null
+  );
+}
+
+function writeSharedCookie(session: Session): void {
+  const config = sharedCookieConfig();
+  if (!config) return;
+  const value = encodeURIComponent(toBase64Url(JSON.stringify(session)));
+  document.cookie = [
+    `${encodeURIComponent(config.name)}=${value}`,
+    `Domain=${config.domain}`,
+    'Path=/',
+    `Max-Age=${config.maxAgeSeconds}`,
+    'SameSite=Lax',
+    'Secure'
+  ].join('; ');
+}
+
+function isSharedCookieSignedOut(): boolean {
+  return readSharedCookieValue() === SHARED_COOKIE_SIGNED_OUT;
+}
+
+function markSharedCookieSignedOut(): void {
+  const config = sharedCookieConfig();
+  if (!config) return;
+  document.cookie = [
+    `${encodeURIComponent(config.name)}=${SHARED_COOKIE_SIGNED_OUT}`,
+    `Domain=${config.domain}`,
+    'Path=/',
+    `Max-Age=${config.maxAgeSeconds}`,
+    'SameSite=Lax',
+    'Secure'
+  ].join('; ');
+}
+
+function toBase64Url(value: string): string {
+  return btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(value: string): string {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  return atob(padded);
+}
+
 export const isSignedIn = (): boolean => !!readSession();
+
+export async function bootstrapSharedSession(): Promise<Session | null> {
+  await getConfig();
+  const session = readSession();
+  if (session) notify();
+  return session;
+}
 
 /** Parse the id token payload (base64url JWT) — defensive read. */
 export function claims(): IdClaims {
@@ -149,16 +274,22 @@ function saveAuthResult(result: CognitoAuthResult | undefined): void {
   } catch {
     /* storage unavailable — stay signed out rather than crash */
   }
+  writeSharedCookie(session);
   notify();
 }
 
 function clearSession(): void {
+  clearLocalSession();
+  markSharedCookieSignedOut();
+  notify();
+}
+
+function clearLocalSession(): void {
   try {
     localStorage.removeItem(AUTH_KEY);
   } catch {
     /* ignore */
   }
-  notify();
 }
 
 /* ---------- Cognito user pool API ---------- */

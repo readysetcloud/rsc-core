@@ -2,24 +2,42 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { CodeInput, Input, PasswordInput } from '../../components/Input';
-import { confirmForgotPassword, forgotPassword } from '../core';
+import { confirmForgotPassword, forgotPassword, signIn } from '../core';
 import { validateCode, validateEmail, validatePassword } from '../validate';
 import { AuthCard } from './AuthCard';
 import { PasswordRequirements } from './PasswordRequirements';
+import { ResendCodeButton } from './ResendCodeButton';
 
 export interface ForgotPasswordFormProps {
-  /** Called after the password is reset — route to sign-in. */
+  /** Called after the password is reset (and sign-in, with autoSignIn). */
   onSuccess: () => void;
   logo?: ReactNode;
   /** e.g. <Link to="/login">Back to sign in</Link> */
   signInLink?: ReactNode;
+  /** Prefill the email — pair with startAtReset for the reset-required handoff. */
+  initialEmail?: string;
+  /**
+   * Start directly on the code + new password step (used when sign-in hits
+   * PasswordResetRequiredException — a reset code is already on its way;
+   * LoginForm's onPasswordResetRequired supplies the email).
+   */
+  startAtReset?: boolean;
+  /** Sign in with the new password after resetting (best effort). */
+  autoSignIn?: boolean;
 }
 
 type Step = 'email' | 'reset';
 
-export function ForgotPasswordForm({ onSuccess, logo, signInLink }: ForgotPasswordFormProps) {
-  const [step, setStep] = useState<Step>('email');
-  const [email, setEmail] = useState('');
+export function ForgotPasswordForm({
+  onSuccess,
+  logo,
+  signInLink,
+  initialEmail,
+  startAtReset,
+  autoSignIn
+}: ForgotPasswordFormProps) {
+  const [step, setStep] = useState<Step>(startAtReset && initialEmail ? 'reset' : 'email');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
@@ -61,6 +79,7 @@ export function ForgotPasswordForm({ onSuccess, logo, signInLink }: ForgotPasswo
     setError('');
     try {
       await confirmForgotPassword(email.trim(), code.trim(), newPassword);
+      if (autoSignIn) await signIn(email.trim(), newPassword).catch(() => {});
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong — please try again.');
@@ -96,6 +115,9 @@ export function ForgotPasswordForm({ onSuccess, logo, signInLink }: ForgotPasswo
           <Button type="submit" block loading={busy} loadingLabel="Resetting…">
             Reset password
           </Button>
+          <div style={{ textAlign: 'center' }}>
+            <ResendCodeButton email={email.trim()} onResend={forgotPassword} onError={setError} />
+          </div>
         </form>
       </AuthCard>
     );

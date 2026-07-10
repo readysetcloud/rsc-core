@@ -5,11 +5,21 @@ export interface ResendCodeButtonProps {
   email: string;
   /** Cooldown between sends, seconds (default 60). */
   cooldown?: number;
+  /**
+   * The send action (default: resendConfirmationCode, for sign-up
+   * confirmation). Pass forgotPassword for reset-code flows.
+   */
+  onResend?: (email: string) => Promise<void>;
   onError?: (message: string) => void;
 }
 
 /** "Resend code" text button with a cooldown timer. */
-export function ResendCodeButton({ email, cooldown = 60, onError }: ResendCodeButtonProps) {
+export function ResendCodeButton({
+  email,
+  cooldown = 60,
+  onResend = resendConfirmationCode,
+  onError
+}: ResendCodeButtonProps) {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timer = useRef<number | undefined>(undefined);
 
@@ -27,7 +37,7 @@ export function ResendCodeButton({ email, cooldown = 60, onError }: ResendCodeBu
 
   const resend = async () => {
     try {
-      await resendConfirmationCode(email);
+      await onResend(email);
       start();
     } catch (e) {
       onError?.(e instanceof Error ? e.message : 'Could not resend the code.');
