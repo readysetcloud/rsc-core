@@ -5,6 +5,7 @@
  *
  *   https://<assets-host>/ui/<version>/styles/index.css
  *   https://<assets-host>/ui/<version>/auth.global.js   (window.rscAuth)
+ *   https://<assets-host>/ui/<version>/nav.global.js    (window.rscNav)
  *   https://<assets-host>/ui/latest/...                 (short cache)
  *
  * Versioned paths are immutable (1y cache); latest/ is a 5-minute pointer.

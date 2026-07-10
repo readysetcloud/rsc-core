@@ -60,6 +60,8 @@ ui/<version>/styles/index.css      tokens + base + component classes
 ui/<version>/styles/tokens.css     variables only
 ui/<version>/auth.global.js        IIFE — window.rscAuth (~6KB)
 ui/<version>/auth.js               ESM build of the same core
+ui/<version>/nav.global.js         IIFE — window.rscNav (framework-agnostic AppNav)
+ui/<version>/nav.js                ESM build of the same nav
 ui/latest/...                      short-cache pointer to the newest version
 ```
 
@@ -73,6 +75,52 @@ ui/latest/...                      short-cache pointer to the newest version
   if (rscAuth.isSignedIn()) { /* ... */ }
 </script>
 ```
+
+#### The shared nav on a static page (`window.rscNav`)
+
+Vanilla pages can't import the React `AppNav`, so rsc-core also ships a
+framework-agnostic build that mounts the **same** nav (brand + app launcher,
+theme toggle, profile menu) into an element. It emits the exact markup the
+React component does, so `styles/index.css` styles it identically — no
+hand-rolled headers, one source of truth.
+
+```html
+<link rel="stylesheet" href="https://<assets-host>/ui/0.1.0/styles/index.css">
+<div id="app-nav"></div>
+
+<script src="https://<assets-host>/ui/0.1.0/auth.global.js"></script>
+<script src="https://<assets-host>/ui/0.1.0/nav.global.js"></script>
+<script>
+  const claims = rscAuth.isSignedIn() ? rscAuth.claims() : null;
+  const nav = rscNav.mountAppNav('#app-nav', {
+    appName: 'JavaScript Concurrency',
+    currentServiceId: 'bootcamp',
+    authState: claims ? 'authenticated' : 'anonymous',
+    user: claims && {
+      name: [claims.given_name, claims.family_name].filter(Boolean).join(' '),
+      email: claims.email
+    },
+    navItems: [
+      { id: 'lessons', label: 'Lessons', href: '/lessons/', active: true },
+      { id: 'blog', label: 'Blog', href: 'https://readysetcloud.io', external: true }
+    ],
+    onSignOut: () => rscAuth.signOut()
+  });
+
+  // re-render when auth resolves/changes; tear down on SPA navigations
+  rscAuth.onAuthChange(() => {
+    const c = rscAuth.isSignedIn() ? rscAuth.claims() : null;
+    nav.update({ authState: c ? 'authenticated' : 'anonymous', user: c && { email: c.email } });
+  });
+</script>
+```
+
+`mountAppNav(target, options)` takes the same options as the React `<AppNav>`
+(`appName`, `navItems`, `primaryAction`, `services`, `currentServiceId`,
+`user`, `authState`, `signInAction`/`signUpAction`/`signOutAction`, `theme`,
+`onThemeChange`/`onProfileClick`/`onSignOut`, …) and returns a handle with
+`update(partialOptions)`, `setTheme(theme)`, `getTheme()`, and `destroy()`. The
+ESM build serves `import { mountAppNav } from 'https://<assets-host>/ui/0.1.0/nav.js'`.
 
 Publishing runs in the deploy workflows via `scripts/publish-ui-assets.mjs`;
 public read comes from the `PublicReadUiAssets` bucket policy statement.
