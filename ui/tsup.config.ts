@@ -25,5 +25,17 @@ export default defineConfig([
     sourcemap: true,
     target: 'es2020',
     platform: 'browser'
+  },
+  // framework-agnostic AppNav for plain <script> consumers (window.rscNav) —
+  // no React, so the static course pages can mount the shared nav
+  {
+    entry: { nav: 'src/components/nav-browser.ts' },
+    outDir: 'dist/browser',
+    format: ['esm', 'iife'],
+    globalName: 'rscNav',
+    minify: true,
+    sourcemap: true,
+    target: 'es2020',
+    platform: 'browser'
   }
 ]);
