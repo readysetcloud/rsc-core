@@ -24,7 +24,26 @@ export {
 export { Badge, type BadgeProps, type BadgeVariant } from './components/Badge';
 export { Alert, type AlertProps, type AlertVariant } from './components/Alert';
 export { Modal, type ModalProps } from './components/Modal';
+export {
+  AppNav,
+  type AppNavAction,
+  type AppNavAuthState,
+  type AppNavItem,
+  type AppNavProps,
+  type AppNavUser,
+  type AppTheme
+} from './components/AppNav';
 export { ToastProvider, useToast, type ToastOptions, type ToastVariant } from './components/Toast';
 export { Skeleton, type SkeletonProps } from './components/Skeleton';
 export { EmptyState, type EmptyStateProps } from './components/EmptyState';
 export { Container } from './components/Container';
+export {
+  defineServiceRegistry,
+  getVisibleServices,
+  isServiceVisible,
+  readySetCloudServiceRegistry,
+  readySetCloudServices,
+  type RscService,
+  type RscServiceAccess,
+  type RscServiceRegistry
+} from './services/registry';
