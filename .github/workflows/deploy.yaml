@@ -109,7 +109,11 @@ jobs:
       - name: Publish @readysetcloud/ui to npm
         working-directory: ui
         run: |
-          npm install -g npm@latest
+          # Pin to the latest stable npm 11.x. It supports OIDC Trusted
+          # Publishing (>= 11.5.1) while avoiding `@latest`, which recently
+          # resolved to a broken build missing the `sigstore` module and
+          # failed provenance signing (npm/cli#9722).
+          npm install -g npm@11
           VERSION=$(node -p "require('./package.json').version")
           if npm view "@readysetcloud/ui@$VERSION" version > /dev/null 2>&1; then
             echo "@readysetcloud/ui@$VERSION already on npm — skipping publish"
