@@ -14,6 +14,20 @@
 export interface AuthConfig {
   region: string;
   clientId: string;
+  /**
+   * Optional parent-domain session bridge for SSO across sibling subdomains.
+   *
+   * Example: `.readysetcloud.io` lets `booked.readysetcloud.io`,
+   * `newsletter.readysetcloud.io`, and `bootcamp.readysetcloud.io` bootstrap
+   * the same `rsc:auth` session. Defaults to `.readysetcloud.io` when running
+   * on a readysetcloud.io host; unrelated domains such as `oliviasgarden.org`
+   * do not opt in unless they set this explicitly.
+   */
+  sharedCookieDomain?: string;
+  /** Defaults to `rsc_auth`. */
+  sharedCookieName?: string;
+  /** Defaults to 30 days. */
+  sharedCookieMaxAgeSeconds?: number;
 }
 
 type ConfigSource = AuthConfig | (() => Promise<AuthConfig | null>) | null;
@@ -43,4 +57,10 @@ export async function getConfig(): Promise<AuthConfig | null> {
     cached = loaded;
   }
   return cached;
+}
+
+export function peekConfig(): AuthConfig | null {
+  if (cached) return cached;
+  if (source && typeof source !== 'function') return source;
+  return null;
 }

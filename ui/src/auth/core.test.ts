@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureAuth } from './config';
 import {
   AUTH_KEY,
+  bootstrapSharedSession,
   claims,
   errorMessage,
   getFreshIdToken,
@@ -12,6 +13,12 @@ import {
 } from './core';
 
 const CONFIG = { region: 'us-east-1', clientId: 'test-client' };
+const SHARED_CONFIG = {
+  ...CONFIG,
+  sharedCookieDomain: 'localhost',
+  sharedCookieName: 'rsc_auth_test',
+  sharedCookieMaxAgeSeconds: 3600
+};
 
 /** Base64url-encode a JWT payload the way Cognito does. */
 const fakeJwt = (payload: object): string =>
@@ -35,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.cookie = 'rsc_auth_test=; Domain=localhost; Path=/; Max-Age=0; SameSite=Lax';
   vi.restoreAllMocks();
 });
 
@@ -74,6 +82,82 @@ describe('session document', () => {
       JSON.stringify({ idToken: 'garbage', expiresAt: Math.floor(Date.now() / 1000) + 3600 })
     );
     expect(claims()).toEqual({});
+  });
+
+  it('writes a shared cookie when configured', async () => {
+    configureAuth(SHARED_CONFIG);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          AuthenticationResult: { IdToken: fakeJwt({ email: 'a@b.co' }), RefreshToken: 'rt', ExpiresIn: 3600 }
+        })
+      })
+    );
+    await signIn('a@b.co', 'Password1');
+    expect(document.cookie).toContain('rsc_auth_test=');
+  });
+
+  it('defaults the shared cookie on readysetcloud.io hosts', async () => {
+    vi.stubGlobal('location', { hostname: 'booked.readysetcloud.io' });
+    const cookieWrites: string[] = [];
+    const cookieDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    vi.spyOn(document, 'cookie', 'set').mockImplementation((value) => {
+      cookieWrites.push(value);
+      cookieDescriptor?.set?.call(document, value);
+    });
+    configureAuth(CONFIG);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          AuthenticationResult: { IdToken: fakeJwt({ email: 'a@b.co' }), RefreshToken: 'rt', ExpiresIn: 3600 }
+        })
+      })
+    );
+    await signIn('a@b.co', 'Password1');
+    expect(cookieWrites.some((value) => value.includes('rsc_auth=') && value.includes('Domain=.readysetcloud.io'))).toBe(
+      true
+    );
+  });
+
+  it('does not default the shared cookie on unrelated hosts', async () => {
+    vi.stubGlobal('location', { hostname: 'oliviasgarden.org' });
+    configureAuth(CONFIG);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          AuthenticationResult: { IdToken: fakeJwt({ email: 'a@b.co' }), RefreshToken: 'rt', ExpiresIn: 3600 }
+        })
+      })
+    );
+    await signIn('a@b.co', 'Password1');
+    expect(document.cookie).not.toContain('rsc_auth=');
+  });
+
+  it('hydrates localStorage from the shared cookie', async () => {
+    configureAuth(SHARED_CONFIG);
+    const sharedSession = {
+      idToken: fakeJwt({ email: 'shared@readysetcloud.io' }),
+      refreshToken: 'shared-refresh',
+      expiresAt: Math.floor(Date.now() / 1000) + 3600
+    };
+    document.cookie = `rsc_auth_test=${btoa(JSON.stringify(sharedSession))}; Domain=localhost; Path=/; SameSite=Lax`;
+    localStorage.clear();
+    expect(await bootstrapSharedSession()).toEqual(sharedSession);
+    expect(readSession()?.refreshToken).toBe('shared-refresh');
+  });
+
+  it('clears a stale local session when the shared cookie is signed out', () => {
+    configureAuth(SHARED_CONFIG);
+    seedSession();
+    document.cookie = 'rsc_auth_test=signed_out; Domain=localhost; Path=/; SameSite=Lax';
+    expect(readSession()).toBeNull();
+    expect(localStorage.getItem(AUTH_KEY)).toBeNull();
   });
 });
 

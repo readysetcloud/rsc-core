@@ -72,7 +72,54 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `Skeleton` | `width`, `height` | Shimmer placeholder. |
 | `EmptyState` | `title`, `description?`, `icon?`, `action?` | |
 | `Container` | div props | max 72rem, fluid padding. |
+| `AppNav` | `appName`, `navItems`, `currentServiceId`, `authState`, `services`, auth actions | Shared top navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. |
 | `cx(...parts)` | | Classname join helper (replaces clsx for simple cases). |
+
+## Shared navbar and app registry
+
+Use `AppNav` from `@readysetcloud/ui` for every app-level navbar. Do not
+recreate a local navbar unless this package is missing a needed variant.
+
+```tsx
+import { AppNav, readySetCloudServices } from '@readysetcloud/ui';
+
+<AppNav
+  appName="Booked"
+  currentServiceId="booked"
+  authState={signedIn ? 'authenticated' : 'anonymous'}
+  navItems={[
+    { id: 'dashboard', label: 'Dashboard', href: '/dashboard', active: true },
+    { id: 'campaigns', label: 'Campaigns', href: '/campaigns' }
+  ]}
+  services={readySetCloudServices}
+  user={signedIn ? { name: user.name, email: user.email, avatarUrl: user.picture } : undefined}
+/>;
+```
+
+Navbar rules:
+- The logo mark is not configurable. It uses `assets/cloud-logo.svg` as a CSS
+  mask inside the branded azure square. The app name is configurable and renders
+  in `--font-logo` (Raleway).
+- `navItems` are app-specific. Use `visible: false` for simple gating and
+  `active: true` for the current route. The shared app launcher active state is
+  driven by `currentServiceId`.
+- `authState="none"` hides all auth controls. `authState="anonymous"` shows
+  sign-in/sign-up controls. `authState="authenticated"` shows the profile menu.
+- Auth URLs default to `/login`, `/signup`, and `/logout`; override with
+  `signInAction`, `signUpAction`, or `signOutAction`. Use `onSignOut` only when
+  sign-out must run in JavaScript.
+- The 9-box launcher is shown only for authenticated users and only when at
+  least one service is visible.
+
+Default `readySetCloudServices` manifest:
+
+| id | App | URL |
+| --- | --- | --- |
+| `readysetcloud` | Ready, Set, Cloud | `https://readysetcloud.io` |
+| `booked` | Booked | `https://booked.readysetcloud.io` |
+| `outboxed` | Outboxed | `https://newsletter.readysetcloud.io` |
+| `bootcamp` | Bootcamp | `https://bootcamp.readysetcloud.io` |
+| `olivias-garden-foundation` | Olivia's Garden Foundation | `https://oliviasgarden.org` |
 
 ## Auth — `import { ... } from '@readysetcloud/ui/auth'`
 
@@ -94,6 +141,12 @@ const { signedIn, user, getToken, signOut } = useAuth();
 - `user` = decoded id-token claims (`email`, `given_name`, `family_name`, `sub`, plus custom claims)
 - `getToken()` returns a valid id token, auto-refreshing 60s before expiry — use for `Authorization: Bearer` headers
 - Cross-tab sign-in/out sync is automatic (storage events)
+- Cross-subdomain SSO across `*.readysetcloud.io` is automatic: the auth core
+  mirrors `rsc:auth` into a JS-readable parent-domain cookie named `rsc_auth`
+  with `Domain=.readysetcloud.io`, `SameSite=Lax`, `Secure`, and a 30-day max
+  age. Do not configure this on `oliviasgarden.org` unless intentionally
+  changing its auth boundary. A stronger HttpOnly model requires server-side
+  broker/token-exchange support and is not what this package implements today.
 
 **Prebuilt flows** (each renders a complete `AuthCard`; pass your router's links):
 ```tsx
@@ -149,7 +202,7 @@ Published to the assets bucket on every rsc-core deploy:
 ```bash
 cd ui
 npm install
-npm test          # vitest — auth core + validation (20 tests)
+npm test          # vitest — auth core + registry + validation
 npm run build     # tsup → dist/ (npm ESM+dts) + dist/browser/ (ESM+IIFE)
 npm run typecheck
 ```

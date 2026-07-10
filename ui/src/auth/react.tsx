@@ -15,6 +15,7 @@ import {
   type ReactNode
 } from 'react';
 import {
+  bootstrapSharedSession,
   claims,
   getFreshIdToken,
   isSignedIn,
@@ -42,10 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // core notifies on sign-in/out in this tab and (via storage events) others
-    return onAuthChange(() => {
+    const sync = () => {
       setSignedIn(isSignedIn());
       setUser(claims());
-    });
+    };
+    void bootstrapSharedSession().then(sync);
+    return onAuthChange(sync);
   }, []);
 
   const getToken = useCallback(() => getFreshIdToken(), []);
