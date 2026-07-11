@@ -108,6 +108,10 @@ Navbar rules:
   the vanilla build) and `section` (heading — consecutive same-section items are
   grouped; ungrouped items stay in place). Sections are ignored in `top`. The
   rail collapses to the shared hamburger drawer on mobile.
+- `linkComponent` (React only) routes in-app links (brand, nav items, primary
+  action, auth actions) through your router's link for client-side navigation —
+  `({ href, ...props }) => <Link to={href} {...props} />`. External items always
+  fall back to a plain anchor. The vanilla build always emits anchors.
 - `authState="none"` hides all auth controls. `authState="anonymous"` shows
   sign-in/sign-up controls. `authState="authenticated"` shows the profile menu.
 - Auth URLs default to `/login`, `/signup`, and `/logout`; override with

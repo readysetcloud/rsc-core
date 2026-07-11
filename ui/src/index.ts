@@ -30,6 +30,8 @@ export {
   type AppNavAuthState,
   type AppNavItem,
   type AppNavLayout,
+  type AppNavLinkComponent,
+  type AppNavLinkProps,
   type AppNavProps,
   type AppNavUser,
   type AppTheme

@@ -4,7 +4,7 @@
 
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AppNav, type AppNavItem } from './AppNav';
+import { AppNav, type AppNavItem, type AppNavLinkProps } from './AppNav';
 
 afterEach(() => {
   cleanup();
@@ -40,6 +40,47 @@ describe('AppNav side layout', () => {
     expect(active.textContent).toBe('Dashboard');
     expect(active.getAttribute('aria-current')).toBe('page');
     expect(active.querySelector('.app-nav-link-icon svg[data-testid="home"]')).toBeTruthy();
+  });
+
+  it('routes in-app links through linkComponent but leaves external links as anchors', () => {
+    const seen: string[] = [];
+    // A stand-in for a router Link: records the target and marks itself so the
+    // test can tell it apart from a plain anchor.
+    const RouterLink = ({ href, children, ...rest }: AppNavLinkProps) => {
+      seen.push(href);
+      return (
+        <a data-router="1" href={href} {...rest}>
+          {children}
+        </a>
+      );
+    };
+
+    const { container } = render(
+      <AppNav
+        appName="Outboxed"
+        layout="side"
+        linkComponent={RouterLink}
+        primaryAction={{ label: 'New issue', href: '/issues/new' }}
+        navItems={[
+          { id: '/', label: 'Dashboard', href: '/', active: true },
+          { id: 'blog', label: 'Blog', href: 'https://readysetcloud.io', external: true }
+        ]}
+      />
+    );
+
+    // Brand, internal nav item, and primary action go through the router link.
+    expect(seen).toContain('/');
+    expect(seen).toContain('/issues/new');
+
+    const internal = container.querySelector('.app-nav-link[href="/"]') as HTMLElement;
+    expect(internal.getAttribute('data-router')).toBe('1');
+    expect(internal.getAttribute('aria-current')).toBe('page');
+
+    // The external link stays a real anchor (target/rel), not a router link.
+    const external = container.querySelector('.app-nav-link[href="https://readysetcloud.io"]') as HTMLElement;
+    expect(external.getAttribute('data-router')).toBeNull();
+    expect(external.getAttribute('target')).toBe('_blank');
+    expect(external.getAttribute('rel')).toBe('noreferrer');
   });
 
   it('stays flat with no sections in the default top layout', () => {

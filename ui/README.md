@@ -228,6 +228,29 @@ pinned). Below the mobile breakpoint it collapses to the same hamburger drawer
 as the top bar. Active / hover / highlight states are themed from the shared
 tokens in both light and dark.
 
+### Client-side routing (`linkComponent`)
+
+By default `AppNav` renders plain `<a>` anchors, which trigger a full-page
+reload in an SPA. Pass `linkComponent` to render in-app links (brand, nav items,
+primary action, auth actions) through your router's link so navigation stays
+client-side. `AppNav` always passes the target as `href` — adapt it to your
+router's own prop:
+
+```tsx
+import { Link } from 'react-router-dom';
+
+<AppNav
+  appName="Outboxed"
+  layout="side"
+  linkComponent={({ href, ...props }) => <Link to={href} {...props} />}
+  navItems={/* … */}
+/>;
+```
+
+External items (`external: true`) always fall back to a real anchor with
+`target="_blank"` — a router link can't own a cross-origin navigation. This is
+React-only; the vanilla `mountAppNav` build always emits anchors.
+
 Auth controls are explicit:
 
 ```tsx

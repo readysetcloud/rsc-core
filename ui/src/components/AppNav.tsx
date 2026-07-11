@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import { getVisibleServices, readySetCloudServices, type RscService } from '../services/registry';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -39,6 +39,20 @@ export interface AppNavAction {
   external?: boolean;
 }
 
+/**
+ * Props passed to a custom `linkComponent`. Mirrors the anchor attributes
+ * `AppNav` would otherwise set, with `href` as the target — map it to your
+ * router's own prop (e.g. React Router: `({ href, ...rest }) => <Link to={href} {...rest} />`).
+ */
+export interface AppNavLinkProps {
+  href: string;
+  className?: string;
+  children: ReactNode;
+  'aria-current'?: 'page';
+}
+
+export type AppNavLinkComponent = ComponentType<AppNavLinkProps>;
+
 export interface AppNavProps {
   appName: string;
   navItems?: readonly AppNavItem[];
@@ -48,6 +62,12 @@ export interface AppNavProps {
   homeHref?: string;
   /** `top` (default) renders the horizontal bar; `side` renders a vertical rail. */
   layout?: AppNavLayout;
+  /**
+   * Render in-app links with your router's link component to keep navigation
+   * client-side (no full-page reload). Applied to the brand, nav items, primary
+   * action, and auth actions — external links always use a plain anchor.
+   */
+  linkComponent?: AppNavLinkComponent;
   user?: AppNavUser;
   authState?: AppNavAuthState;
   signInAction?: AppNavAction;
@@ -71,6 +91,7 @@ export function AppNav({
   currentServiceId,
   homeHref = '/',
   layout = 'top',
+  linkComponent,
   user,
   authState,
   signInAction,
@@ -123,10 +144,10 @@ export function AppNav({
     <>
       <header className={cx('app-nav', isSide && 'app-nav-side', className)}>
         <div className="app-nav-inner">
-          <a className="app-nav-brand" href={homeHref}>
+          <AppNavAnchor className="app-nav-brand" href={homeHref} linkComponent={linkComponent}>
             <span className="app-nav-brand-mark" aria-hidden="true" />
             <span className="app-nav-brand-name">{appName}</span>
-          </a>
+          </AppNavAnchor>
 
           <button
             type="button"
@@ -146,11 +167,13 @@ export function AppNav({
                       <div className="app-nav-section" key={group.section ?? `__ungrouped-${index}`}>
                         {group.section && <span className="app-nav-section-title">{group.section}</span>}
                         {group.items.map((item) => (
-                          <AppNavLink key={item.id} item={item} />
+                          <AppNavLink key={item.id} item={item} linkComponent={linkComponent} />
                         ))}
                       </div>
                     ))
-                  : visibleNavItems.map((item) => <AppNavLink key={item.id} item={item} />)}
+                  : visibleNavItems.map((item) => (
+                      <AppNavLink key={item.id} item={item} linkComponent={linkComponent} />
+                    ))}
               </nav>
             )}
 
@@ -158,14 +181,14 @@ export function AppNav({
               {actions}
               {primaryAction && (
                 primaryAction.href ? (
-                  <a
+                  <AppNavAnchor
                     className="btn btn-primary app-nav-primary-action"
                     href={primaryAction.href}
-                    target={primaryAction.external ? '_blank' : undefined}
-                    rel={primaryAction.external ? 'noreferrer' : undefined}
+                    external={primaryAction.external}
+                    linkComponent={linkComponent}
                   >
                     {primaryAction.label}
-                  </a>
+                  </AppNavAnchor>
                 ) : (
                   <Button className="app-nav-primary-action" onClick={primaryAction.onClick}>
                     {primaryAction.label}
@@ -192,8 +215,8 @@ export function AppNav({
               </button>
               {showAnonymousControls && (
                 <div className="app-nav-auth-actions">
-                  <AppNavActionControl action={resolvedSignInAction} className="app-nav-auth-link" />
-                  <AppNavActionControl action={resolvedSignUpAction} className="btn btn-primary app-nav-auth-primary" />
+                  <AppNavActionControl action={resolvedSignInAction} className="app-nav-auth-link" linkComponent={linkComponent} />
+                  <AppNavActionControl action={resolvedSignUpAction} className="btn btn-primary app-nav-auth-primary" linkComponent={linkComponent} />
                 </div>
               )}
               {showAuthenticatedControls && (
@@ -267,7 +290,7 @@ export function AppNav({
                 Sign out
               </Button>
             ) : (
-              <AppNavActionControl action={resolvedSignOutAction} className="btn btn-secondary app-nav-sign-out-action" />
+              <AppNavActionControl action={resolvedSignOutAction} className="btn btn-secondary app-nav-sign-out-action" linkComponent={linkComponent} />
             )}
           </div>
         </Modal>
@@ -296,18 +319,58 @@ function groupNavItems(items: readonly AppNavItem[]): AppNavGroup[] {
   return groups;
 }
 
-function AppNavLink({ item }: { item: AppNavItem }) {
+/**
+ * Renders an in-app link through `linkComponent` when one is supplied, falling
+ * back to a plain anchor. External links always use the anchor (a router link
+ * can't own a cross-origin navigation) and keep `target`/`rel`.
+ */
+function AppNavAnchor({
+  href,
+  className,
+  external,
+  ariaCurrent,
+  linkComponent: LinkComponent,
+  children
+}: {
+  href: string;
+  className?: string;
+  external?: boolean;
+  ariaCurrent?: 'page';
+  linkComponent?: AppNavLinkComponent;
+  children: ReactNode;
+}) {
+  if (LinkComponent && !external) {
+    return (
+      <LinkComponent href={href} className={className} aria-current={ariaCurrent}>
+        {children}
+      </LinkComponent>
+    );
+  }
   return (
     <a
+      className={className}
+      href={href}
+      aria-current={ariaCurrent}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noreferrer' : undefined}
+    >
+      {children}
+    </a>
+  );
+}
+
+function AppNavLink({ item, linkComponent }: { item: AppNavItem; linkComponent?: AppNavLinkComponent }) {
+  return (
+    <AppNavAnchor
       className={cx(
         'app-nav-link',
         item.active && 'app-nav-link-active',
         item.highlight && 'app-nav-link-highlight'
       )}
       href={item.href}
-      aria-current={item.active ? 'page' : undefined}
-      target={item.external ? '_blank' : undefined}
-      rel={item.external ? 'noreferrer' : undefined}
+      external={item.external}
+      ariaCurrent={item.active ? 'page' : undefined}
+      linkComponent={linkComponent}
     >
       {item.icon && (
         <span className="app-nav-link-icon" aria-hidden="true">
@@ -315,21 +378,24 @@ function AppNavLink({ item }: { item: AppNavItem }) {
         </span>
       )}
       {item.label}
-    </a>
+    </AppNavAnchor>
   );
 }
 
-function AppNavActionControl({ action, className }: { action: AppNavAction; className?: string }) {
+function AppNavActionControl({
+  action,
+  className,
+  linkComponent
+}: {
+  action: AppNavAction;
+  className?: string;
+  linkComponent?: AppNavLinkComponent;
+}) {
   if (action.href) {
     return (
-      <a
-        className={className}
-        href={action.href}
-        target={action.external ? '_blank' : undefined}
-        rel={action.external ? 'noreferrer' : undefined}
-      >
+      <AppNavAnchor className={className} href={action.href} external={action.external} linkComponent={linkComponent}>
         {action.label}
-      </a>
+      </AppNavAnchor>
     );
   }
 
