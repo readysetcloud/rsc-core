@@ -474,6 +474,7 @@
 .app-nav-link {
   display: inline-flex;
   align-items: center;
+  gap: 0.625rem;
   min-height: 2.75rem;
   padding: 0 1.25rem;
   color: rgb(var(--muted-foreground));
@@ -707,6 +708,113 @@
 
 .app-nav-sign-out-action {
   width: 100%;
+}
+
+/* Per-item icon slot (both layouts) */
+.app-nav-link-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.app-nav-link-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.app-nav-link-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Grouped sections (rendered in the side layout; a headingless group is just
+   a run of links). */
+.app-nav-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-nav-section-title {
+  padding: 0.75rem 1.25rem 0.375rem;
+  color: rgb(var(--muted-foreground));
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------- vertical (side) layout ---------- */
+/* Desktop only: below the mobile breakpoint the rail reuses the shared
+   collapsible top-bar behavior so it becomes a drawer. */
+@media (min-width: 641px) {
+  .app-nav-side {
+    width: 16rem;
+    flex: 0 0 16rem;
+    height: 100%;
+    border-bottom: 0;
+    border-right: 1px solid rgb(var(--border));
+  }
+
+  .app-nav-side .app-nav-inner {
+    min-height: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.25rem;
+    padding: 1.25rem 1rem;
+  }
+
+  .app-nav-side .app-nav-brand {
+    padding-inline: 0.5rem;
+  }
+
+  .app-nav-side .app-nav-collapse {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.5rem;
+    flex: 1 1 auto;
+  }
+
+  .app-nav-side .app-nav-links {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 1.25rem;
+    flex: 0 0 auto;
+  }
+
+  .app-nav-side .app-nav-section {
+    gap: 0.125rem;
+  }
+
+  .app-nav-side .app-nav-link {
+    min-height: 2.5rem;
+    justify-content: flex-start;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .app-nav-side .app-nav-link:hover {
+    background: rgb(var(--muted));
+  }
+
+  .app-nav-side .app-nav-link-active {
+    background: rgb(var(--primary-100));
+    color: rgb(var(--primary-700));
+    box-shadow: inset 3px 0 0 rgb(var(--primary-500));
+  }
+
+  .app-nav-side .app-nav-actions {
+    margin-top: auto;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 640px) {

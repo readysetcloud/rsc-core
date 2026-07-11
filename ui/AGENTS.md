@@ -72,7 +72,7 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `Skeleton` | `width`, `height` | Shimmer placeholder. |
 | `EmptyState` | `title`, `description?`, `icon?`, `action?` | |
 | `Container` | div props | max 72rem, fluid padding. |
-| `AppNav` | `appName`, `navItems`, `currentServiceId`, `authState`, `services`, auth actions | Shared top navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. |
+| `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. |
 | `cx(...parts)` | | Classname join helper (replaces clsx for simple cases). |
 
 ## Shared navbar and app registry
@@ -103,6 +103,11 @@ Navbar rules:
 - `navItems` are app-specific. Use `visible: false` for simple gating and
   `active: true` for the current route. The shared app launcher active state is
   driven by `currentServiceId`.
+- `layout="side"` renders a vertical 16rem rail instead of the top bar; it
+  reads the same `navItems` plus per-item `icon` (a node; an HTML/SVG string for
+  the vanilla build) and `section` (heading — consecutive same-section items are
+  grouped; ungrouped items stay in place). Sections are ignored in `top`. The
+  rail collapses to the shared hamburger drawer on mobile.
 - `authState="none"` hides all auth controls. `authState="anonymous"` shows
   sign-in/sign-up controls. `authState="authenticated"` shows the profile menu.
 - Auth URLs default to `/login`, `/signup`, and `/logout`; override with

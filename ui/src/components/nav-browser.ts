@@ -29,6 +29,7 @@ import { getVisibleServices, readySetCloudServices, type RscService } from '../s
 
 export type AppNavTheme = 'light' | 'dark' | 'system';
 export type AppNavAuthState = 'none' | 'anonymous' | 'authenticated';
+export type AppNavLayout = 'top' | 'side';
 
 export interface AppNavUser {
   name?: string;
@@ -44,6 +45,16 @@ export interface AppNavItem {
   external?: boolean;
   highlight?: boolean;
   visible?: boolean;
+  /**
+   * Optional leading icon as an HTML/SVG markup string (e.g. '<svg>…</svg>').
+   * Inserted before the label. Trusted markup only — this is set as innerHTML.
+   */
+  icon?: string;
+  /**
+   * Optional section heading. Consecutive items sharing a section are grouped
+   * under one heading in the `side` layout (ignored in the `top` layout).
+   */
+  section?: string;
 }
 
 export interface AppNavAction {
@@ -60,6 +71,8 @@ export interface AppNavOptions {
   services?: readonly RscService[];
   currentServiceId?: string;
   homeHref?: string;
+  /** `top` (default) renders the horizontal bar; `side` renders a vertical rail. */
+  layout?: AppNavLayout;
   user?: AppNavUser;
   authState?: AppNavAuthState;
   signInAction?: AppNavAction;
@@ -160,11 +173,13 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
       services = readySetCloudServices,
       currentServiceId,
       homeHref = '/',
+      layout = 'top',
       user,
       authState,
       className
     } = opts;
 
+    const isSide = layout === 'side';
     const theme = currentTheme();
     const visibleServices = getVisibleServices(services);
     const visibleNavItems = navItems.filter((item) => item.visible !== false);
@@ -178,7 +193,7 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
     const initials = getInitials(user?.name ?? user?.email ?? appName);
 
     // ---- header ----
-    const header = h('header', { class: cx('app-nav', className) });
+    const header = h('header', { class: cx('app-nav', isSide && 'app-nav-side', className) });
     const inner = h('div', { class: 'app-nav-inner' });
     header.appendChild(inner);
 
@@ -207,22 +222,17 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
 
     if (visibleNavItems.length > 0) {
       const nav = h('nav', { class: 'app-nav-links', 'aria-label': 'Primary navigation' });
-      for (const item of visibleNavItems) {
-        nav.appendChild(
-          h(
-            'a',
-            {
-              class: cx(
-                'app-nav-link',
-                item.active && 'app-nav-link-active',
-                item.highlight && 'app-nav-link-highlight'
-              ),
-              href: item.href,
-              ...externalAttrs(item.external)
-            },
-            item.label
-          )
-        );
+      if (isSide) {
+        for (const group of groupNavItems(visibleNavItems)) {
+          const section = h('div', { class: 'app-nav-section' });
+          if (group.section) {
+            section.appendChild(h('span', { class: 'app-nav-section-title' }, group.section));
+          }
+          for (const item of group.items) section.appendChild(navLink(item));
+          nav.appendChild(section);
+        }
+      } else {
+        for (const item of visibleNavItems) nav.appendChild(navLink(item));
       }
       collapse.appendChild(nav);
     }
@@ -445,6 +455,46 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
 }
 
 /* ---------- shared helpers ---------- */
+
+interface AppNavGroup {
+  section?: string;
+  items: AppNavItem[];
+}
+
+/**
+ * Collapse a flat item list into consecutive runs sharing a `section`, keeping
+ * the caller's order so ungrouped items stay put (a standalone item at the top
+ * or bottom of a side rail is not pulled into an adjacent section).
+ */
+function groupNavItems(items: readonly AppNavItem[]): AppNavGroup[] {
+  const groups: AppNavGroup[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.section === item.section) last.items.push(item);
+    else groups.push({ section: item.section, items: [item] });
+  }
+  return groups;
+}
+
+function navLink(item: AppNavItem): El {
+  const link = h('a', {
+    class: cx(
+      'app-nav-link',
+      item.active && 'app-nav-link-active',
+      item.highlight && 'app-nav-link-highlight'
+    ),
+    href: item.href,
+    ...(item.active ? { 'aria-current': 'page' } : {}),
+    ...externalAttrs(item.external)
+  });
+  if (item.icon) {
+    const iconWrap = h('span', { class: 'app-nav-link-icon', 'aria-hidden': 'true' });
+    iconWrap.innerHTML = item.icon;
+    link.appendChild(iconWrap);
+  }
+  link.appendChild(document.createTextNode(item.label));
+  return link;
+}
 
 function createDialog(className: string, label: string, onClose: () => void): HTMLDialogElement {
   const dialog = document.createElement('dialog');

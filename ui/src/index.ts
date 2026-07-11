@@ -29,6 +29,7 @@ export {
   type AppNavAction,
   type AppNavAuthState,
   type AppNavItem,
+  type AppNavLayout,
   type AppNavProps,
   type AppNavUser,
   type AppTheme

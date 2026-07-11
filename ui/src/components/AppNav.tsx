@@ -7,6 +7,7 @@ import { cx } from './cx';
 
 export type AppTheme = 'light' | 'dark' | 'system';
 export type AppNavAuthState = 'none' | 'anonymous' | 'authenticated';
+export type AppNavLayout = 'top' | 'side';
 
 export interface AppNavUser {
   name?: string;
@@ -22,6 +23,13 @@ export interface AppNavItem {
   external?: boolean;
   highlight?: boolean;
   visible?: boolean;
+  /** Optional leading icon (e.g. an SVG element). Rendered before the label. */
+  icon?: ReactNode;
+  /**
+   * Optional section heading. Consecutive items sharing a section are grouped
+   * under one heading in the `side` layout (ignored in the `top` layout).
+   */
+  section?: string;
 }
 
 export interface AppNavAction {
@@ -38,6 +46,8 @@ export interface AppNavProps {
   services?: readonly RscService[];
   currentServiceId?: string;
   homeHref?: string;
+  /** `top` (default) renders the horizontal bar; `side` renders a vertical rail. */
+  layout?: AppNavLayout;
   user?: AppNavUser;
   authState?: AppNavAuthState;
   signInAction?: AppNavAction;
@@ -60,6 +70,7 @@ export function AppNav({
   services = readySetCloudServices,
   currentServiceId,
   homeHref = '/',
+  layout = 'top',
   user,
   authState,
   signInAction,
@@ -81,6 +92,8 @@ export function AppNav({
   const selectedTheme = theme ?? uncontrolledTheme;
   const visibleServices = useMemo(() => getVisibleServices(services), [services]);
   const visibleNavItems = useMemo(() => navItems.filter((item) => item.visible !== false), [navItems]);
+  const navGroups = useMemo(() => groupNavItems(visibleNavItems), [visibleNavItems]);
+  const isSide = layout === 'side';
   const resolvedAuthState = authState ?? (user ? 'authenticated' : 'none');
   const showAuthenticatedControls = resolvedAuthState === 'authenticated';
   const showAnonymousControls = resolvedAuthState === 'anonymous';
@@ -108,7 +121,7 @@ export function AppNav({
 
   return (
     <>
-      <header className={cx('app-nav', className)}>
+      <header className={cx('app-nav', isSide && 'app-nav-side', className)}>
         <div className="app-nav-inner">
           <a className="app-nav-brand" href={homeHref}>
             <span className="app-nav-brand-mark" aria-hidden="true" />
@@ -128,21 +141,16 @@ export function AppNav({
           <div className={cx('app-nav-collapse', mobileNavOpen && 'app-nav-collapse-open')}>
             {visibleNavItems.length > 0 && (
               <nav className="app-nav-links" aria-label="Primary navigation">
-                {visibleNavItems.map((item) => (
-                  <a
-                    key={item.id}
-                    className={cx(
-                      'app-nav-link',
-                      item.active && 'app-nav-link-active',
-                      item.highlight && 'app-nav-link-highlight'
-                    )}
-                    href={item.href}
-                    target={item.external ? '_blank' : undefined}
-                    rel={item.external ? 'noreferrer' : undefined}
-                  >
-                    {item.label}
-                  </a>
-                ))}
+                {isSide
+                  ? navGroups.map((group, index) => (
+                      <div className="app-nav-section" key={group.section ?? `__ungrouped-${index}`}>
+                        {group.section && <span className="app-nav-section-title">{group.section}</span>}
+                        {group.items.map((item) => (
+                          <AppNavLink key={item.id} item={item} />
+                        ))}
+                      </div>
+                    ))
+                  : visibleNavItems.map((item) => <AppNavLink key={item.id} item={item} />)}
               </nav>
             )}
 
@@ -265,6 +273,49 @@ export function AppNav({
         </Modal>
       )}
     </>
+  );
+}
+
+interface AppNavGroup {
+  section?: string;
+  items: AppNavItem[];
+}
+
+/**
+ * Collapse a flat item list into consecutive runs sharing a `section`. This
+ * preserves the caller's order, so ungrouped items stay where they are (e.g. a
+ * standalone "Dashboard" at the top and "Brand" at the bottom of a side rail).
+ */
+function groupNavItems(items: readonly AppNavItem[]): AppNavGroup[] {
+  const groups: AppNavGroup[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.section === item.section) last.items.push(item);
+    else groups.push({ section: item.section, items: [item] });
+  }
+  return groups;
+}
+
+function AppNavLink({ item }: { item: AppNavItem }) {
+  return (
+    <a
+      className={cx(
+        'app-nav-link',
+        item.active && 'app-nav-link-active',
+        item.highlight && 'app-nav-link-highlight'
+      )}
+      href={item.href}
+      aria-current={item.active ? 'page' : undefined}
+      target={item.external ? '_blank' : undefined}
+      rel={item.external ? 'noreferrer' : undefined}
+    >
+      {item.icon && (
+        <span className="app-nav-link-icon" aria-hidden="true">
+          {item.icon}
+        </span>
+      )}
+      {item.label}
+    </a>
   );
 }
 

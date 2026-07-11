@@ -116,7 +116,7 @@ hand-rolled headers, one source of truth.
 ```
 
 `mountAppNav(target, options)` takes the same options as the React `<AppNav>`
-(`appName`, `navItems`, `primaryAction`, `services`, `currentServiceId`,
+(`appName`, `navItems`, `layout`, `primaryAction`, `services`, `currentServiceId`,
 `user`, `authState`, `signInAction`/`signUpAction`/`signOutAction`, `theme`,
 `onThemeChange`/`onProfileClick`/`onSignOut`, …) and returns a handle with
 `update(partialOptions)`, `setTheme(theme)`, `getTheme()`, and `destroy()`. The
@@ -190,6 +190,43 @@ The default app manifest includes:
 
 The 9-box app launcher is shown only for authenticated users and only when at
 least one service is visible.
+
+### Vertical side-nav layout
+
+Pass `layout="side"` to render the same nav as a vertical rail instead of a top
+bar. It shares the brand mark, theme toggle, app launcher, and profile menu, and
+reads the same `navItems` API — with two extra per-item capabilities used by the
+side layout:
+
+- `icon` — a leading icon (a React node; an HTML/SVG markup string for the
+  vanilla `mountAppNav`).
+- `section` — a heading. Consecutive items sharing a `section` are grouped under
+  one label; items without a section render as a headingless run, so a
+  standalone item stays put at the top or bottom of the rail. (Sections are
+  ignored in the `top` layout.)
+
+```tsx
+<AppNav
+  appName="Outboxed"
+  layout="side"
+  authState="authenticated"
+  user={{ name: user.name, email: user.email }}
+  navItems={[
+    { id: '/', label: 'Dashboard', href: '/', icon: <HomeIcon />, active: true },
+    { id: '/issues', label: 'Issues', href: '/issues', icon: <IssuesIcon />, section: 'Publish' },
+    { id: '/subscribers', label: 'Subscribers', href: '/subscribers', icon: <UsersIcon />, section: 'Publish' },
+    { id: '/posts', label: 'Posts', href: '/posts', icon: <PostsIcon />, section: 'Content' },
+    { id: '/sponsors', label: 'Sponsors', href: '/sponsors', icon: <MoneyIcon />, section: 'Monetization' },
+    { id: '/brand', label: 'Brand', href: '/brand', icon: <BrandIcon /> }
+  ]}
+/>;
+```
+
+The rail is a fixed 16rem-wide, full-height column — place it in a flex/grid row
+beside your content (add `position: sticky; top: 0` yourself if you want it
+pinned). Below the mobile breakpoint it collapses to the same hamburger drawer
+as the top bar. Active / hover / highlight states are themed from the shared
+tokens in both light and dark.
 
 Auth controls are explicit:
 
