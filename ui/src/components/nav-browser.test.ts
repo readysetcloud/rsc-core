@@ -170,6 +170,58 @@ describe('mountAppNav', () => {
     expect(root.querySelector('.app-nav-avatar')?.textContent).toBe('A');
   });
 
+  it('renders the vertical side layout with grouped sections', () => {
+    handle = mountAppNav(root, {
+      appName: 'Outboxed',
+      layout: 'side',
+      navItems: [
+        { id: '/', label: 'Dashboard', href: '/', active: true },
+        { id: '/issues', label: 'Issues', href: '/issues', section: 'Publish' },
+        { id: '/subscribers', label: 'Subscribers', href: '/subscribers', section: 'Publish' },
+        { id: '/posts', label: 'Posts', href: '/posts', section: 'Content' },
+        { id: '/brand', label: 'Brand', href: '/brand' }
+      ]
+    });
+
+    expect(nav().classList.contains('app-nav-side')).toBe(true);
+
+    // Consecutive same-section items collapse into one titled group; ungrouped
+    // items keep their place as headingless runs.
+    const sections = [...root.querySelectorAll('.app-nav-section')];
+    expect(sections).toHaveLength(4);
+    const titles = sections.map((s) => s.querySelector('.app-nav-section-title')?.textContent ?? null);
+    expect(titles).toEqual([null, 'Publish', 'Content', null]);
+
+    const publishLinks = [...sections[1]!.querySelectorAll('.app-nav-link')].map((l) => l.textContent);
+    expect(publishLinks).toEqual(['Issues', 'Subscribers']);
+    expect(root.querySelector('.app-nav-link-active')?.textContent).toBe('Dashboard');
+    expect(root.querySelector('.app-nav-link-active')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('renders per-item icon markup and keeps the label text', () => {
+    handle = mountAppNav(root, {
+      appName: 'Outboxed',
+      layout: 'side',
+      navItems: [{ id: '/', label: 'Dashboard', href: '/', icon: '<svg data-testid="home"></svg>' }]
+    });
+    const link = root.querySelector('.app-nav-link') as HTMLElement;
+    expect(link.querySelector('.app-nav-link-icon svg[data-testid="home"]')).toBeTruthy();
+    expect(link.textContent).toBe('Dashboard');
+  });
+
+  it('does not group into sections in the default top layout', () => {
+    handle = mountAppNav(root, {
+      appName: 'RSC',
+      navItems: [
+        { id: 'a', label: 'A', href: '/a', section: 'Publish' },
+        { id: 'b', label: 'B', href: '/b', section: 'Content' }
+      ]
+    });
+    expect(nav().classList.contains('app-nav-side')).toBe(false);
+    expect(root.querySelector('.app-nav-section')).toBeNull();
+    expect([...root.querySelectorAll('.app-nav-link')].map((l) => l.textContent)).toEqual(['A', 'B']);
+  });
+
   it('destroy() removes the header and its dialogs', () => {
     handle = mountAppNav(root, { appName: 'RSC', authState: 'authenticated', user: { email: 'a@b.co' } });
     (root.querySelector('.app-nav-avatar') as HTMLButtonElement).click();
