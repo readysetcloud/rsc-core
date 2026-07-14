@@ -71,6 +71,9 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `Spinner` | span props | Inherits `currentColor`. |
 | `Skeleton` | `width`, `height` | Shimmer placeholder. |
 | `EmptyState` | `title`, `description?`, `icon?`, `action?` | |
+| `Loading`, `LoadingSpinner`, `LoadingPage`, `LoadingOverlay`, `InlineLoading`, `SkeletonLoader` | shared loading/placeholder props | Composed loading states built on `Spinner` and `Skeleton`; use these instead of app-local loaders. |
+| `ProgressIndicator` | `steps: { id, label, status, description? }[]` | Step status list for setup/verification flows. Status: `pending`, `in-progress`, `completed`, `failed`. |
+| `ErrorState` | `heading?`, `message`, `action?` | Standard retryable error block built on `Alert`. |
 | `Container` | div props | max 72rem, fluid padding. |
 | `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. |
 | `BadgeChest` | `points`, `level`, `levelName`, `levelMinPoints`, `nextLevel`, `badges`, `inProgress`, `loading`, `showInProgress`, `emptyState` | Cross-app trophy case: level + points header with progress bar, earned badge grid, and in-progress tiles. Presentational — fetch with `createBadgeClient` and pass the data in. |

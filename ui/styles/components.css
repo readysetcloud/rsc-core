@@ -358,6 +358,212 @@
   color: rgb(var(--foreground));
 }
 
+/* ---------- loading states ---------- */
+
+.loading-spinner-sm { font-size: 1rem; }
+.loading-spinner-md { font-size: 1.5rem; }
+.loading-spinner-lg { font-size: 2rem; }
+
+.loading-state,
+.inline-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: rgb(var(--primary-600));
+}
+
+.loading-state {
+  flex-direction: column;
+  width: 100%;
+  min-height: 8rem;
+  padding: 1.5rem;
+}
+
+.loading-state-text {
+  color: rgb(var(--muted-foreground));
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.loading-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--background));
+}
+
+.loading-overlay-shell {
+  position: relative;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-radius: inherit;
+  background: rgb(var(--surface) / 0.82);
+  color: rgb(var(--primary-600));
+}
+
+.skeleton-loader {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.skeleton-loader-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-lg);
+  background: rgb(var(--surface));
+}
+
+.skeleton-loader-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+}
+
+.skeleton-loader-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-loader-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.progress-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.progress-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.progress-step-icon {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  margin-top: 0.125rem;
+  border: 2px solid rgb(var(--muted-foreground));
+  border-radius: var(--radius-full);
+}
+
+.progress-step[data-status='in-progress'] .progress-step-icon {
+  border-color: rgb(var(--primary-600));
+  border-right-color: transparent;
+  animation: rsc-spin 0.7s linear infinite;
+}
+
+.progress-step[data-status='completed'] .progress-step-icon {
+  border-color: rgb(var(--success-600));
+  background: rgb(var(--success-600));
+}
+
+.progress-step[data-status='completed'] .progress-step-icon::after {
+  content: '';
+  position: absolute;
+  left: 0.3125rem;
+  top: 0.125rem;
+  width: 0.3125rem;
+  height: 0.625rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.progress-step[data-status='failed'] .progress-step-icon {
+  border-color: rgb(var(--error-600));
+  background: rgb(var(--error-600));
+}
+
+.progress-step[data-status='failed'] .progress-step-icon::before,
+.progress-step[data-status='failed'] .progress-step-icon::after {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  top: 0.5rem;
+  width: 0.625rem;
+  height: 2px;
+  background: #fff;
+}
+
+.progress-step[data-status='failed'] .progress-step-icon::before { transform: rotate(45deg); }
+.progress-step[data-status='failed'] .progress-step-icon::after { transform: rotate(-45deg); }
+
+.progress-step-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.progress-step-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: rgb(var(--muted-foreground));
+}
+
+.progress-step[data-status='in-progress'] .progress-step-label { color: rgb(var(--primary-700)); }
+.progress-step[data-status='completed'] .progress-step-label { color: rgb(var(--success-700)); }
+.progress-step[data-status='failed'] .progress-step-label { color: rgb(var(--error-700)); }
+
+.progress-step-description {
+  color: rgb(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+.error-state {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.error-state-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .skeleton-loader-row {
+    align-items: flex-start;
+  }
+
+  .skeleton-loader-actions {
+    display: none;
+  }
+
+  .error-state {
+    flex-direction: column;
+  }
+}
+
 /* ---------- container ---------- */
 
 .container-rsc {
