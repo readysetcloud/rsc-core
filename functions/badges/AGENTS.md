@@ -226,7 +226,7 @@ React to these on the default bus (e.g. to toast or email the user):
 | `GET /badges/catalog` | none | Every earnable badge + the level ladder |
 | `POST /badges/activity` | Cognito JWT | Record activity for the caller |
 
-Base URL is in SSM at `/readysetcloud/api-url` (prod: `https://api.readysetcloud.io`).
+Base URL is in SSM at `/readysetcloud/api-url` (prod: `https://api.readysetcloud.io/core`).
 Use `createBadgeClient` + `<BadgeChest>` from `@readysetcloud/ui` so every app
 renders identically — see `ui/AGENTS.md`.
 

@@ -147,7 +147,7 @@ import { useAuth } from '@readysetcloud/ui/auth';
 
 const badges = createBadgeClient({
   baseUrl: import.meta.env.VITE_CORE_API_URL, // rsc-core SSM /readysetcloud/api-url
-                                              // (prod: https://api.readysetcloud.io)
+                                              // (prod: https://api.readysetcloud.io/core)
   getToken                                    // from useAuth()
 });
 

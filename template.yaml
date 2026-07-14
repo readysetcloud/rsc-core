@@ -372,31 +372,31 @@ Resources:
   # the shared CoreApi behind the Cognito user pool.
   #
   # CoreApi is the shared public API surface for rsc-core (badges today, more
-  # core routes over time). In prod it is fronted by api.${RootDomainName}
-  # (e.g. api.readysetcloud.io); non-prod uses the execute-api URL.
+  # core routes over time). In prod it is fronted by the pre-existing
+  # api.${RootDomainName} custom domain under the /core base path
+  # (e.g. https://api.readysetcloud.io/core); non-prod uses the execute-api URL.
   # ----------------------------------------------------------------------------
-  CoreApi:
-    Type: AWS::Serverless::HttpApi
+  # Logical ID intentionally differs from the old HttpApi (CoreApi):
+  # CloudFormation cannot change a resource's Type in place, so the REST API is
+  # a new resource that replaces it.
+  CoreRestApi:
+    Type: AWS::Serverless::Api
     Properties:
+      # REST (v1) API so it can attach to the pre-existing api.${RootDomainName}
+      # custom domain — a v1 domain only accepts REST base path mappings.
+      StageName: Prod
       Auth:
         Authorizers:
-          CognitoJwt:
-            IdentitySource: $request.header.Authorization
-            JwtConfiguration:
-              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
-              audience:
-                - !Ref CognitoUserPoolClient
-        DefaultAuthorizer: CognitoJwt
-      CorsConfiguration:
-        AllowOrigins:
-          - '*'
-        AllowHeaders:
-          - authorization
-          - content-type
-        AllowMethods:
-          - GET
-          - POST
-          - OPTIONS
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt CognitoUserPool.Arn
+        DefaultAuthorizer: CognitoAuthorizer
+        # Keep CORS preflight (OPTIONS) unauthenticated — browsers send no
+        # Authorization header on preflight, so authorizing it breaks CORS.
+        AddDefaultAuthorizerToCorsPreflight: false
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'authorization,content-type'"
+        AllowMethods: "'GET,POST,OPTIONS'"
 
   BadgeProcessorDLQ:
     Type: AWS::SQS::Queue
@@ -462,9 +462,9 @@ Resources:
               Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
       Events:
         RecordActivity:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /badges/activity
             Method: POST
 
@@ -491,9 +491,9 @@ Resources:
           TABLE_NAME: !Ref RSCCoreTable
       Events:
         GetChest:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /badges/me
             Method: GET
 
@@ -510,9 +510,9 @@ Resources:
       Timeout: 5
       Events:
         GetCatalog:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /badges/catalog
             Method: GET
             Auth:
@@ -525,16 +525,16 @@ Resources:
       Type: String
       Value: !If
         - DeployCustomDomainSupport
-        - !Sub https://api.${RootDomainName}
-        - !Sub https://${CoreApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-      Description: Base URL of the shared rsc-core HTTP API (badge routes under /badges)
+        - !Sub https://api.${RootDomainName}/core
+        - !Sub https://${CoreRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod
+      Description: Base URL of the shared rsc-core REST API (badge routes under /badges)
 
   # ----------------------------------------------------------------------------
   # Agent service — a Strands-TS assistant (@readysetcloud/agent) hosted in
   # AgentCore Runtime (NODE_22) that streams over a browser-direct WebSocket.
   #
   # Auth reuses the shared RSC Cognito pool: the browser calls
-  # POST /agent/connect on the CoreApi (CognitoJwt authorizer), and
+  # POST /agent/connect on the CoreApi (Cognito authorizer), and
   # WebSocketConnectFunction returns a SigV4-presigned wss:// URL carrying the
   # verified sub as a custom header so memory recall is scoped to the caller.
   #
@@ -678,9 +678,9 @@ Resources:
               Resource: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*'
       Events:
         PostAgentConnect:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /agent/connect
             Method: POST
 
@@ -712,9 +712,9 @@ Resources:
               Resource: !GetAtt AgentChatTable.Arn
       Events:
         PostAgentSession:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /agent/sessions
             Method: POST
 
@@ -958,45 +958,20 @@ Resources:
       TTL: 300
       Type: CNAME
 
-  # Custom domain for the shared CoreApi — api.${RootDomainName} in prod.
-  ApiCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Condition: DeployCustomDomainSupport
-    Properties:
-      DomainName: !Sub api.${RootDomainName}
-      ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Sub api.${RootDomainName}
-          HostedZoneId: !Ref HostedZoneId
-
-  CoreApiDomainName:
-    Type: AWS::ApiGatewayV2::DomainName
-    Condition: DeployCustomDomainSupport
-    Properties:
-      DomainName: !Sub api.${RootDomainName}
-      DomainNameConfigurations:
-        - CertificateArn: !Ref ApiCertificate
-          EndpointType: REGIONAL
-          SecurityPolicy: TLS_1_2
-
+  # The api.${RootDomainName} custom domain already exists in API Gateway
+  # (owned by another stack, along with its ACM cert and Route53 record), so we
+  # do not create the domain, certificate, or DNS here. Instead we attach the
+  # CoreApi under the /core base path of that existing domain.
   CoreApiMapping:
-    Type: AWS::ApiGatewayV2::ApiMapping
+    Type: AWS::ApiGateway::BasePathMapping
     Condition: DeployCustomDomainSupport
+    # The auto-generated stage must exist before the mapping can bind to it.
+    DependsOn: CoreRestApiProdStage
     Properties:
-      ApiId: !Ref CoreApi
-      DomainName: !Ref CoreApiDomainName
-      Stage: $default
-
-  CoreApiDnsRecord:
-    Type: AWS::Route53::RecordSet
-    Condition: DeployCustomDomainSupport
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub api.${RootDomainName}
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt CoreApiDomainName.RegionalDomainName
-        HostedZoneId: !GetAtt CoreApiDomainName.RegionalHostedZoneId
+      DomainName: !Sub api.${RootDomainName}
+      RestApiId: !Ref CoreRestApi
+      Stage: Prod
+      BasePath: core
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
