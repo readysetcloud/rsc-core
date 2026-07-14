@@ -351,12 +351,16 @@ Resources:
   # Badge Chest — cross-app gamification (badges, points, levels)
   #
   # Apps emit "Track Activity" events to the default bus (or POST them to the
-  # BadgesApi). ProcessActivityFunction is the rules engine: it counts activity,
+  # CoreApi). ProcessActivityFunction is the rules engine: it counts activity,
   # awards badges from the central catalog, rolls points up into levels, and
-  # emits "Badge Awarded" / "Level Up" events. The BadgesApi is the read surface
-  # behind the shared Cognito user pool.
+  # emits "Badge Awarded" / "Level Up" events. The badge routes are served by
+  # the shared CoreApi behind the Cognito user pool.
+  #
+  # CoreApi is the shared public API surface for rsc-core (badges today, more
+  # core routes over time). In prod it is fronted by api.${RootDomainName}
+  # (e.g. api.readysetcloud.io); non-prod uses the execute-api URL.
   # ----------------------------------------------------------------------------
-  BadgesApi:
+  CoreApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       Auth:
@@ -445,7 +449,7 @@ Resources:
         RecordActivity:
           Type: HttpApi
           Properties:
-            ApiId: !Ref BadgesApi
+            ApiId: !Ref CoreApi
             Path: /badges/activity
             Method: POST
 
@@ -474,7 +478,7 @@ Resources:
         GetChest:
           Type: HttpApi
           Properties:
-            ApiId: !Ref BadgesApi
+            ApiId: !Ref CoreApi
             Path: /badges/me
             Method: GET
 
@@ -493,19 +497,22 @@ Resources:
         GetCatalog:
           Type: HttpApi
           Properties:
-            ApiId: !Ref BadgesApi
+            ApiId: !Ref CoreApi
             Path: /badges/catalog
             Method: GET
             Auth:
               Authorizer: NONE
 
-  BadgesApiUrlParameter:
+  CoreApiUrlParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: /readysetcloud/badges/api-url
+      Name: /readysetcloud/api-url
       Type: String
-      Value: !Sub https://${BadgesApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-      Description: Base URL of the Badge Chest HTTP API
+      Value: !If
+        - DeployCustomDomainSupport
+        - !Sub https://api.${RootDomainName}
+        - !Sub https://${CoreApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+      Description: Base URL of the shared rsc-core HTTP API (badge routes under /badges)
 
   Secrets:
     Type: AWS::SecretsManager::Secret
@@ -649,6 +656,46 @@ Resources:
         - !GetAtt CognitoUserPoolDomain.CloudFrontDistribution
       TTL: 300
       Type: CNAME
+
+  # Custom domain for the shared CoreApi — api.${RootDomainName} in prod.
+  ApiCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub api.${RootDomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub api.${RootDomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  CoreApiDomainName:
+    Type: AWS::ApiGatewayV2::DomainName
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub api.${RootDomainName}
+      DomainNameConfigurations:
+        - CertificateArn: !Ref ApiCertificate
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  CoreApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Condition: DeployCustomDomainSupport
+    Properties:
+      ApiId: !Ref CoreApi
+      DomainName: !Ref CoreApiDomainName
+      Stage: $default
+
+  CoreApiDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: DeployCustomDomainSupport
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub api.${RootDomainName}
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt CoreApiDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt CoreApiDomainName.RegionalHostedZoneId
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient

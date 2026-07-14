@@ -44,7 +44,7 @@ The configured deployment parameters above will be accessible by using the follo
 * Cognito User Pool ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-id}}`
 * Cognito User Pool ARN - `{{resolve:ssm:/readysetcloud/auth/user-pool-arn}}`
 * Cognito User Pool Client ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-client-id}}`
-* Badge Chest API URL - `{{resolve:ssm:/readysetcloud/badges/api-url}}`
+* Core API URL - `{{resolve:ssm:/readysetcloud/api-url}}` (prod: `https://api.readysetcloud.io`)
 
 ## Badge Chest — cross-app gamification
 
@@ -101,6 +101,13 @@ criteria types:
   "collect them all").
 
 ### API
+
+Badge routes are served by the shared **Core API** (`AWS::Serverless::HttpApi`
+`CoreApi`). Its base URL is published to SSM at `/readysetcloud/api-url`. In prod
+(any deploy with `RootDomainName` set) it is fronted by a custom domain,
+`api.${RootDomainName}` — e.g. `https://api.readysetcloud.io`; non-prod deploys
+fall back to the generated `execute-api` URL. This is the ecosystem's core API
+surface — badges are its first routes, more will live here over time.
 
 | Method & path | Auth | Purpose |
 | --- | --- | --- |

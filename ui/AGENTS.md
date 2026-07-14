@@ -143,8 +143,9 @@ import { BadgeChest, createBadgeClient } from '@readysetcloud/ui';
 import { useAuth } from '@readysetcloud/ui/auth';
 
 const badges = createBadgeClient({
-  baseUrl: import.meta.env.VITE_BADGES_API_URL, // rsc-core SSM /readysetcloud/badges/api-url
-  getToken                                      // from useAuth()
+  baseUrl: import.meta.env.VITE_CORE_API_URL, // rsc-core SSM /readysetcloud/api-url
+                                              // (prod: https://api.readysetcloud.io)
+  getToken                                    // from useAuth()
 });
 
 const data = await badges.getChest();           // GET /badges/me
