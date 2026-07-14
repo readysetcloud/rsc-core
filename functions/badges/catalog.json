@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "badges": [
     {
       "id": "welcome",
@@ -53,6 +53,76 @@
       "points": 75,
       "service": "bootcamp",
       "criteria": { "type": "count", "metric": "lesson.completed", "threshold": 10, "service": "bootcamp" }
+    },
+    {
+      "id": "bug-hunter",
+      "name": "Bug Hunter",
+      "description": "Found the fault in 10 Spot-the-bug exercises.",
+      "icon": "🐛",
+      "category": "Learning",
+      "tier": "silver",
+      "points": 60,
+      "service": "bootcamp",
+      "criteria": { "type": "count", "metric": "bug.found", "threshold": 10, "service": "bootcamp" }
+    },
+    {
+      "id": "from-scratch",
+      "name": "From Scratch",
+      "description": "Assembled and passed 5 Write-it exercises against real assertions.",
+      "icon": "✍️",
+      "category": "Learning",
+      "tier": "silver",
+      "points": 60,
+      "service": "bootcamp",
+      "criteria": { "type": "count", "metric": "writeit.passed", "threshold": 5, "service": "bootcamp" }
+    },
+    {
+      "id": "interview-ready",
+      "name": "Interview Ready",
+      "description": "Finished the 25-minute interview simulation against the clock.",
+      "icon": "⏱️",
+      "category": "Learning",
+      "tier": "bronze",
+      "points": 30,
+      "service": "bootcamp",
+      "criteria": { "type": "count", "metric": "interview.completed", "threshold": 1, "service": "bootcamp" }
+    },
+    {
+      "id": "race-condition-survivor",
+      "name": "Race Condition Survivor",
+      "description": "Completed every exercise in a bootcamp course.",
+      "icon": "🏁",
+      "category": "Learning",
+      "tier": "gold",
+      "points": 100,
+      "service": "bootcamp",
+      "criteria": { "type": "count", "metric": "course.completed", "threshold": 1, "service": "bootcamp" }
+    },
+    {
+      "id": "polymath",
+      "name": "Polymath",
+      "description": "Completed three different bootcamp courses.",
+      "icon": "🧠",
+      "category": "Learning",
+      "tier": "gold",
+      "points": 120,
+      "service": "bootcamp",
+      "criteria": { "type": "unique", "metric": "course.completed", "threshold": 3 }
+    },
+    {
+      "id": "concurrency-master",
+      "name": "Concurrency Master",
+      "description": "Earned Bug Hunter, From Scratch, Interview Ready, and completed a course.",
+      "icon": "🏆",
+      "category": "Learning",
+      "tier": "platinum",
+      "points": 200,
+      "service": "bootcamp",
+      "criteria": {
+        "type": "meta",
+        "badges": ["bug-hunter", "from-scratch", "interview-ready", "race-condition-survivor"],
+        "threshold": 4
+      }
     },
     {
       "id": "first-campaign",
