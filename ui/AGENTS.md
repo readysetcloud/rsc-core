@@ -204,6 +204,57 @@ Flow behaviors already handled: NEW_PASSWORD_REQUIRED challenge, unconfirmed-acc
 
 **Validation** (matches the ACTUAL pool policy — 8+ chars, upper, lower, number, **symbols NOT required**): `validateEmail`, `validatePassword`, `validateName`, `validateCode`, `PASSWORD_REQUIREMENTS`.
 
+## Chat — `import { ... } from '@readysetcloud/ui/chat'`
+
+Streaming chat surface for the AgentCore agent (`@readysetcloud/agent`). On its
+own subpath (like `./auth`) so apps that don't render chat don't pull in
+`react-markdown` & friends. The app owns auth: it supplies a `getConnectionUrl`
+that returns a presigned `wss://` URL, and the components never import app auth.
+
+```tsx
+import { Chat } from '@readysetcloud/ui/chat';
+import { useAuth } from '@readysetcloud/ui/auth';
+
+const { user, getToken } = useAuth();
+const authed = async (path, body) =>
+  (await fetch(`${CORE_API_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${await getToken()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })).json();
+
+// 1. Create a session once (optionally set prompt/model), keep the id in state.
+const { sessionId } = await authed('/agent/sessions', { systemPrompt, modelId });
+
+// 2. Presign per (re)connect. The verified Cognito sub becomes the agent's
+//    userId server-side — never pass it from the client.
+const getConnectionUrl = async (sid?: string) => (await authed('/agent/connect', { sessionId: sid })).wsUrl;
+
+<Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" />;
+```
+
+`CORE_API_URL` is the rsc-core SSM `/readysetcloud/api-url` value. Creating a
+session is where prompt/model are chosen; the deployed runtime is generic and
+loads that config by `sessionId`, so behavior changes need no redeploy.
+
+| Export | Purpose |
+| --- | --- |
+| `Chat` | Drop-in chat surface. Props = `useAgentChat` options + `title?`, `initialQuery?`. |
+| `useAgentChat({ sessionId, userId?, getConnectionUrl, autoConnect? })` | Owns connection lifecycle (reconnect/backoff) + streaming state. Build your own UI on it. |
+| `WebSocketChatClient` | Framework-agnostic transport; takes the injected `getConnectionUrl`. |
+| `ChatMessage` | Presentational bubble. |
+| types | `ChatProps`, `UseAgentChat`, `UseAgentChatOptions`, `ChatMessageData`, `ServerMessage`, `AgentStreamEventBody`, `ConnectionStatus`, `ServerMessageListener`. |
+
+- Components use the token classes (`card`, `btn-primary`, `input`,
+  `text-foreground`, `text-muted-foreground`, `border-border`, `bg-primary-600`,
+  `bg-error-100`) — no restyling needed, theme follows the host.
+- Markdown bubbles use `prose` classes; they render fine without
+  `@tailwindcss/typography`, but add that plugin in the app for richer
+  formatting.
+- The wire protocol (`chat/protocol.ts`) mirrors `@readysetcloud/agent`'s
+  `protocol.ts` (the source of truth) — kept as a local copy so this package
+  stays frontend-only with no backend dependency.
+
 ## Non-React consumers (hosted assets)
 
 Published to the assets bucket on every rsc-core deploy:

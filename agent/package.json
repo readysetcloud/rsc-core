@@ -1,0 +1,50 @@
+{
+  "name": "@readysetcloud/agent",
+  "version": "0.1.0",
+  "description": "Portable, framework-agnostic Node agent core for Ready, Set, Cloud: a Strands-TS assistant with DynamoDB-backed conversation history and semantic vector memory.",
+  "author": "allenheltondev",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/readysetcloud/rsc-core.git",
+    "directory": "agent"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./memory": {
+      "types": "./dist/memory/index.d.ts",
+      "import": "./dist/memory/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1085.0",
+    "@aws-sdk/client-dynamodb": "^3.1085.0",
+    "@aws-sdk/client-s3vectors": "^3.1085.0",
+    "@aws-sdk/lib-dynamodb": "^3.1085.0",
+    "@strands-agents/sdk": "1.9.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.2"
+  }
+}

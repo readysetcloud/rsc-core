@@ -11,10 +11,11 @@ export default [
         console: 'readonly',
         fetch: 'readonly',
         Buffer: 'readonly',
-        TextEncoder: 'readonly'
+        TextEncoder: 'readonly',
+        URL: 'readonly'
       }
     }
   },
-  { ignores: ['.aws-sam/*', 'ui/dist/*', 'ui/node_modules/*', 'ui/tailwind-preset.cjs'] },
+  { ignores: ['.aws-sam/*', 'ui/dist/*', 'ui/node_modules/*', 'ui/tailwind-preset.cjs', 'agent/dist/*', 'agent/node_modules/*', 'agent-runtime/dist/*', 'agent-runtime/node_modules/*', 'agent-runtime/.artifact/*'] },
   pluginJs.configs.recommended
 ];

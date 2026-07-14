@@ -32,9 +32,13 @@
     "sharp": "^0.35.3"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-lambda-powertools/parameters": "^2.34.0",
     "@gomomento/sdk": "^1.118.0",
+    "@readysetcloud/agent": "file:agent",
     "@sendgrid/mail": "^8.1.6",
+    "@smithy/protocol-http": "^5.0.0",
+    "@smithy/signature-v4": "^5.0.0",
     "octokit": "^5.0.5",
     "openai": "^6.46.0"
   }

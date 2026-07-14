@@ -1,0 +1,22 @@
+{
+  "name": "rsc-agent-runtime",
+  "version": "0.1.0",
+  "description": "AgentCore Runtime artifact: hosts @readysetcloud/agent behind a WebSocket (NODE_22).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@readysetcloud/agent": "file:../agent",
+    "@strands-agents/sdk": "1.9.0",
+    "bedrock-agentcore": "0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
