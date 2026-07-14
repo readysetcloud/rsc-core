@@ -53,6 +53,11 @@ shares one Cognito user pool, a user's Cognito `sub` is a universal identity, so
 badges, points, and levels earned in any app roll up into one profile stored in
 `RSCCoreTable`.
 
+> **Full integration & authoring guide:** [`functions/badges/AGENTS.md`](functions/badges/AGENTS.md)
+> — how to emit activity from an app, how to author a badge (criteria types,
+> counter scoping, gotchas), the events the engine emits, and the data model.
+> The section below is the overview.
+
 ### How it works
 
 1. **Apps emit activity.** An app tells core that something happened — either by
@@ -99,6 +104,11 @@ criteria types:
   (e.g. "visited every app").
 * `meta` — award when `threshold` of the listed `badges` are earned (e.g.
   "collect them all").
+
+Adding a badge does **not** retroactively scan history — a user earns it on
+their next matching activity, so plan a replay/backfill for badges added after
+launch. See the [authoring guide](functions/badges/AGENTS.md#authoring-a-badge)
+for criteria/counter details and the events the engine emits.
 
 ### API
 
