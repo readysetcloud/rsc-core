@@ -5,7 +5,8 @@ export default defineConfig([
   {
     entry: {
       index: 'src/index.ts',
-      'auth/index': 'src/auth/index.ts'
+      'auth/index': 'src/auth/index.ts',
+      'chat/index': 'src/chat/index.ts'
     },
     format: ['esm'],
     dts: true,

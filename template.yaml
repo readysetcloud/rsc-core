@@ -41,6 +41,21 @@ Parameters:
   HostedZoneId:
     Type: String
     Default: ''
+  BedrockModelId:
+    Type: String
+    Default: us.amazon.nova-lite-v1:0
+    Description: Chat model for the agent assistant (cross-region inference profile prefix included).
+  EmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: >
+      Embedding model for the agent's semantic memory (Titan v2 @ 1024 dims). If
+      changed, ConversationMemoryIndex Dimension must match and existing vectors
+      be re-embedded.
+  AgentArtifactKey:
+    Type: String
+    Default: agent/agent.zip
+    Description: S3 key (in the assets BucketName) of the packaged NODE_22 agent runtime artifact.
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -513,6 +528,292 @@ Resources:
         - !Sub https://api.${RootDomainName}
         - !Sub https://${CoreApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
       Description: Base URL of the shared rsc-core HTTP API (badge routes under /badges)
+
+  # ----------------------------------------------------------------------------
+  # Agent service — a Strands-TS assistant (@readysetcloud/agent) hosted in
+  # AgentCore Runtime (NODE_22) that streams over a browser-direct WebSocket.
+  #
+  # Auth reuses the shared RSC Cognito pool: the browser calls
+  # POST /agent/connect on the CoreApi (CognitoJwt authorizer), and
+  # WebSocketConnectFunction returns a SigV4-presigned wss:// URL carrying the
+  # verified sub as a custom header so memory recall is scoped to the caller.
+  #
+  # Memory is owned here: conversation turns + Strands snapshots in AgentChatTable
+  # (TTL expiresAt), semantic recall in an S3 Vectors index fed by the
+  # stream-driven VectorizeTurnFunction.
+  # ----------------------------------------------------------------------------
+  AgentChatTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  MemoryVectorBucket:
+    Type: AWS::S3Vectors::VectorBucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      VectorBucketName: !Sub 'rsc-agent-memory-${AWS::AccountId}'
+
+  ConversationMemoryIndex:
+    Type: AWS::S3Vectors::Index
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      VectorBucketArn: !GetAtt MemoryVectorBucket.VectorBucketArn
+      IndexName: conversation-memory
+      DataType: float32
+      Dimension: 1024
+      DistanceMetric: cosine
+      MetadataConfiguration:
+        NonFilterableMetadataKeys:
+          - text
+
+  VectorizeTurnDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600 # 14 days
+
+  VectorizeTurnFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - vectorize-turn.mjs
+    Properties:
+      Handler: vectorize-turn.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          VECTOR_BUCKET_NAME: !Sub 'rsc-agent-memory-${AWS::AccountId}'
+          MEMORY_VECTOR_INDEX_NAME: conversation-memory
+          EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
+      Events:
+        TurnStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt AgentChatTable.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 5
+            MaximumRetryAttempts: 3
+            BisectBatchOnFunctionError: true
+            # Only Turn rows reach the function: INSERT/MODIFY key off NewImage,
+            # REMOVE off OldImage (REMOVE has no NewImage).
+            FilterCriteria:
+              Filters:
+                - Pattern: '{"eventName":["INSERT","MODIFY"],"dynamodb":{"NewImage":{"entity":{"S":["Turn"]}}}}'
+                - Pattern: '{"eventName":["REMOVE"],"dynamodb":{"OldImage":{"entity":{"S":["Turn"]}}}}'
+            DestinationConfig:
+              OnFailure:
+                Destination: !GetAtt VectorizeTurnDLQ.Arn
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:DescribeStream
+                - dynamodb:GetRecords
+                - dynamodb:GetShardIterator
+                - dynamodb:ListStreams
+              Resource:
+                - !GetAtt AgentChatTable.StreamArn
+                - !Sub '${AgentChatTable.StreamArn}/*'
+            # Embed via Titan. Wildcard region/model so a model swap needs no IAM change.
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+            - Effect: Allow
+              Action:
+                - s3vectors:PutVectors
+                - s3vectors:DeleteVectors
+                - s3vectors:GetVectors
+                - s3vectors:QueryVectors
+              Resource:
+                - !GetAtt MemoryVectorBucket.VectorBucketArn
+                - !GetAtt ConversationMemoryIndex.IndexArn
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt VectorizeTurnDLQ.Arn
+
+  WebSocketConnectFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - websocket-connect.mjs
+    Properties:
+      Handler: websocket-connect.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          AGENT_RUNTIME_ARN: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentCoreRuntime}'
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            # The signed URL grants the browser a WebSocket stream to the runtime.
+            - Effect: Allow
+              Action:
+                - bedrock-agentcore:InvokeAgentRuntime
+                - bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream
+              Resource: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*'
+      Events:
+        PostAgentConnect:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CoreApi
+            Path: /agent/connect
+            Method: POST
+
+  # Creates a session config row (owner = verified caller) that the runtime loads
+  # by sessionId. Lets apps set prompt/model per conversation without a redeploy.
+  CreateSessionFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - create-session.mjs
+    Properties:
+      Handler: create-session.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+          # Comma-separated hosts a session's MCP server urls may target. Empty
+          # (default) rejects any mcpServers — opt in by setting this.
+          MCP_ALLOWED_HOSTS: ''
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AgentChatTable.Arn
+      Events:
+        PostAgentSession:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CoreApi
+            Path: /agent/sessions
+            Method: POST
+
+  AgentCoreRuntime:
+    Type: AWS::BedrockAgentCore::Runtime
+    Properties:
+      AgentRuntimeName: rsccore_agent
+      AgentRuntimeArtifact:
+        CodeConfiguration:
+          Code:
+            S3:
+              Bucket: !Ref BucketName
+              Prefix: !Ref AgentArtifactKey
+          EntryPoint:
+            # The esbuild bundle's entry (see agent-runtime/build.mjs). Verify this
+            # literal against a real deploy — Node CodeZip EntryPoint conventions
+            # differ from Python's agent.py, and cfn-lint's spec doesn't yet know
+            # the Node runtimes.
+            - index.js
+          Runtime: NODE_22
+      NetworkConfiguration:
+        NetworkMode: PUBLIC
+      RoleArn: !GetAtt AgentCoreRole.Arn
+      EnvironmentVariables:
+        TABLE_NAME: !Ref AgentChatTable
+        VECTOR_BUCKET_NAME: !Sub 'rsc-agent-memory-${AWS::AccountId}'
+        MEMORY_VECTOR_INDEX_NAME: conversation-memory
+        EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_REGION: !Ref AWS::Region
+
+  AgentCoreRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: AgentCorePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              # Pull the artifact zip from the assets bucket.
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${BucketName}/${AgentArtifactKey}'
+              # Logs + tracing + metrics.
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:DescribeLogGroups
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/*'
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: '*'
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: bedrock-agentcore
+              # Chat + embedding model invocation.
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+              # Conversation history + snapshots.
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                Resource: !GetAtt AgentChatTable.Arn
+              # Semantic recall.
+              - Effect: Allow
+                Action:
+                  - s3vectors:QueryVectors
+                  - s3vectors:GetVectors
+                Resource:
+                  - !GetAtt MemoryVectorBucket.VectorBucketArn
+                  - !GetAtt ConversationMemoryIndex.IndexArn
 
   Secrets:
     Type: AWS::SecretsManager::Secret

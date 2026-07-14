@@ -21,6 +21,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       ui: ${{ steps.filter.outputs.ui }}
+      agent: ${{ steps.filter.outputs.agent }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -31,12 +32,18 @@ jobs:
               - 'template.yaml'
               - 'samconfig.toml'
               - 'functions/**'
+              - 'agent/**'
+              - 'agent-runtime/**'
+              - 'scripts/package-agent.mjs'
               - 'package.json'
               - 'package-lock.json'
               - '.github/workflows/deploy.yaml'
             ui:
               - 'ui/**'
               - 'scripts/publish-ui-assets.mjs'
+              - '.github/workflows/deploy.yaml'
+            agent:
+              - 'agent/**'
               - '.github/workflows/deploy.yaml'
 
   predeploy-validations:
@@ -61,6 +68,14 @@ jobs:
         run: |
           npm install -g esbuild
           npm ci
+
+          # The agent package must be built before `sam build`
+          # (functions/vectorize-turn.mjs bundles @readysetcloud/agent/memory),
+          # and the NODE_22 runtime artifact staged + uploaded before deploy
+          # (AgentCoreRuntime pulls it from the assets bucket).
+          node scripts/package-agent.mjs
+          ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
+          aws s3 cp agent-runtime/agent.zip s3://readysetcloud/agent/agent.zip
 
           sam --info
           sam build --parallel
@@ -120,4 +135,44 @@ jobs:
           else
             npm publish
             echo "Published @readysetcloud/ui@$VERSION"
+          fi
+
+  publish-agent:
+    name: Publish agent package
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.agent == 'true' }}
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Build and test
+        working-directory: agent
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      # Auth is npm Trusted Publishing (OIDC via id-token: write) — no npm
+      # token secret. The trusted publisher on npmjs.com must point at this
+      # repo + deploy.yaml. Requires a recent npm CLI for OIDC support.
+      - name: Publish @readysetcloud/agent to npm
+        working-directory: agent
+        run: |
+          # Pin to the latest stable npm 11.x for OIDC Trusted Publishing
+          # (>= 11.5.1), avoiding `@latest` (see the ui publish job note).
+          npm install -g npm@11
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@readysetcloud/agent@$VERSION" version > /dev/null 2>&1; then
+            echo "@readysetcloud/agent@$VERSION already on npm — skipping publish"
+          else
+            npm publish
+            echo "Published @readysetcloud/agent@$VERSION"
           fi
