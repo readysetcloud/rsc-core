@@ -44,7 +44,7 @@ The configured deployment parameters above will be accessible by using the follo
 * Cognito User Pool ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-id}}`
 * Cognito User Pool ARN - `{{resolve:ssm:/readysetcloud/auth/user-pool-arn}}`
 * Cognito User Pool Client ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-client-id}}`
-* Core API URL - `{{resolve:ssm:/readysetcloud/api-url}}` (prod: `https://api.readysetcloud.io`)
+* Core API URL - `{{resolve:ssm:/readysetcloud/api-url}}` (prod: `https://api.readysetcloud.io/core`)
 
 ## Badge Chest — cross-app gamification
 
@@ -112,11 +112,12 @@ for criteria/counter details and the events the engine emits.
 
 ### API
 
-Badge routes are served by the shared **Core API** (`AWS::Serverless::HttpApi`
-`CoreApi`). Its base URL is published to SSM at `/readysetcloud/api-url`. In prod
-(any deploy with `RootDomainName` set) it is fronted by a custom domain,
-`api.${RootDomainName}` — e.g. `https://api.readysetcloud.io`; non-prod deploys
-fall back to the generated `execute-api` URL. This is the ecosystem's core API
+Badge routes are served by the shared **Core API** (`AWS::Serverless::Api`
+`CoreApi`, a REST API). Its base URL is published to SSM at
+`/readysetcloud/api-url`. In prod (any deploy with `RootDomainName` set) it is
+fronted by the `/core` base path of the shared `api.${RootDomainName}` custom
+domain — e.g. `https://api.readysetcloud.io/core`; non-prod deploys fall back to
+the generated `execute-api` URL (which includes the `/Prod` stage). This is the ecosystem's core API
 surface — badges are its first routes, more will live here over time.
 
 | Method & path | Auth | Purpose |
@@ -208,7 +209,7 @@ const getConnectionUrl = async (sid?: string) => (await authed('/agent/connect',
 ```
 
 `CORE_API_URL` is the SSM `/readysetcloud/api-url` value (prod:
-`https://api.readysetcloud.io`). Omit the `POST /agent/sessions` body to take
+`https://api.readysetcloud.io/core`). Omit the `POST /agent/sessions` body to take
 all defaults; the runtime also falls back to defaults if a session has no config
 row.
 
