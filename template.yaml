@@ -376,7 +376,10 @@ Resources:
   # api.${RootDomainName} custom domain under the /core base path
   # (e.g. https://api.readysetcloud.io/core); non-prod uses the execute-api URL.
   # ----------------------------------------------------------------------------
-  CoreApi:
+  # Logical ID intentionally differs from the old HttpApi (CoreApi):
+  # CloudFormation cannot change a resource's Type in place, so the REST API is
+  # a new resource that replaces it.
+  CoreRestApi:
     Type: AWS::Serverless::Api
     Properties:
       # REST (v1) API so it can attach to the pre-existing api.${RootDomainName}
@@ -461,7 +464,7 @@ Resources:
         RecordActivity:
           Type: Api
           Properties:
-            RestApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /badges/activity
             Method: POST
 
@@ -490,7 +493,7 @@ Resources:
         GetChest:
           Type: Api
           Properties:
-            RestApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /badges/me
             Method: GET
 
@@ -509,7 +512,7 @@ Resources:
         GetCatalog:
           Type: Api
           Properties:
-            RestApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /badges/catalog
             Method: GET
             Auth:
@@ -523,7 +526,7 @@ Resources:
       Value: !If
         - DeployCustomDomainSupport
         - !Sub https://api.${RootDomainName}/core
-        - !Sub https://${CoreApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod
+        - !Sub https://${CoreRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod
       Description: Base URL of the shared rsc-core REST API (badge routes under /badges)
 
   # ----------------------------------------------------------------------------
@@ -677,7 +680,7 @@ Resources:
         PostAgentConnect:
           Type: Api
           Properties:
-            RestApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /agent/connect
             Method: POST
 
@@ -711,7 +714,7 @@ Resources:
         PostAgentSession:
           Type: Api
           Properties:
-            RestApiId: !Ref CoreApi
+            RestApiId: !Ref CoreRestApi
             Path: /agent/sessions
             Method: POST
 
@@ -963,10 +966,10 @@ Resources:
     Type: AWS::ApiGateway::BasePathMapping
     Condition: DeployCustomDomainSupport
     # The auto-generated stage must exist before the mapping can bind to it.
-    DependsOn: CoreApiProdStage
+    DependsOn: CoreRestApiProdStage
     Properties:
       DomainName: !Sub api.${RootDomainName}
-      RestApiId: !Ref CoreApi
+      RestApiId: !Ref CoreRestApi
       Stage: Prod
       BasePath: core
 
