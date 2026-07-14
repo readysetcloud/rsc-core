@@ -73,6 +73,7 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `EmptyState` | `title`, `description?`, `icon?`, `action?` | |
 | `Container` | div props | max 72rem, fluid padding. |
 | `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. |
+| `BadgeChest` | `points`, `level`, `levelName`, `levelMinPoints`, `nextLevel`, `badges`, `inProgress`, `loading`, `showInProgress`, `emptyState` | Cross-app trophy case: level + points header with progress bar, earned badge grid, and in-progress tiles. Presentational — fetch with `createBadgeClient` and pass the data in. |
 | `cx(...parts)` | | Classname join helper (replaces clsx for simple cases). |
 
 ## Shared navbar and app registry
@@ -129,6 +130,39 @@ Default `readySetCloudServices` manifest:
 | `outboxed` | Outboxed | `https://newsletter.readysetcloud.io` |
 | `bootcamp` | Bootcamp | `https://bootcamp.readysetcloud.io` |
 | `olivias-garden-foundation` | Olivia's Garden Foundation | `https://oliviasgarden.org` |
+
+## Badges / gamification — `import { BadgeChest, createBadgeClient } from '@readysetcloud/ui'`
+
+One badge chest spans every app (keyed on the shared Cognito `sub`). The
+rules engine, catalog, and API live in `rsc-core`; this package ships the read
+client and the presentational component so every app renders the chest
+identically.
+
+```tsx
+import { BadgeChest, createBadgeClient } from '@readysetcloud/ui';
+import { useAuth } from '@readysetcloud/ui/auth';
+
+const badges = createBadgeClient({
+  baseUrl: import.meta.env.VITE_CORE_API_URL, // rsc-core SSM /readysetcloud/api-url
+                                              // (prod: https://api.readysetcloud.io)
+  getToken                                    // from useAuth()
+});
+
+const data = await badges.getChest();           // GET /badges/me
+<BadgeChest {...data} loading={loading} />;
+
+// record activity from the client (the rules engine decides if it earns a badge):
+await badges.recordActivity({ action: 'lesson.completed', service: 'bootcamp' });
+```
+
+- `createBadgeClient({ baseUrl, getToken?, fetch? })` → `getChest()`,
+  `getCatalog()`, `recordActivity()`. Framework-agnostic (just `fetch`), so the
+  vanilla course pages and server code can use it too.
+- `BadgeChest` is data-in/render-out — spread the `getChest()` response onto it.
+  Pass `loading` for skeletons, `emptyState` to override the "no badges" copy,
+  and `showInProgress={false}` to hide locked badges.
+- Backend contract, catalog format, and how to add a badge live in the
+  `rsc-core` root README.
 
 ## Auth — `import { ... } from '@readysetcloud/ui/auth'`
 

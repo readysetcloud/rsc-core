@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "levels": [
+    { "level": 1, "name": "Cloud Curious", "minPoints": 0 },
+    { "level": 2, "name": "Cloud Explorer", "minPoints": 50 },
+    { "level": 3, "name": "Cloud Builder", "minPoints": 150 },
+    { "level": 4, "name": "Cloud Architect", "minPoints": 350 },
+    { "level": 5, "name": "Cloud Sage", "minPoints": 700 }
+  ]
+}

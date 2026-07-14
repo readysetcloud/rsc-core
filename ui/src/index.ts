@@ -50,3 +50,16 @@ export {
   type RscServiceAccess,
   type RscServiceRegistry
 } from './services/registry';
+export { BadgeChest, type BadgeChestProps } from './components/BadgeChest';
+export { createBadgeClient, type BadgeClient, type BadgeClientOptions } from './badges/client';
+export type {
+  ActivityInput,
+  BadgeCatalog,
+  BadgeChestData,
+  BadgeDefinition,
+  BadgeTier,
+  EarnedBadge,
+  InProgressBadge,
+  LevelDefinition,
+  NextLevel
+} from './badges/types';

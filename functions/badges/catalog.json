@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "badges": [
+    {
+      "id": "welcome",
+      "name": "Welcome Aboard",
+      "description": "Created your Ready, Set, Cloud account.",
+      "icon": "🎉",
+      "category": "Milestones",
+      "tier": "bronze",
+      "points": 10,
+      "criteria": { "type": "count", "metric": "account.created", "threshold": 1 }
+    },
+    {
+      "id": "explorer",
+      "name": "Ecosystem Explorer",
+      "description": "Visited every app in the Ready, Set, Cloud ecosystem.",
+      "icon": "🧭",
+      "category": "Ecosystem",
+      "tier": "gold",
+      "points": 100,
+      "criteria": { "type": "unique", "metric": "service.visited", "threshold": 5 }
+    },
+    {
+      "id": "newsletter-subscriber",
+      "name": "In the Loop",
+      "description": "Subscribed to the Picks of the Week newsletter.",
+      "icon": "📰",
+      "category": "Newsletter",
+      "tier": "bronze",
+      "points": 15,
+      "service": "outboxed",
+      "criteria": { "type": "count", "metric": "newsletter.subscribed", "threshold": 1 }
+    },
+    {
+      "id": "first-lesson",
+      "name": "Getting Started",
+      "description": "Completed your first bootcamp lesson.",
+      "icon": "📗",
+      "category": "Learning",
+      "tier": "bronze",
+      "points": 20,
+      "service": "bootcamp",
+      "criteria": { "type": "count", "metric": "lesson.completed", "threshold": 1, "service": "bootcamp" }
+    },
+    {
+      "id": "lesson-streak",
+      "name": "Scholar",
+      "description": "Completed 10 bootcamp lessons.",
+      "icon": "🎓",
+      "category": "Learning",
+      "tier": "silver",
+      "points": 75,
+      "service": "bootcamp",
+      "criteria": { "type": "count", "metric": "lesson.completed", "threshold": 10, "service": "bootcamp" }
+    },
+    {
+      "id": "first-campaign",
+      "name": "Deal Maker",
+      "description": "Tracked your first paid campaign in Booked.",
+      "icon": "🤝",
+      "category": "Creators",
+      "tier": "bronze",
+      "points": 20,
+      "service": "booked",
+      "criteria": { "type": "count", "metric": "campaign.created", "threshold": 1, "service": "booked" }
+    },
+    {
+      "id": "green-thumb",
+      "name": "Green Thumb",
+      "description": "Completed a lesson at Olivia's Garden Foundation.",
+      "icon": "🌱",
+      "category": "Nonprofit",
+      "tier": "bronze",
+      "points": 20,
+      "service": "olivias-garden-foundation",
+      "criteria": { "type": "count", "metric": "garden.lesson.completed", "threshold": 1, "service": "olivias-garden-foundation" }
+    },
+    {
+      "id": "completionist",
+      "name": "Completionist",
+      "description": "Earned a badge in four different corners of the ecosystem.",
+      "icon": "🏆",
+      "category": "Ecosystem",
+      "tier": "platinum",
+      "points": 150,
+      "criteria": {
+        "type": "meta",
+        "badges": ["newsletter-subscriber", "first-lesson", "first-campaign", "green-thumb"],
+        "threshold": 4
+      }
+    }
+  ]
+}

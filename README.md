@@ -44,3 +44,83 @@ The configured deployment parameters above will be accessible by using the follo
 * Cognito User Pool ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-id}}`
 * Cognito User Pool ARN - `{{resolve:ssm:/readysetcloud/auth/user-pool-arn}}`
 * Cognito User Pool Client ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-client-id}}`
+* Core API URL - `{{resolve:ssm:/readysetcloud/api-url}}` (prod: `https://api.readysetcloud.io`)
+
+## Badge Chest — cross-app gamification
+
+The badge chest is a single, ecosystem-wide trophy case. Because every app
+shares one Cognito user pool, a user's Cognito `sub` is a universal identity, so
+badges, points, and levels earned in any app roll up into one profile stored in
+`RSCCoreTable`.
+
+> **Full integration & authoring guide:** [`functions/badges/AGENTS.md`](functions/badges/AGENTS.md)
+> — how to emit activity from an app, how to author a badge (criteria types,
+> counter scoping, gotchas), the events the engine emits, and the data model.
+> The section below is the overview.
+
+### How it works
+
+1. **Apps emit activity.** An app tells core that something happened — either by
+   putting a `Track Activity` event on the default EventBridge bus, or by having
+   a signed-in user `POST /badges/activity`.
+2. **The rules engine awards badges.** `ProcessActivityFunction` counts the
+   activity, checks the central catalog (`functions/badges/catalog.json`), and
+   idempotently awards any newly-earned badges, adding their points to the
+   user's total and recomputing their level (`functions/badges/levels.json`).
+3. **Core announces it.** A `Badge Awarded` (and, on a level change, `Level Up`)
+   event goes back on the bus for any app to react to (toast, email, etc.).
+4. **Apps read the chest.** The shared `<BadgeChest>` component in
+   `@readysetcloud/ui` calls `GET /badges/me` to render the user's badges,
+   points, level, and progress identically everywhere.
+
+### Activity event contract
+
+Emit this to the default bus (or POST the `detail` body, minus `userId`, to
+`/badges/activity` where `userId` is taken from the JWT):
+
+```json
+{
+  "Source": "<your-app>",
+  "DetailType": "Track Activity",
+  "Detail": {
+    "id": "<uuid>",            // optional idempotency key — reuse on retries
+    "userId": "<cognito sub>", // required for bus events; set from JWT by the API
+    "action": "lesson.completed",
+    "count": 1,                 // optional, default 1
+    "value": "bootcamp",       // optional — distinct value for `unique` badges
+    "service": "bootcamp"      // optional — enables per-service badge criteria
+  }
+}
+```
+
+### Adding a badge
+
+Add an entry to `functions/badges/catalog.json` and redeploy. Supported
+criteria types:
+
+* `count` — award at `threshold` occurrences of `metric` (add `service` to
+  scope the count to one app).
+* `unique` — award when `threshold` distinct `value`s are seen for `metric`
+  (e.g. "visited every app").
+* `meta` — award when `threshold` of the listed `badges` are earned (e.g.
+  "collect them all").
+
+Adding a badge does **not** retroactively scan history — a user earns it on
+their next matching activity, so plan a replay/backfill for badges added after
+launch. See the [authoring guide](functions/badges/AGENTS.md#authoring-a-badge)
+for criteria/counter details and the events the engine emits.
+
+### API
+
+Badge routes are served by the shared **Core API** (`AWS::Serverless::HttpApi`
+`CoreApi`). Its base URL is published to SSM at `/readysetcloud/api-url`. In prod
+(any deploy with `RootDomainName` set) it is fronted by a custom domain,
+`api.${RootDomainName}` — e.g. `https://api.readysetcloud.io`; non-prod deploys
+fall back to the generated `execute-api` URL. This is the ecosystem's core API
+surface — badges are its first routes, more will live here over time.
+
+| Method & path | Auth | Purpose |
+| --- | --- | --- |
+| `GET /badges/me` | Cognito JWT | The caller's chest: badges, points, level, in-progress |
+| `GET /badges/catalog` | none | Every earnable badge + the level ladder |
+| `POST /badges/activity` | Cognito JWT | Record activity for the caller |

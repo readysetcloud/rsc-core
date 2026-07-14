@@ -92,6 +92,9 @@ Resources:
           AttributeType: S
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   TableStreamFunction:
     Type: AWS::Serverless::Function
@@ -147,6 +150,9 @@ Resources:
             - Effect: Allow
               Action: dynamodb:PutItem
               Resource: !GetAtt RSCCoreTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
       Environment:
         Variables:
           TABLE_NAME: !Ref RSCCoreTable
@@ -341,6 +347,173 @@ Resources:
               detail-type:
                 - Send Email
 
+  # ----------------------------------------------------------------------------
+  # Badge Chest — cross-app gamification (badges, points, levels)
+  #
+  # Apps emit "Track Activity" events to the default bus (or POST them to the
+  # CoreApi). ProcessActivityFunction is the rules engine: it counts activity,
+  # awards badges from the central catalog, rolls points up into levels, and
+  # emits "Badge Awarded" / "Level Up" events. The badge routes are served by
+  # the shared CoreApi behind the Cognito user pool.
+  #
+  # CoreApi is the shared public API surface for rsc-core (badges today, more
+  # core routes over time). In prod it is fronted by api.${RootDomainName}
+  # (e.g. api.readysetcloud.io); non-prod uses the execute-api URL.
+  # ----------------------------------------------------------------------------
+  CoreApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+              audience:
+                - !Ref CognitoUserPoolClient
+        DefaultAuthorizer: CognitoJwt
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - authorization
+          - content-type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+
+  BadgeProcessorDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  ProcessActivityFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - process-activity.mjs
+    Properties:
+      Handler: process-activity.handler
+      Timeout: 15
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt BadgeProcessorDLQ.Arn
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource: !GetAtt RSCCoreTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref RSCCoreTable
+      Events:
+        TrackActivity:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Track Activity
+
+  RecordActivityFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - record-activity.mjs
+    Properties:
+      Handler: record-activity.handler
+      Timeout: 5
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        RecordActivity:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CoreApi
+            Path: /badges/activity
+            Method: POST
+
+  GetBadgeChestFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - get-badge-chest.mjs
+    Properties:
+      Handler: get-badge-chest.handler
+      Timeout: 5
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt RSCCoreTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref RSCCoreTable
+      Events:
+        GetChest:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CoreApi
+            Path: /badges/me
+            Method: GET
+
+  GetBadgeCatalogFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - get-badge-catalog.mjs
+    Properties:
+      Handler: get-badge-catalog.handler
+      Timeout: 5
+      Events:
+        GetCatalog:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CoreApi
+            Path: /badges/catalog
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  CoreApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/api-url
+      Type: String
+      Value: !If
+        - DeployCustomDomainSupport
+        - !Sub https://api.${RootDomainName}
+        - !Sub https://${CoreApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+      Description: Base URL of the shared rsc-core HTTP API (badge routes under /badges)
+
   Secrets:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -483,6 +656,46 @@ Resources:
         - !GetAtt CognitoUserPoolDomain.CloudFrontDistribution
       TTL: 300
       Type: CNAME
+
+  # Custom domain for the shared CoreApi — api.${RootDomainName} in prod.
+  ApiCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub api.${RootDomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub api.${RootDomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  CoreApiDomainName:
+    Type: AWS::ApiGatewayV2::DomainName
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub api.${RootDomainName}
+      DomainNameConfigurations:
+        - CertificateArn: !Ref ApiCertificate
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  CoreApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Condition: DeployCustomDomainSupport
+    Properties:
+      ApiId: !Ref CoreApi
+      DomainName: !Ref CoreApiDomainName
+      Stage: $default
+
+  CoreApiDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: DeployCustomDomainSupport
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub api.${RootDomainName}
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt CoreApiDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt CoreApiDomainName.RegionalHostedZoneId
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
