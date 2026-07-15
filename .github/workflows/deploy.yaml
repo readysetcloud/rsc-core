@@ -75,7 +75,12 @@ jobs:
           # (AgentCoreRuntime pulls it from the assets bucket).
           node scripts/package-agent.mjs
           ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          aws s3 cp agent-runtime/agent.zip s3://readysetcloud/agent/agent.zip
+          # Version the artifact key by commit SHA so the AgentCoreRuntime
+          # resource's Prefix changes each deploy. With a static key, CloudFormation
+          # sees no diff and never rolls the runtime, so it keeps serving the old
+          # bundle even after the new one is uploaded.
+          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud/${AGENT_ARTIFACT_KEY}"
 
           sam --info
           sam build --parallel
@@ -85,7 +90,7 @@ jobs:
           --resolve-s3 \
           --no-fail-on-empty-changeset \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-          --parameter-overrides UpdateGitHubSourceCode=true DefaultCacheName=readysetcloud BucketName=readysetcloud AmplifyAppId=${{ secrets.PROD_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }} RootDomainName=readysetcloud.io HostedZoneId=${{ secrets.HOSTED_ZONE_ID }}
+          --parameter-overrides UpdateGitHubSourceCode=true DefaultCacheName=readysetcloud BucketName=readysetcloud AgentArtifactKey=${AGENT_ARTIFACT_KEY} AmplifyAppId=${{ secrets.PROD_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }} RootDomainName=readysetcloud.io HostedZoneId=${{ secrets.HOSTED_ZONE_ID }}
 
   publish-ui:
     name: Publish UI package

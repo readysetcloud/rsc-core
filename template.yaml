@@ -55,7 +55,15 @@ Parameters:
   AgentArtifactKey:
     Type: String
     Default: agent/agent.zip
-    Description: S3 key (in the assets BucketName) of the packaged NODE_22 agent runtime artifact.
+    Description: >
+      S3 key (in the assets BucketName) of the packaged NODE_22 agent runtime
+      artifact. MUST be unique per artifact build — the deploy passes a
+      commit-SHA-versioned key. If this is left at a STATIC value, the
+      AgentCoreRuntime resource's Prefix never changes, CloudFormation sees no
+      diff, and the runtime keeps serving the OLD bundle even after a new one is
+      uploaded (agent-runtime code changes silently never take effect). Do not
+      "simplify" the deploy back to a fixed key. The static default here is only a
+      last-resort fallback for a first-ever create.
   McpAllowedHosts:
     Type: String
     Default: ''
@@ -771,6 +779,10 @@ Resources:
           Code:
             S3:
               Bucket: !Ref BucketName
+              # Prefix MUST change when the artifact changes (deploy passes a
+              # commit-SHA-versioned AgentArtifactKey). A static Prefix means CFN
+              # never rolls this runtime and it serves a stale bundle. See the
+              # AgentArtifactKey parameter.
               Prefix: !Ref AgentArtifactKey
           EntryPoint:
             # The esbuild bundle's entry (see agent-runtime/build.mjs). Verify this
