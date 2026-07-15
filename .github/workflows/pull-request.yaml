@@ -76,7 +76,11 @@ jobs:
           # artifact before deploy (AgentCoreRuntime pulls it from the bucket).
           node scripts/package-agent.mjs
           ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          aws s3 cp agent-runtime/agent.zip s3://readysetcloud-stage/agent/agent.zip
+          # Version the artifact key by commit SHA so the AgentCoreRuntime
+          # resource's Prefix changes each deploy (a static key means CloudFormation
+          # never rolls the runtime, leaving it on the old bundle).
+          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
 
           sam --info
           sam build --parallel
@@ -86,7 +90,7 @@ jobs:
           --resolve-s3 \
           --no-fail-on-empty-changeset \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }}
+          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AgentArtifactKey=${AGENT_ARTIFACT_KEY} AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }}
 
   publish-ui:
     name: Publish UI hosted assets (stage)
@@ -160,7 +164,11 @@ jobs:
           # artifact before deploy (AgentCoreRuntime pulls it from the bucket).
           node scripts/package-agent.mjs
           ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          aws s3 cp agent-runtime/agent.zip s3://readysetcloud-stage/agent/agent.zip
+          # Version the artifact key by commit SHA so the AgentCoreRuntime
+          # resource's Prefix changes each deploy (a static key means CloudFormation
+          # never rolls the runtime, leaving it on the old bundle).
+          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
 
           sam --info
           sam build --parallel
@@ -170,7 +178,7 @@ jobs:
           --resolve-s3 \
           --no-fail-on-empty-changeset \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }}
+          --parameter-overrides UpdateGitHubSourceCode=false DefaultCacheName=readysetcloud-stage BucketName=readysetcloud-stage AgentArtifactKey=${AGENT_ARTIFACT_KEY} AmplifyAppId=${{ secrets.STAGE_AMPLIFY_APP_ID }} SendgridApiKey=${{ secrets.SENDGRID }} GitHubPAT=${{ secrets.GITHUB }} OpenAIApiKey=${{ secrets.OPENAI }} MomentoApiKey=${{ secrets.MOMENTO }}
 
   auto-merge-dependabot-update:
     name: Auto Merge Dependabot Update
