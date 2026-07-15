@@ -24,7 +24,7 @@ import { createSession } from '@readysetcloud/agent/memory';
  * README ("MCP servers") for the token/threat model.
  */
 export const handler = async (event) => {
-  const userId = event.requestContext?.authorizer?.jwt?.claims?.sub;
+  const userId = event.requestContext?.authorizer?.claims?.sub ?? event.requestContext?.authorizer?.jwt?.claims?.sub;
   if (!userId) {
     return response(401, { message: 'Unauthorized' });
   }
