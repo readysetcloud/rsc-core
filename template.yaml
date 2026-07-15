@@ -56,6 +56,14 @@ Parameters:
     Type: String
     Default: agent/agent.zip
     Description: S3 key (in the assets BucketName) of the packaged NODE_22 agent runtime artifact.
+  McpAllowedHosts:
+    Type: String
+    Default: ''
+    Description: >
+      Comma-separated hosts a session's mcpServers urls may target (SSRF
+      allowlist enforced by create-session). Empty (default) rejects any
+      mcpServers — opt in explicitly. Add Booked's MCP host here once its
+      server has a stable URL (issue #196).
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -701,8 +709,8 @@ Resources:
         Variables:
           TABLE_NAME: !Ref AgentChatTable
           # Comma-separated hosts a session's MCP server urls may target. Empty
-          # (default) rejects any mcpServers — opt in by setting this.
-          MCP_ALLOWED_HOSTS: ''
+          # (default) rejects any mcpServers — set McpAllowedHosts to opt in.
+          MCP_ALLOWED_HOSTS: !Ref McpAllowedHosts
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17

@@ -74,6 +74,24 @@ describe('createSession', () => {
     });
   });
 
+  it('persists an authority-minted authHeader on an MCP server spec', async () => {
+    const mcpServers = {
+      blog: {
+        url: 'https://mcp.booked.example/mcp',
+        authHeader: { name: 'x-booked-auth', value: 'payload.sig' },
+      },
+    };
+    const config = await createSession({
+      userId: 'user-1',
+      sessionId: 'sess-3',
+      mcpServers,
+      now: 1,
+    });
+
+    expect(config.mcpServers).toEqual(mcpServers);
+    expect(send.mock.calls[0][0].input.Item).toMatchObject({ mcpServers });
+  });
+
   it('requires a userId', async () => {
     await expect(createSession({ userId: '' })).rejects.toThrow(/userId/);
     expect(send).not.toHaveBeenCalled();

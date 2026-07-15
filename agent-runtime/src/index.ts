@@ -7,6 +7,7 @@ import {
   handleUserMessage,
   getSessionConfig,
   resolveTools,
+  type McpServerSpec,
   type ServerMessage,
   type ToolRegistry,
 } from '@readysetcloud/agent';
@@ -48,6 +49,33 @@ const TOOL_REGISTRY: ToolRegistry = {
       callback: async () => new Date().toISOString(),
     }),
 };
+
+/**
+ * Maps a session's declarative MCP specs to the Strands SDK's connection config,
+ * folding each spec's authority-minted `authHeader` into the outbound HTTP
+ * headers (rsc-core issue #197). The header carries the verified user's identity
+ * to the MCP server: the authority (session creator) signs the identity/scope
+ * server-side and stores the token on the spec; this runtime is a dumb courier
+ * that forwards it verbatim and never interprets it.
+ *
+ * `authHeader` is applied AFTER the user-supplied `headers`, so a session's own
+ * headers can't shadow the identity header. The token value is opaque (base64url
+ * payload + signature) and contains no `${...}`, so the SDK's env interpolation
+ * over header values leaves it untouched — it is passed through literally.
+ */
+function toMcpServerConfigs(
+  specs: Record<string, McpServerSpec>,
+): Record<string, McpServerConfig> {
+  const configs: Record<string, McpServerConfig> = {};
+  for (const [name, spec] of Object.entries(specs)) {
+    const { authHeader, ...rest } = spec;
+    if (authHeader?.name) {
+      rest.headers = { ...rest.headers, [authHeader.name]: authHeader.value };
+    }
+    configs[name] = rest as McpServerConfig;
+  }
+  return configs;
+}
 
 /** Best-effort disconnect of a session's MCP clients (never throws). */
 async function closeMcpClients(clients: McpClient[]): Promise<void> {
@@ -91,7 +119,7 @@ async function buildAgentForSession(
   let mcpClients: McpClient[] = [];
   const mcpServers = config?.mcpServers;
   if (mcpServers && Object.keys(mcpServers).length > 0) {
-    mcpClients = await McpClient.loadServers(mcpServers as Record<string, McpServerConfig>);
+    mcpClients = await McpClient.loadServers(toMcpServerConfigs(mcpServers));
   }
 
   const agent = createAssistant({

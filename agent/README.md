@@ -25,7 +25,7 @@ Strands SDK and `zod`.
 | --- | --- |
 | `createAssistant({ sessionId, userId?, modelId?, systemPrompt?, temperature?, maxTokens?, tools?, storage? })` | Builds a Strands `Agent` with a DynamoDB session manager + `recall_memory` tool (added only when `userId` is set). |
 | `handleUserMessage(agent, { request, sessionId, userId?, send })` | Runs one turn: streams wire messages via `send`, records the turn to DynamoDB, returns the assistant text. |
-| `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, sessionId? })`, `getSessionConfig(sessionId)` | Per-session config so a generic host loads prompt/model by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. Also on the `./memory` subpath. |
+| `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers?, sessionId? })`, `getSessionConfig(sessionId)` | Per-session config so a generic host loads prompt/model/tools by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. `tools` selects first-party tools by name; `mcpServers` attaches external MCP tool sources (see [MCP servers](#mcp-servers-external-tools)). Also on the `./memory` subpath. |
 | `streamTurn(stream, { sessionId, send })`, `toStreamEventBodies(event)` | Streaming primitives / the SDK→wire normalizer (the one SDK coupling point). |
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
 | `recordTurn`, `turnKey`, `TURN_ENTITY` | Conversation-turn rows. |
@@ -104,6 +104,88 @@ conversation. A session with no config row → package defaults. `createSession`
 is conditional on the session not already existing, so an owner can't be
 overwritten. The generated `sessionId` is a UUID (satisfies AgentCore's runtime
 session-id length requirement).
+
+## MCP servers (external tools)
+
+Beyond first-party `tools`, a session can attach external
+[MCP](https://modelcontextprotocol.io) servers — the one place a session points
+the runtime at an outbound URL. Each entry in `mcpServers` is an `McpServerSpec`
+(a JSON-serializable subset of the Strands SDK's `McpServerConfig`), keyed by a
+label:
+
+```ts
+await createSession({
+  userId,                              // verified caller — the session owner
+  mcpServers: {
+    blog: {
+      url: 'https://mcp.example.com/mcp',
+      headers: { 'x-api-version': '2025-01' },   // user-supplied; `${VAR}` interpolated by the host
+    },
+  },
+});
+```
+
+The host connects these at build time (`McpClient.loadServers`) and attaches
+their tools alongside the first-party ones. `${VAR}` / `${env:VAR}` in string
+fields is resolved by the SDK against the **host's** environment, so any secret
+belongs in the runtime env — not in this row (which the user creates).
+
+### SSRF allowlist — a host responsibility
+
+Because `mcpServers` is an outbound URL under user control, the **host** must
+allowlist which hosts a session may target before persisting the config — this
+package does not. In rsc-core, `functions/create-session.mjs` rejects any
+`mcpServers` whose url host is not in `MCP_ALLOWED_HOSTS` (comma-separated;
+empty rejects all, so it's opt-in), threaded from the `McpAllowedHosts`
+CloudFormation parameter. Add a host there before a session can reference it.
+
+### `authHeader` — propagating verified identity to an MCP server
+
+The SDK's env interpolation only reaches the *host's* env; it can't carry the
+**connecting user's** verified identity to an MCP server. That matters for a
+per-tenant tool (e.g. a blog search that must scope results to the asking user):
+the server needs to know (a) the caller is the trusted runtime and (b) *which*
+user is asking — and the config row, created by the user, is not a trusted place
+for a per-user secret.
+
+`McpServerSpec.authHeader` closes that gap:
+
+```ts
+mcpServers: {
+  blog: {
+    url: 'https://mcp.example.com/mcp',
+    authHeader: {
+      name: 'x-booked-auth',
+      value: '<base64url(payload)>.<sig>',   // authority-minted, opaque to the runtime
+    },
+  },
+}
+```
+
+- An **authority** (a trusted server-side session creator, *not* the browser)
+  mints the token: it signs the identity/scope it wants the server to trust —
+  e.g. `HMAC_SHA256(secret, `${tenantId}.${userId}.${sessionId}.${version}`)` —
+  with a secret only the authority and the MCP server hold, and stores
+  `{ name, value }` on the spec.
+- The **runtime is a dumb courier**: it forwards `value` verbatim as the named
+  outbound header on every request to that server and never interprets it.
+  `authHeader` is applied *after* the user-supplied `headers`, so a session's own
+  `headers` can't shadow it, and — unlike `headers` — it is passed through
+  **literally** (no `${}` interpolation); mint opaque tokens with no `${` in
+  them.
+- The **MCP server** verifies the token with the shared secret, then trusts the
+  claimed tenant/user.
+
+**Threat model (state it plainly):** the HMAC proves *"the authority minted this
+for user U"* — it does **not** cryptographically prove the presenter is this
+runtime. That's acceptable here because the config row isn't user-reachable, the
+host is allowlisted (above), and transport is TLS. Because the token is replayed
+on every reconnect over the session's ~30-day TTL it is effectively long-lived;
+bind it to the `sessionId` (so a leak can't move to another session) and include
+a `version` the authority can bump to revoke outstanding tokens without rotating
+the secret. A non-expiring, `sessionId`-bound, `version`-revocable token is a
+defensible posture for a tool that only reads the owner's own content — document
+the lifetime rather than implying a short-lived token.
 
 ## Wire protocol
 

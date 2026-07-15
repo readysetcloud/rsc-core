@@ -16,6 +16,12 @@ import { createSession } from '@readysetcloud/agent/memory';
  * MCP servers are the one place a session can point the runtime at an outbound
  * URL, so each host is checked against the MCP_ALLOWED_HOSTS allowlist (an SSRF
  * guard). With the allowlist unset, `mcpServers` is rejected — opt in explicitly.
+ *
+ * A spec's optional `authHeader` ({ name, value }) is an authority-minted token
+ * that identifies the verified user to the MCP server; it is stored verbatim and
+ * acted on by the runtime (which forwards it as an outbound header) — this
+ * function neither interprets nor validates it. See the @readysetcloud/agent
+ * README ("MCP servers") for the token/threat model.
  */
 export const handler = async (event) => {
   const userId = event.requestContext?.authorizer?.jwt?.claims?.sub;
