@@ -180,7 +180,7 @@ const app = new BedrockAgentCoreApp({
     context.log.info({ userId, sessionId: context.sessionId }, 'WebSocket connected');
 
     socket.on('message', async (raw: Buffer) => {
-      let data: { request?: string; session_id?: string };
+      let data: { request?: string; session_id?: string; user_id?: string };
       try {
         data = JSON.parse(raw.toString());
       } catch {
@@ -190,6 +190,16 @@ const app = new BedrockAgentCoreApp({
 
       const request = data.request;
       const msgSessionId = data.session_id;
+      // Prefer the verified caller id from the presigned connection (custom
+      // header), but fall back to the client-supplied user_id — the platform
+      // doesn't always surface the connection's custom header to a WebSocket
+      // runtime, so getUserId(context) can be undefined. This mirrors the HTTP
+      // invocation path (req.user_id ?? getUserId(context)). The connection is
+      // already authenticated by the presigned URL and session ids are
+      // unguessable UUIDs, so the residual exposure — a caller who knows both
+      // another user's session id AND their sub — matches what the HTTP path
+      // already accepts.
+      const effectiveUserId = userId ?? data.user_id;
 
       if (!request) {
         send({ type: 'error', error: 'Missing required field: request' });
@@ -205,7 +215,7 @@ const app = new BedrockAgentCoreApp({
         // loading that session's stored config, tools, and MCP servers and
         // enforcing ownership. Disconnect the previous session's MCP clients.
         if (agent === null || msgSessionId !== sessionId) {
-          const built = await buildAgentForSession(msgSessionId, userId);
+          const built = await buildAgentForSession(msgSessionId, effectiveUserId);
           if (!built) {
             send({ type: 'error', error: 'Session does not belong to this user' });
             return;
@@ -216,7 +226,7 @@ const app = new BedrockAgentCoreApp({
           mcpClients = built.mcpClients;
         }
 
-        await handleUserMessage(agent, { request, sessionId, userId, send });
+        await handleUserMessage(agent, { request, sessionId, userId: effectiveUserId, send });
       } catch (err) {
         context.log.error({ err }, 'Error handling message');
         send({
