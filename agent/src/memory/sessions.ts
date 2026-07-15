@@ -37,6 +37,28 @@ export interface McpServerSpec {
   url?: string;
   /** HTTP headers sent with every request. */
   headers?: Record<string, string>;
+  /**
+   * An authority-minted credential that travels with the session and identifies
+   * the verified connecting user to this MCP server. The session's creator (a
+   * trusted authority, server-side) signs the user's identity/scope and stores
+   * the resulting token here; the runtime forwards it verbatim as an outbound
+   * HTTP header on every request to this server, letting the server authenticate
+   * that the caller is the shared runtime and learn which user is asking (so it
+   * can scope retrieval to that user's tenant). See rsc-core issue #197.
+   *
+   * Distinct from {@link headers} on purpose: `headers` is user-supplied and
+   * subject to `${VAR}` interpolation, whereas this is an authority credential
+   * the runtime passes through literally (no interpolation) and applies last, so
+   * a session's own headers can't shadow it. Unlike other secrets, this one may
+   * live in the config row because it is bound to the session, revocable by the
+   * authority, and only grants a read of the user's own content.
+   */
+  authHeader?: {
+    /** Outbound header name the MCP server expects (authority-chosen). */
+    name: string;
+    /** Opaque authority-minted token (e.g. `<base64url(payload)>.<sig>`). */
+    value: string;
+  };
   /** Explicit transport; auto-detected from the fields present when omitted. */
   transport?: 'stdio' | 'sse' | 'streamable-http';
   /** Command to spawn (stdio transport). */

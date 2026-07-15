@@ -139,10 +139,18 @@ memory model, so any app can drop in a chat surface with
 1. **Configure a session.** A signed-in caller `POST /agent/sessions` (or
    backend code calls `createSession()` from `@readysetcloud/agent`) to create a
    session with an optional `systemPrompt`, `modelId`, `temperature`,
-   `maxTokens`, `title` — all defaulted when omitted. The row is stored at
-   `pk=SESSION#{id}, sk=CONFIG` and **owned by the verified caller**. This is the
-   knob for agent behavior: **the deployed runtime is a generic host, so changing
-   prompts or models is a data operation here, never a redeploy.**
+   `maxTokens`, `title`, first-party `tools`, and external `mcpServers` — all
+   defaulted/omitted when unset. The row is stored at `pk=SESSION#{id},
+   sk=CONFIG` and **owned by the verified caller**. This is the knob for agent
+   behavior: **the deployed runtime is a generic host, so changing prompts,
+   models, or tools is a data operation here, never a redeploy.** `mcpServers`
+   is the one place a session points the runtime at an outbound URL, so
+   `create-session` rejects any host not in `MCP_ALLOWED_HOSTS` (the
+   `McpAllowedHosts` parameter; empty rejects all — opt in explicitly) as an
+   SSRF guard. A spec's `authHeader` carries an authority-minted token that the
+   runtime forwards verbatim to that MCP server, propagating the verified user's
+   identity to a per-tenant tool — see the [package
+   README](agent/README.md#mcp-servers-external-tools).
 2. **Presign.** The browser calls `POST /agent/connect` with that `sessionId`.
    `WebSocketConnectFunction` returns a SigV4-presigned `wss://` URL to the
    AgentCore Runtime, carrying the verified Cognito `sub` as a custom header — so
