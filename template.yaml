@@ -726,6 +726,42 @@ Resources:
             Path: /agent/sessions
             Method: POST
 
+  # Event-driven session creation. A separate stack (e.g. Booked) that wants an
+  # agent session emits a "Create Agent Session" event on the default bus via
+  # @readysetcloud/agent `requestSession` — it needs only events:PutEvents, not
+  # cross-stack access to AgentChatTable. This consumer writes the config row
+  # here, where the table lives. Mirrors the Badge Chest "Track Activity" handoff.
+  CreateSessionFromEventFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - create-session-from-event.mjs
+    Properties:
+      Handler: create-session-from-event.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AgentChatTable.Arn
+      Events:
+        SessionRequest:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - readysetcloud.agent
+              detail-type:
+                - Create Agent Session
+
   AgentCoreRuntime:
     Type: AWS::BedrockAgentCore::Runtime
     Properties:

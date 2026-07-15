@@ -48,6 +48,17 @@ export {
   type McpServerSpec,
 } from './memory/sessions.js';
 
+// Event-driven session creation (a separate stack requests a session over the
+// default bus; the owning stack consumes it). See ./memory/session-events.
+export {
+  requestSession,
+  createSessionFromEvent,
+  SESSION_REQUEST_SOURCE,
+  SESSION_REQUEST_DETAIL_TYPE,
+  type SessionRequestDetail,
+  type RequestSessionOptions,
+} from './memory/session-events.js';
+
 // Tools.
 export { createRecallMemoryTool } from './tools/recall-memory.js';
 export {

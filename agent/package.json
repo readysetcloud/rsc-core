@@ -1,6 +1,6 @@
 {
   "name": "@readysetcloud/agent",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Portable, framework-agnostic Node agent core for Ready, Set, Cloud: a Strands-TS assistant with DynamoDB-backed conversation history and semantic vector memory.",
   "author": "allenheltondev",
   "license": "MIT",
@@ -37,6 +37,7 @@
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1085.0",
     "@aws-sdk/client-dynamodb": "^3.1085.0",
+    "@aws-sdk/client-eventbridge": "^3.1085.0",
     "@aws-sdk/client-s3vectors": "^3.1085.0",
     "@aws-sdk/lib-dynamodb": "^3.1085.0",
     "@strands-agents/sdk": "1.9.0",
