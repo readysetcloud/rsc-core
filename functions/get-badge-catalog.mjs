@@ -9,7 +9,7 @@ import { BADGES, LEVELS, CATALOG_VERSION, toPublicBadge } from './utils/badges.m
 export const handler = async () => ({
   statusCode: 200,
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
     'Cache-Control': 'public, max-age=300'
   },
   body: JSON.stringify({
