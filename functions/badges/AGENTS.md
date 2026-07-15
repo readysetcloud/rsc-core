@@ -33,6 +33,7 @@ The moving parts, all in this repo:
 | --- | --- | --- |
 | Catalog | `functions/badges/catalog.json` | The badge definitions (source of truth) |
 | Levels | `functions/badges/levels.json` | Point thresholds → levels |
+| Art | `functions/badges/art.json`, `ui/assets/badges/*.svg` | Generated SVG medallions (`scripts/build-badge-art.mjs`) |
 | Rules (pure) | `functions/utils/badges.mjs` | Indexing, criteria eval, level calc |
 | Rules engine | `functions/process-activity.mjs` | Consumes activity, awards, rolls up points |
 | Ingress | `functions/record-activity.mjs` | `POST /badges/activity` for clients |
@@ -130,7 +131,8 @@ needed for the three built-in criteria types.
 | --- | --- |
 | `id` | Stable, unique, kebab-case. Used as the DynamoDB key — **never reuse or rename** an id that has been awarded. |
 | `name`, `description` | Human copy shown in the chest. |
-| `icon` | Emoji today; an `iconUrl` art field is on the roadmap (UI already prefers art when present). |
+| `icon` | Emoji, used as the centerpiece of the generated art and as the fallback when art is absent. |
+| `iconUrl` | **Generated, don't hand-edit.** A self-contained SVG medallion (data URI) produced by `scripts/build-badge-art.mjs` from `icon` + `tier`. The API adds it in `toPublicBadge`; the UI prefers it over `icon`. Re-run the script after adding a badge or changing the art template. |
 | `category` | Grouping label (e.g. `Learning`, `Ecosystem`). |
 | `tier` | `bronze` \| `silver` \| `gold` \| `platinum` — drives the tile accent. |
 | `points` | Added to the user's total when earned; feeds levels (`levels.json`). |
@@ -178,12 +180,14 @@ distinct set and the counter never grows.
 
 ### Authoring checklist
 
-1. Add the entry to `catalog.json` with a stable `id`.
-2. Make sure **something emits** the `metric` you reference (an app, or the
+1. Add the entry to `catalog.json` with a stable `id` (include `icon` + `tier`).
+2. Run `node scripts/build-badge-art.mjs` to generate the badge's SVG artwork
+   (`ui/assets/badges/<id>.svg`) and refresh `functions/badges/art.json`.
+3. Make sure **something emits** the `metric` you reference (an app, or the
    signup hook). A badge whose metric is never emitted can never be earned.
-3. If service-scoped, confirm the emitter sends a matching `service`.
-4. Bump `version` in `catalog.json` if you want consumers to detect the change.
-5. Deploy. `GET /badges/catalog` now advertises it.
+4. If service-scoped, confirm the emitter sends a matching `service`.
+5. Bump `version` in `catalog.json` if you want consumers to detect the change.
+6. Deploy. `GET /badges/catalog` now advertises it, art included.
 
 **Gotcha — no automatic backfill:** adding a badge does **not** retroactively
 scan history. A user who already passed the threshold gets it on their **next**
@@ -211,7 +215,7 @@ React to these on the default bus (e.g. to toast or email the user):
 
 ```jsonc
 // DetailType: "Badge Awarded"  (one per badge earned)
-{ "userId", "badge": { "id", "name", "description", "icon", "category", "tier", "points", "service?" },
+{ "userId", "badge": { "id", "name", "description", "icon", "iconUrl?", "category", "tier", "points", "service?" },
   "totalPoints", "level", "levelName", "earnedDate" }
 
 // DetailType: "Level Up"  (only when the level changed)

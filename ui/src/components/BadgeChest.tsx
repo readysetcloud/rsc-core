@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cx } from './cx';
 import { Skeleton } from './Skeleton';
-import type { EarnedBadge, InProgressBadge, NextLevel } from '../badges/types';
+import type { BadgeDefinition, EarnedBadge, InProgressBadge, NextLevel } from '../badges/types';
 
 export interface BadgeChestProps {
   /** Total points earned across every app. */
@@ -122,12 +122,22 @@ export function BadgeChest({
   );
 }
 
+/** Prefers the SVG artwork when a badge has it, falling back to the emoji. */
+function TileIcon({ badge, fallback }: { badge: BadgeDefinition; fallback: string }) {
+  if (badge.iconUrl) {
+    return <img className="badge-tile-art" src={badge.iconUrl} alt="" aria-hidden="true" />;
+  }
+  return (
+    <span className="badge-tile-icon" aria-hidden="true">
+      {badge.icon ?? fallback}
+    </span>
+  );
+}
+
 function EarnedTile({ badge }: { badge: EarnedBadge }) {
   return (
     <div className={cx('badge-tile', tierClass(badge.tier))} title={badge.description}>
-      <span className="badge-tile-icon" aria-hidden="true">
-        {badge.icon ?? '🏅'}
-      </span>
+      <TileIcon badge={badge} fallback="🏅" />
       <span className="badge-tile-name">{badge.name}</span>
       <span className="badge-tile-points">+{badge.points}</span>
     </div>
@@ -138,9 +148,7 @@ function LockedTile({ badge }: { badge: InProgressBadge }) {
   const pct = badge.threshold > 0 ? Math.min(100, (badge.current / badge.threshold) * 100) : 0;
   return (
     <div className="badge-tile badge-tile--locked" title={badge.description}>
-      <span className="badge-tile-icon" aria-hidden="true">
-        {badge.icon ?? '🔒'}
-      </span>
+      <TileIcon badge={badge} fallback="🔒" />
       <span className="badge-tile-name">{badge.name}</span>
       <div className="badge-tile-progress" aria-hidden="true">
         <span className="badge-tile-progress-bar" style={{ width: `${pct}%` }} />
