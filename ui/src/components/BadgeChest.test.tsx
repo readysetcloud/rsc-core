@@ -49,6 +49,26 @@ describe('BadgeChest', () => {
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('50');
   });
 
+  it('renders SVG artwork when a badge has an iconUrl, and the emoji otherwise', () => {
+    const { container } = render(
+      <BadgeChest
+        points={30}
+        level={1}
+        badges={[
+          { id: 'art', name: 'With Art', iconUrl: 'data:image/svg+xml,<svg/>', tier: 'gold', points: 20 },
+          { id: 'plain', name: 'No Art', icon: '🎉', tier: 'bronze', points: 10 }
+        ]}
+        inProgress={[]}
+      />
+    );
+
+    const art = container.querySelector('img.badge-tile-art');
+    expect(art?.getAttribute('src')).toBe('data:image/svg+xml,<svg/>');
+    // The emoji badge keeps the text fallback rather than an <img>.
+    expect(container.querySelectorAll('img.badge-tile-art')).toHaveLength(1);
+    expect(screen.getByText('🎉')).toBeDefined();
+  });
+
   it('shows the empty state when nothing is earned or in progress', () => {
     render(<BadgeChest points={0} level={1} badges={[]} inProgress={[]} />);
     expect(screen.getByText(/go earn your first one/i)).toBeDefined();

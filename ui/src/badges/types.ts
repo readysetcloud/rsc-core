@@ -8,7 +8,10 @@ export interface BadgeDefinition {
   id: string;
   name: string;
   description?: string;
+  /** Emoji fallback shown when no `iconUrl` art is present. */
   icon?: string;
+  /** Self-contained SVG artwork (data URI). Preferred over `icon` when present. */
+  iconUrl?: string;
   category?: string;
   tier?: BadgeTier;
   points: number;
