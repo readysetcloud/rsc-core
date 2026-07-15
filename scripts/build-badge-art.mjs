@@ -40,6 +40,14 @@ const CENTER_Y = 58;
 const RING_R = 46;
 const DISC_R = 35;
 
+/** Escape text before interpolating it into SVG markup (names can contain &, <, >, "). */
+const xml = (s) =>
+  String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
 /** Rivets evenly spaced around the rim of the medallion. */
 const studs = (fill) => {
   const count = 12;
@@ -56,8 +64,8 @@ const studs = (fill) => {
 
 const svgFor = (badge) => {
   const t = TIERS[badge.tier] ?? TIERS.bronze;
-  const emoji = badge.icon ?? '🏅';
-  const label = `${badge.name} badge`;
+  const emoji = xml(badge.icon ?? '🏅');
+  const label = xml(`${badge.name} badge`);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="${label}">
   <defs>
