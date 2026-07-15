@@ -27,6 +27,13 @@ const RUNTIME_DEPS = {
   '@aws-sdk/lib-dynamodb': '^3.0.0',
   '@aws-sdk/client-s3vectors': '^3.0.0',
   '@aws-sdk/client-bedrock-runtime': '^3.0.0',
+  // @readysetcloud/agent's root barrel re-exports requestSession (session
+  // creation via EventBridge), which instantiates an EventBridgeClient at module
+  // scope. The bundle inlines @readysetcloud/agent, and build.mjs marks
+  // @aws-sdk/* external, so this client must ship in the artifact even though the
+  // runtime never calls requestSession — otherwise the runtime crashes on boot
+  // with ERR_MODULE_NOT_FOUND and every WebSocket handshake fails.
+  '@aws-sdk/client-eventbridge': '^3.0.0',
   zod: '^4.1.12',
 };
 
