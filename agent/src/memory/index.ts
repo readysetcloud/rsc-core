@@ -26,3 +26,11 @@ export {
   type CreateSessionOptions,
   type McpServerSpec,
 } from './sessions.js';
+export {
+  requestSession,
+  createSessionFromEvent,
+  SESSION_REQUEST_SOURCE,
+  SESSION_REQUEST_DETAIL_TYPE,
+  type SessionRequestDetail,
+  type RequestSessionOptions,
+} from './session-events.js';
