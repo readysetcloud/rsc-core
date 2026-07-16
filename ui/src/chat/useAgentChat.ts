@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { WebSocketChatClient } from './WebSocketChatClient';
+import { WebSocketChatClient, type ChatConnectionTarget } from './WebSocketChatClient';
 import type { ConnectionStatus, ServerMessage } from './protocol';
 
 // useAgentChat owns the connection lifecycle (reconnect/backoff), the
 // transport, and the streaming state. An app supplies `getConnectionUrl`
-// (which calls the backend presigned-URL endpoint with its auth) and a
-// `sessionId`, and gets back everything needed to render a streaming chat.
+// (which calls the backend /agent/connect endpoint with its auth and attaches
+// the bearer subprotocol) and a `sessionId`, and gets back everything needed to
+// render a streaming chat.
 
 export interface ChatMessage {
   id: string;
@@ -21,8 +22,11 @@ export interface UseAgentChatOptions {
   sessionId: string;
   /** Verified user id; forwarded to the agent for memory scoping. */
   userId?: string;
-  /** Returns a presigned wss:// URL (the app calls its backend with auth here). */
-  getConnectionUrl: (sessionId?: string) => Promise<string>;
+  /**
+   * Returns the wss:// URL (and optional bearer subprotocols) for a session —
+   * the app calls its backend with auth here. See {@link ChatConnectionTarget}.
+   */
+  getConnectionUrl: (sessionId?: string) => Promise<ChatConnectionTarget>;
   /** Connect on mount (default true). */
   autoConnect?: boolean;
 }

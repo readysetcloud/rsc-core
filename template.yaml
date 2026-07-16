@@ -550,9 +550,10 @@ Resources:
   # AgentCore Runtime (NODE_22) that streams over a browser-direct WebSocket.
   #
   # Auth reuses the shared RSC Cognito pool: the browser calls
-  # POST /agent/connect on the CoreApi (Cognito authorizer), and
-  # WebSocketConnectFunction returns a SigV4-presigned wss:// URL carrying the
-  # verified sub as a custom header so memory recall is scoped to the caller.
+  # POST /agent/connect on the CoreApi (Cognito authorizer) for the wss:// URL,
+  # then opens the socket presenting its Cognito JWT as an OAuth bearer. The
+  # runtime's inbound JWT authorizer validates it and the runtime reads the
+  # verified sub, so memory recall is scoped to the real caller.
   #
   # Memory is owned here: conversation turns + Strands snapshots in AgentChatTable
   # (TTL expiresAt), semantic recall in an S3 Vectors index fed by the
@@ -686,18 +687,13 @@ Resources:
           # points at the CloudFront reverse proxy (ChatProxyDistribution) instead
           # of the raw bedrock-agentcore host, so the account id in the runtime ARN
           # never appears in the client-visible URL. Unset (no custom domain) =>
-          # the Lambda returns the direct signed URL.
+          # the Lambda returns the direct runtime URL.
           PROXY_WSS_HOST: !If [DeployCustomDomainSupport, !Sub 'chat.${RootDomainName}', !Ref 'AWS::NoValue']
+      # No bedrock-agentcore invoke permission needed: the connection is
+      # authorized by the caller's Cognito JWT (AgentCore Inbound Auth), not by
+      # this Lambda's role. It only builds a URL — see websocket-connect.mjs.
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            # The signed URL grants the browser a WebSocket stream to the runtime.
-            - Effect: Allow
-              Action:
-                - bedrock-agentcore:InvokeAgentRuntime
-                - bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream
-              Resource: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*'
       Events:
         PostAgentConnect:
           Type: Api
@@ -799,6 +795,21 @@ Resources:
           Runtime: NODE_22
       NetworkConfiguration:
         NetworkMode: PUBLIC
+      # Inbound Auth: AgentCore validates a Cognito JWT (issuer/signature/expiry)
+      # against the shared RSC user pool BEFORE the request reaches the runtime.
+      # The browser presents its ID token as an OAuth bearer on the WebSocket
+      # handshake (Sec-WebSocket-Protocol), so the hand-rolled SigV4 presign is
+      # gone — see functions/websocket-connect.mjs and WebSocketChatClient.ts.
+      #
+      # AllowedAudience (not AllowedClients): the UI issues Cognito **ID tokens**
+      # (getFreshIdToken), which carry `aud`=client-id and have no `client_id`
+      # claim. AgentCore matches the token's `aud` against this list. If you ever
+      # switch the UI to access tokens, use AllowedClients instead.
+      AuthorizerConfiguration:
+        CustomJWTAuthorizerConfiguration:
+          DiscoveryUrl: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}/.well-known/openid-configuration'
+          AllowedAudience:
+            - !Ref CognitoUserPoolClient
       RoleArn: !GetAtt AgentCoreRole.Arn
       EnvironmentVariables:
         TABLE_NAME: !Ref AgentChatTable
@@ -1036,17 +1047,17 @@ Resources:
       BasePath: core
 
   # --- AgentCore runtime WebSocket reverse proxy ---------------------------
-  # Without this, the browser's presigned wss:// URL points straight at
+  # Without this, the browser's wss:// URL points straight at
   #   bedrock-agentcore.<region>.amazonaws.com/runtimes/<runtimeArn>/ws
   # which exposes the AWS account id (embedded in the ARN) to every client. This
   # CloudFront distribution fronts the runtime under chat.${RootDomainName}: the
-  # browser connects to wss://chat.${RootDomainName}/ws?<sigv4 query>, CloudFront
+  # browser connects to wss://chat.${RootDomainName}/ws?<session-id query> with
+  # the Cognito bearer in the Sec-WebSocket-Protocol subprotocol. CloudFront
   # prepends /runtimes/<arn> (OriginPath) and sets the Host back to the
-  # bedrock-agentcore origin (the AllViewerExceptHostHeader managed policy), so
-  # the SigV4 signature websocket-connect produced still validates. Only the URL
-  # handed to the browser is rewritten; the Lambda signs the real host + path.
-  # Region still rides inside X-Amz-Credential (unavoidable for any presigned
-  # URL), but it is not sensitive; the account id no longer appears at all.
+  # bedrock-agentcore origin (the AllViewerExceptHostHeader managed policy, which
+  # also forwards the Sec-WebSocket-Protocol header), so the runtime's inbound JWT
+  # authorizer validates the same bearer. Only the URL is rewritten; auth is the
+  # token, so nothing here is signed. The account id no longer appears at all.
   #
   # The ACM cert MUST be in us-east-1 for CloudFront — this stack deploys there,
   # so an in-stack certificate works (same pattern as AuthCertificate).
@@ -1092,8 +1103,9 @@ Resources:
           # Managed CachingDisabled — a streaming socket handshake is never cached.
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           # Managed AllViewerExceptHostHeader — forwards every viewer query param
-          # (the SigV4 signature) while letting CloudFront set Host to the origin
-          # (bedrock-agentcore), which is exactly the Host the presign signed.
+          # (the runtime session id) and header (incl. Sec-WebSocket-Protocol,
+          # which carries the bearer) while letting CloudFront set Host to the
+          # bedrock-agentcore origin.
           OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
 
   ChatProxyDnsRecord:

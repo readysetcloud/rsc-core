@@ -1,20 +1,33 @@
 import type { ServerMessage, ServerMessageListener } from './protocol';
 
 // Framework-agnostic WebSocket client for the AgentCore chat stream. The
-// caller injects a `getConnectionUrl` function that returns a presigned wss://
-// URL — so the client imports no app-specific auth/api and stays reusable
+// caller injects a `getConnectionUrl` function that returns the wss:// URL (and,
+// for AgentCore Inbound Auth, the WebSocket subprotocols that carry the bearer
+// token) — so the client imports no app-specific auth/api and stays reusable
 // across apps.
 
+/**
+ * What `getConnectionUrl` resolves to. Return a bare string for a URL that is
+ * self-authorizing (e.g. a legacy presigned URL), or `{ url, protocols }` to
+ * also pass WebSocket subprotocols — how a browser carries an OAuth bearer token
+ * to AgentCore, as `['base64UrlBearerAuthorization.<base64url(jwt)>',
+ * 'base64UrlBearerAuthorization']`. The app builds these from its own auth, so
+ * this package stays auth-agnostic.
+ */
+export type ChatConnectionTarget =
+  | string
+  | { url: string; protocols?: string | string[] };
+
 export interface WebSocketChatClientOptions {
-  /** Returns a presigned wss:// URL for the given session. */
-  getConnectionUrl: (sessionId?: string) => Promise<string>;
+  /** Returns the wss:// URL (and optional subprotocols) for the given session. */
+  getConnectionUrl: (sessionId?: string) => Promise<ChatConnectionTarget>;
 }
 
 type EventType = ServerMessage['type'] | 'open' | 'close';
 
 export class WebSocketChatClient {
   private ws: WebSocket | null = null;
-  private readonly getConnectionUrl: (sessionId?: string) => Promise<string>;
+  private readonly getConnectionUrl: (sessionId?: string) => Promise<ChatConnectionTarget>;
   private readonly listeners = new Map<EventType, Set<ServerMessageListener>>();
   private connected = false;
 
@@ -24,10 +37,14 @@ export class WebSocketChatClient {
 
   /** Opens a connection. Resolves once the socket is open. */
   async connect(sessionId?: string): Promise<void> {
-    const url = await this.getConnectionUrl(sessionId);
+    const target = await this.getConnectionUrl(sessionId);
+    const { url, protocols } =
+      typeof target === 'string' ? { url: target, protocols: undefined } : target;
 
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(url);
+      // Pass subprotocols only when supplied — that's how the browser hands
+      // AgentCore the OAuth bearer token (Sec-WebSocket-Protocol).
+      const ws = protocols !== undefined ? new WebSocket(url, protocols) : new WebSocket(url);
       this.ws = ws;
 
       ws.onopen = () => {

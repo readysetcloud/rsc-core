@@ -151,30 +151,36 @@ memory model, so any app can drop in a chat surface with
    runtime forwards verbatim to that MCP server, propagating the verified user's
    identity to a per-tenant tool — see the [package
    README](agent/README.md#mcp-servers-external-tools).
-2. **Presign.** The browser calls `POST /agent/connect` with that `sessionId`.
-   `WebSocketConnectFunction` returns a SigV4-presigned `wss://` URL to the
-   AgentCore Runtime, carrying the verified Cognito `sub` as a custom header — so
-   the agent's identity is the real caller, never a client value. When a custom
-   domain is deployed, that URL points at the `chat.${RootDomainName}` CloudFront
-   proxy (see below) instead of the raw `bedrock-agentcore` host, so the AWS
-   account id never appears in the client-visible URL.
-3. **Stream.** The browser opens the presigned socket to the runtime (directly,
-   or through the proxy). The runtime **loads the session's config by
-   `sessionId`, enforces that the verified caller is the session's owner** (a
-   leaked/guessed id can't resume someone else's conversation; missing config
-   falls back to defaults), builds the assistant, and streams `stream_event` →
-   `complete` frames over the wire protocol `@readysetcloud/ui/chat` speaks.
+2. **Get the URL.** The browser calls `POST /agent/connect` with that
+   `sessionId`. `WebSocketConnectFunction` returns the `wss://` URL to the
+   AgentCore Runtime (with the runtime session id as a query param) — no signing.
+   When a custom domain is deployed, that URL points at the
+   `chat.${RootDomainName}` CloudFront proxy (see below) instead of the raw
+   `bedrock-agentcore` host, so the AWS account id never appears in the
+   client-visible URL.
+3. **Stream.** The browser opens the socket (directly or through the proxy),
+   presenting its **Cognito ID token as an OAuth bearer** in the
+   `Sec-WebSocket-Protocol` handshake header
+   (`base64UrlBearerAuthorization.<base64url(jwt)>`). The runtime's **inbound JWT
+   authorizer** (`AuthorizerConfiguration`, validating the shared user pool)
+   verifies the token before the request lands, then forwards it as the
+   `Authorization` header; the runtime reads the verified `sub` from it — the
+   agent's identity is the real caller, never a client value. The runtime then
+   **loads the session's config by `sessionId`, enforces that the verified caller
+   is the session's owner** (a leaked/guessed id can't resume someone else's
+   conversation; missing config falls back to defaults), builds the assistant,
+   and streams `stream_event` → `complete` frames over the wire protocol
+   `@readysetcloud/ui/chat` speaks.
 
-   > **Reverse proxy (custom-domain deploys).** The presigned URL would
-   > otherwise expose the account id — it sits in the runtime ARN in the path
+   > **Reverse proxy (custom-domain deploys).** The URL would otherwise expose
+   > the account id — it sits in the runtime ARN in the path
    > (`…/runtimes/arn:aws:bedrock-agentcore:<region>:<account>:runtime/…/ws`).
    > `ChatProxyDistribution` fronts the runtime at `wss://chat.${RootDomainName}`:
-   > the browser connects to `/ws?<sigv4 query>`, CloudFront prepends
+   > the browser connects to `/ws?<session-id query>`, CloudFront prepends
    > `/runtimes/<arn>` (OriginPath) and restores the `bedrock-agentcore` Host
-   > (the `AllViewerExceptHostHeader` managed policy), so the **same** signature
-   > validates. The Lambda signs the real host + path; only the URL it returns is
-   > rewritten. Region survives inside `X-Amz-Credential` (unavoidable for any
-   > presigned URL) but is not sensitive — the account id is gone.
+   > (the `AllViewerExceptHostHeader` managed policy, which also forwards the
+   > `Sec-WebSocket-Protocol` bearer). Only the URL is rewritten; the bearer token
+   > still authorizes the connection at the runtime. The account id is gone.
 4. **Remember.** Each turn is written to `AgentChatTable` (`pk=MEMORY#{userId}` /
    `SESSION#{sessionId}`, TTL `expiresAt`). A stream filter on `entity=Turn`
    drives `VectorizeTurnFunction`, which embeds turns (Titan v2 @ 1024) into the
@@ -184,7 +190,7 @@ memory model, so any app can drop in a chat surface with
 | Method & path | Auth | Purpose |
 | --- | --- | --- |
 | `POST /agent/sessions` | Cognito JWT | Create a session (prompt/model/params); returns `{ sessionId }` |
-| `POST /agent/connect` | Cognito JWT | Presigned `wss://` URL to the runtime for a `sessionId` |
+| `POST /agent/connect` | Cognito JWT | `wss://` URL to the runtime for a `sessionId` (auth is the bearer on the socket, not a signed URL) |
 
 ### Pieces
 
@@ -192,7 +198,7 @@ memory model, so any app can drop in a chat surface with
 | --- | --- |
 | Portable agent core (assistant, memory, streaming) | `@readysetcloud/agent` → [`agent/`](agent/) |
 | AgentCore Runtime artifact (NODE_22 WebSocket host) | [`agent-runtime/`](agent-runtime/) |
-| Session, presign + vectorizer Lambdas | [`functions/create-session.mjs`](functions/create-session.mjs), [`functions/websocket-connect.mjs`](functions/websocket-connect.mjs), [`functions/vectorize-turn.mjs`](functions/vectorize-turn.mjs) |
+| Session, connect + vectorizer Lambdas | [`functions/create-session.mjs`](functions/create-session.mjs), [`functions/websocket-connect.mjs`](functions/websocket-connect.mjs), [`functions/vectorize-turn.mjs`](functions/vectorize-turn.mjs) |
 | Infra (table, S3 Vectors, runtime, IAM, `POST /agent/sessions` + `/agent/connect`) | [`template.yaml`](template.yaml) |
 | Artifact packaging (esbuild bundle + arm64 node_modules) | [`scripts/package-agent.mjs`](scripts/package-agent.mjs) |
 | React chat surface | `@readysetcloud/ui/chat` → [`ui/src/chat/`](ui/src/chat/) |
@@ -219,12 +225,23 @@ const authed = async (path, body) =>
     body: JSON.stringify(body)
   })).json();
 
+// base64url without padding — how AgentCore expects the bearer in the subprotocol.
+const b64url = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
 // 1. Create a session once (optionally set prompt/model), keep the id in state.
 const { sessionId } = await authed('/agent/sessions', { systemPrompt, modelId });
 
-// 2. Presign per (re)connect. The verified sub becomes the agent's userId
-//    server-side — never pass it from the client.
-const getConnectionUrl = async (sid?: string) => (await authed('/agent/connect', { sessionId: sid })).wsUrl;
+// 2. Per (re)connect, return the URL + the Cognito ID token as an OAuth bearer
+//    subprotocol. The runtime's inbound JWT authorizer validates it and reads the
+//    verified sub server-side — never pass a user id from the client.
+const getConnectionUrl = async (sid?: string) => {
+  const { wsUrl } = await authed('/agent/connect', { sessionId: sid });
+  const token = await getToken();
+  return {
+    url: wsUrl,
+    protocols: [`base64UrlBearerAuthorization.${b64url(token)}`, 'base64UrlBearerAuthorization'],
+  };
+};
 
 // 3. Render.
 <Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" />;
@@ -240,11 +257,22 @@ row.
 - **`AWS::BedrockAgentCore::Runtime` `EntryPoint: index.js`** — cfn-lint's spec
   doesn't yet know the Node runtimes (`E3030 NODE_22`) and there's no first-party
   TS WebSocket tutorial, so confirm the literal against a real deploy.
+- **Inbound JWT authorizer** — confirm the runtime's
+  `AuthorizerConfiguration.CustomJWTAuthorizerConfiguration` accepts the browser's
+  Cognito **ID** token: `AllowedAudience` matches the token `aud` (the app client
+  id), and the `DiscoveryUrl` issuer matches the token `iss`. A rejected token
+  closes the socket (codes `4401`/`1008`, which the UI client surfaces).
+- **Bearer over WebSocket** — confirm AgentCore accepts the OAuth bearer in the
+  `Sec-WebSocket-Protocol` subprotocol (`base64UrlBearerAuthorization.<b64url>`)
+  with the runtime session id as a query param, and that the CloudFront proxy
+  forwards that subprotocol header. This mirrors the `bedrock-agentcore` SDK's own
+  browser helper (`RuntimeClient.connectShellOAuth`).
+- **Verified identity in the runtime** — confirm AgentCore forwards the validated
+  token as the `Authorization` header (the SDK filters headers to
+  `Authorization` + `Custom-*`), so `getUserId` decodes the `sub`. If it surfaces
+  identity differently, adjust `agent-runtime/src/index.ts`.
 - **End-to-end stream** — sign in → `POST /agent/connect` → open the socket →
   confirm `stream_event`→`complete`, multi-turn continuity (snapshots), and that
   `recall_memory` returns prior-session facts.
 - **arm64 packaging** — `scripts/package-agent.mjs` stages the zip; confirm it
   runs on the runtime (all deps are pure-JS today).
-- **Runtime-provided SDK** — `websocket-connect.mjs` treats `@aws-sdk/*`
-  (incl. `@aws-sdk/credential-provider-node`) as runtime-provided; confirm they
-  resolve on the Node 24 Lambda runtime.
