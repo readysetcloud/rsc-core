@@ -63,7 +63,7 @@ const answer = await handleUserMessage(agent, {
 ```
 
 **Identity is the verified caller.** Pass `userId` from a trusted source (e.g. a
-Cognito `sub` on a presigned connection header), never a client-supplied value.
+Cognito `sub` from a verified inbound JWT), never a client-supplied value.
 `recall_memory` closes over that `userId`, so memory can't leak across users.
 
 ## Sessions (dynamic config)

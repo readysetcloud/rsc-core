@@ -13,7 +13,10 @@ class FakeWebSocket {
   onclose: ((e: { code: number }) => void) | null = null;
   sent: string[] = [];
 
-  constructor(public url: string) {
+  constructor(
+    public url: string,
+    public protocols?: string | string[],
+  ) {
     FakeWebSocket.instances.push(this);
   }
   open() {
@@ -39,7 +42,7 @@ beforeEach(() => {
 });
 
 describe('WebSocketChatClient', () => {
-  it('connects using the injected presigned URL and resolves on open', async () => {
+  it('connects using the injected URL and resolves on open', async () => {
     const getConnectionUrl = vi.fn().mockResolvedValue('wss://example/ws?sig=abc');
     const client = new WebSocketChatClient({ getConnectionUrl });
 
@@ -52,7 +55,24 @@ describe('WebSocketChatClient', () => {
 
     expect(getConnectionUrl).toHaveBeenCalledWith('sess-1');
     expect(socket.url).toBe('wss://example/ws?sig=abc');
+    expect(socket.protocols).toBeUndefined();
     expect(client.isConnected()).toBe(true);
+  });
+
+  it('passes bearer subprotocols through when getConnectionUrl returns them', async () => {
+    const protocols = ['base64UrlBearerAuthorization.abc123', 'base64UrlBearerAuthorization'];
+    const client = new WebSocketChatClient({
+      getConnectionUrl: async () => ({ url: 'wss://example/ws?sid=1', protocols }),
+    });
+
+    const connecting = client.connect('sess-1');
+    await Promise.resolve();
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    await connecting;
+
+    expect(socket.url).toBe('wss://example/ws?sid=1');
+    expect(socket.protocols).toEqual(protocols);
   });
 
   it('sends a well-formed query frame', async () => {

@@ -212,7 +212,8 @@ Flow behaviors already handled: NEW_PASSWORD_REQUIRED challenge, unconfirmed-acc
 Streaming chat surface for the AgentCore agent (`@readysetcloud/agent`). On its
 own subpath (like `./auth`) so apps that don't render chat don't pull in
 `react-markdown` & friends. The app owns auth: it supplies a `getConnectionUrl`
-that returns a presigned `wss://` URL, and the components never import app auth.
+that returns the `wss://` URL plus the bearer subprotocol (AgentCore Inbound
+Auth), and the components never import app auth.
 
 ```tsx
 import { Chat } from '@readysetcloud/ui/chat';
@@ -226,12 +227,23 @@ const authed = async (path, body) =>
     body: JSON.stringify(body)
   })).json();
 
+// base64url without padding — how AgentCore expects the bearer in the subprotocol.
+const b64url = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
 // 1. Create a session once (optionally set prompt/model), keep the id in state.
 const { sessionId } = await authed('/agent/sessions', { systemPrompt, modelId });
 
-// 2. Presign per (re)connect. The verified Cognito sub becomes the agent's
-//    userId server-side — never pass it from the client.
-const getConnectionUrl = async (sid?: string) => (await authed('/agent/connect', { sessionId: sid })).wsUrl;
+// 2. Per (re)connect, return the URL + the Cognito ID token as an OAuth bearer
+//    subprotocol. The runtime's inbound JWT authorizer validates it and the
+//    runtime reads the verified sub — never pass a user id from the client.
+const getConnectionUrl = async (sid?: string) => {
+  const { wsUrl } = await authed('/agent/connect', { sessionId: sid });
+  const token = await getToken();
+  return {
+    url: wsUrl,
+    protocols: [`base64UrlBearerAuthorization.${b64url(token)}`, 'base64UrlBearerAuthorization'],
+  };
+};
 
 <Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" />;
 ```

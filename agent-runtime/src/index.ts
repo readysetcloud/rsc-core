@@ -21,11 +21,47 @@ import type { Agent, McpServerConfig } from '@strands-agents/sdk';
 // Deployed to AgentCore Runtime as a NODE_22 arm64 CodeZip bundle (see
 // build.mjs + scripts/package-agent.mjs).
 
-// The presigned-URL Lambda passes the verified Cognito sub as this custom
+// Legacy fallback: a presign-style caller could pass the user id as a custom
 // header; AgentCore forwards Custom-* headers to the runtime (lower-cased).
 const CUSTOM_USER_ID_HEADER = 'x-amzn-bedrock-agentcore-runtime-custom-user-id';
 
+/**
+ * Decodes (does NOT verify) a JWT's `sub`. AgentCore's inbound JWT authorizer
+ * (AuthorizerConfiguration in template.yaml) has already validated the token's
+ * issuer, signature, and expiry against the shared Cognito pool before the
+ * request reaches this runtime — the runtime is behind that boundary and is only
+ * reachable through the AgentCore data plane, so it just reads the claim.
+ */
+function decodeJwtSub(token: string): string | undefined {
+  const payload = token.split('.')[1];
+  if (!payload) return undefined;
+  try {
+    const json = JSON.parse(
+      Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
+    ) as { sub?: unknown };
+    return typeof json.sub === 'string' ? json.sub : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The verified caller id. Primary source is the Cognito JWT that AgentCore
+ * Inbound Auth validated and forwards as the Authorization header — the runtime
+ * SDK filters incoming headers to Authorization + Custom-* (see
+ * bedrock-agentcore RequestContext). Falls back to the custom user-id header for
+ * the debug/HTTP path or a caller that still sets it explicitly.
+ */
 function getUserId(context: RequestContext): string | undefined {
+  const authKey = Object.keys(context.headers).find(
+    (h) => h.toLowerCase() === 'authorization',
+  );
+  const authHeader = authKey ? context.headers[authKey] : undefined;
+  if (authHeader) {
+    const sub = decodeJwtSub(authHeader.replace(/^Bearer\s+/i, ''));
+    if (sub) return sub;
+  }
+
   const direct = context.headers[CUSTOM_USER_ID_HEADER];
   if (direct) return direct;
   // Be tolerant of header-casing differences across AgentCore versions.
@@ -149,7 +185,8 @@ const app = new BedrockAgentCoreApp({
     requestSchema: invocationSchema,
     process: async (req, context) => {
       const sessionId = req.session_id ?? context.sessionId;
-      const userId = req.user_id ?? getUserId(context);
+      // Verified JWT identity wins; req.user_id is only a local/debug fallback.
+      const userId = getUserId(context) ?? req.user_id;
       const built = await buildAgentForSession(sessionId, userId);
       if (!built) {
         return {
@@ -190,16 +227,10 @@ const app = new BedrockAgentCoreApp({
 
       const request = data.request;
       const msgSessionId = data.session_id;
-      // Prefer the verified caller id from the presigned connection (custom
-      // header), but fall back to the client-supplied user_id — the platform
-      // doesn't always surface the connection's custom header to a WebSocket
-      // runtime, so getUserId(context) can be undefined. This mirrors the HTTP
-      // invocation path (req.user_id ?? getUserId(context)). The connection is
-      // already authenticated by the presigned URL and session ids are
-      // unguessable UUIDs, so the residual exposure — a caller who knows both
-      // another user's session id AND their sub — matches what the HTTP path
-      // already accepts.
-      const effectiveUserId = userId ?? data.user_id;
+      // Identity is the Cognito `sub` from the JWT that AgentCore Inbound Auth
+      // validated for this connection (captured once at connect time). The
+      // client-supplied data.user_id is ignored — it can no longer be trusted or
+      // needed now that the connection carries a verified bearer token.
 
       if (!request) {
         send({ type: 'error', error: 'Missing required field: request' });
@@ -215,7 +246,7 @@ const app = new BedrockAgentCoreApp({
         // loading that session's stored config, tools, and MCP servers and
         // enforcing ownership. Disconnect the previous session's MCP clients.
         if (agent === null || msgSessionId !== sessionId) {
-          const built = await buildAgentForSession(msgSessionId, effectiveUserId);
+          const built = await buildAgentForSession(msgSessionId, userId);
           if (!built) {
             send({ type: 'error', error: 'Session does not belong to this user' });
             return;
@@ -226,7 +257,7 @@ const app = new BedrockAgentCoreApp({
           mcpClients = built.mcpClients;
         }
 
-        await handleUserMessage(agent, { request, sessionId, userId: effectiveUserId, send });
+        await handleUserMessage(agent, { request, sessionId, userId, send });
       } catch (err) {
         context.log.error({ err }, 'Error handling message');
         send({

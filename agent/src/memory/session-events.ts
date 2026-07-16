@@ -44,7 +44,7 @@ export type RequestSessionOptions = CreateSessionOptions & {
 /**
  * Requests a session by emitting a "Create Agent Session" event, and returns the
  * `sessionId` immediately (generated here if not supplied) so the caller can
- * presign a connection right away. The owning stack's consumer creates the
+ * open a connection right away. The owning stack's consumer creates the
  * config row from the event. The caller needs only `events:PutEvents`.
  */
 export async function requestSession(options: RequestSessionOptions): Promise<{ sessionId: string }> {

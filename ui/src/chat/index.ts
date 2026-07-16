@@ -10,7 +10,11 @@ export {
   type UseAgentChatOptions,
   type ChatMessage as ChatMessageData,
 } from './useAgentChat';
-export { WebSocketChatClient, type WebSocketChatClientOptions } from './WebSocketChatClient';
+export {
+  WebSocketChatClient,
+  type WebSocketChatClientOptions,
+  type ChatConnectionTarget,
+} from './WebSocketChatClient';
 export type {
   ServerMessage,
   AgentStreamEventBody,

@@ -1,61 +1,44 @@
-import { SignatureV4 } from '@smithy/signature-v4';
-import { Sha256 } from '@aws-crypto/sha256-js';
-import { HttpRequest } from '@smithy/protocol-http';
-import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { randomUUID } from 'crypto';
 
 /**
- * Generates an AWS SigV4 presigned WebSocket URL so the browser can connect
- * directly to the AgentCore Runtime that hosts @readysetcloud/agent.
+ * Returns the wss:// URL the browser uses to open a streaming WebSocket to the
+ * AgentCore Runtime that hosts @readysetcloud/agent.
+ *
+ * Auth is AgentCore **Inbound Auth** (a Cognito JWT), not a SigV4 presigned URL:
  *
  *   1. The caller is authenticated by the shared Cognito pool (CoreApi JWT
- *      authorizer). The verified `sub` is the identity — never the body.
- *   2. This function signs a wss:// URL with the Lambda execution role (SigV4).
- *   3. The browser connects with the presigned URL (no custom headers needed).
- *      When PROXY_WSS_HOST is set, that URL points at the CloudFront reverse
- *      proxy (chat.<domain>) rather than the raw bedrock-agentcore host, so the
- *      account id in the runtime ARN never reaches the client. See the wsUrl
- *      construction below and ChatProxyDistribution in template.yaml.
- *   4. The verified user id rides along as a Custom-* query param, surfaced to
- *      the agent as the x-amzn-bedrock-agentcore-runtime-custom-user-id header,
- *      so memory recall is scoped to the real caller.
+ *      authorizer) — this endpoint just needs a signed-in user to hand back a
+ *      URL + session id.
+ *   2. The runtime is configured with a CustomJWTAuthorizerConfiguration
+ *      (template.yaml, AgentCoreRuntime) that validates the caller's Cognito ID
+ *      token against the shared user pool. The browser presents that token as an
+ *      OAuth bearer in the WebSocket handshake (Sec-WebSocket-Protocol), so the
+ *      URL itself carries no credential and needs no signing here.
+ *   3. AgentCore forwards the validated token to the runtime as the Authorization
+ *      header, from which the runtime reads the verified `sub` — identity is the
+ *      real caller, never a client-supplied value (see agent-runtime/src/index.ts).
  *
- * The SigV4 presign is hand-rolled (rather than pulling in the bedrock-agentcore
- * runtime SDK, which bundles Fastify) to keep this Lambda dependency-light.
- * Based on the official AWS bi-directional-streaming sample.
+ * The runtime session id rides as a query param (browsers can't set arbitrary
+ * WebSocket handshake headers). This mirrors the AgentCore SDK's own browser
+ * OAuth helper (bedrock-agentcore RuntimeClient.connectShellOAuth), which puts
+ * X-Amzn-Bedrock-AgentCore-Runtime-Session-Id in the query string and the bearer
+ * token in the subprotocol.
+ *
+ * When PROXY_WSS_HOST is set (custom-domain deploy), the URL points at the
+ * CloudFront reverse proxy (chat.<domain>) instead of the raw bedrock-agentcore
+ * host, so the account id in the runtime ARN never reaches the client. The proxy
+ * forwards the query params and the Sec-WebSocket-Protocol header unchanged and
+ * prepends /runtimes/<arn> (OriginPath) — see ChatProxyDistribution in
+ * template.yaml.
  */
 
-const EXPIRES_IN_SECONDS = 300;
-
-/** AWS-compatible URI escaping: encodeURIComponent plus !'()* per RFC 3986. */
-const escapeUri = (value) =>
-  encodeURIComponent(value).replace(
-    /[!'()*]/g,
-    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
-  );
-
-/**
- * Builds the query string from a signed HttpRequest. SignatureV4.presign()
- * stores raw (unencoded) query values, so we encode keys and values here.
- */
-const buildQueryString = (query) => {
-  const parts = [];
-  for (const [key, value] of Object.entries(query ?? {})) {
-    const encodedKey = escapeUri(key);
-    if (Array.isArray(value)) {
-      for (const v of value) parts.push(`${encodedKey}=${escapeUri(v)}`);
-    } else if (value != null) {
-      parts.push(`${encodedKey}=${escapeUri(value)}`);
-    } else {
-      parts.push(encodedKey);
-    }
-  }
-  return parts.join('&');
-};
+const SESSION_ID_PARAM = 'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id';
 
 export const handler = async (event) => {
   try {
-    const userId = event.requestContext?.authorizer?.claims?.sub ?? event.requestContext?.authorizer?.jwt?.claims?.sub;
+    const userId =
+      event.requestContext?.authorizer?.claims?.sub ??
+      event.requestContext?.authorizer?.jwt?.claims?.sub;
     if (!userId) {
       return response(401, { message: 'Unauthorized' });
     }
@@ -74,67 +57,24 @@ export const handler = async (event) => {
     }
     const sessionId = body.sessionId || randomUUID();
 
-    // wss://bedrock-agentcore.<region>.amazonaws.com/runtimes/<arn>/ws
-    // The ARN sits raw in the path; SigV4 handles canonical path encoding.
-    const wsHost = `bedrock-agentcore.${region}.amazonaws.com`;
-    const wsPath = `/runtimes/${runtimeArn}/ws`;
-
-    const query = {
-      qualifier: 'DEFAULT',
-      'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
-      // Pass the verified user id to the agent as a custom header query param.
-      'X-Amzn-Bedrock-AgentCore-Runtime-Custom-User-Id': userId
-    };
-
-    const request = new HttpRequest({
-      method: 'GET',
-      protocol: 'https:',
-      hostname: wsHost,
-      path: wsPath,
-      headers: { host: wsHost },
-      query
-    });
-
-    const signer = new SignatureV4({
-      service: 'bedrock-agentcore',
-      region,
-      credentials: defaultProvider(),
-      sha256: Sha256
-    });
-
-    const signedRequest = await signer.presign(request, {
-      expiresIn: EXPIRES_IN_SECONDS,
-      signingDate: new Date()
-    });
-
-    const queryString = buildQueryString(signedRequest.query);
-
-    // The signature is bound to the bedrock-agentcore host + /runtimes/<arn>/ws
-    // path signed above; the query string (X-Amz-Signature and friends) is what
-    // authorizes the connection and never changes below.
-    //
-    // With PROXY_WSS_HOST set, the browser connects through the CloudFront
-    // reverse proxy at chat.<domain> instead of the raw AgentCore host. The proxy
-    // is configured (template.yaml, ChatProxyDistribution) to prepend
-    // /runtimes/<arn> via OriginPath and restore the bedrock-agentcore Host
-    // header, so this same signature still validates at the runtime — while the
-    // browser only ever sees "/ws" and the account id in the ARN stays hidden.
-    // Region is unavoidably present inside X-Amz-Credential (a property of every
-    // presigned URL), but it is not sensitive.
-    //
-    // Without PROXY_WSS_HOST (no custom domain deployed), the browser connects
-    // straight to the runtime with the full signed host and path.
+    // Base path: proxy hides the account-id-bearing ARN behind chat.<domain>/ws;
+    // otherwise the browser connects straight to the runtime's /runtimes/<arn>/ws.
     const proxyHost = process.env.PROXY_WSS_HOST;
-    const wsUrl = proxyHost
-      ? `wss://${proxyHost}/ws?${queryString}`
-      : `wss://${signedRequest.hostname}${signedRequest.path}?${queryString}`;
+    const base = proxyHost
+      ? `wss://${proxyHost}/ws`
+      : `wss://bedrock-agentcore.${region}.amazonaws.com/runtimes/${encodeURIComponent(runtimeArn)}/ws`;
 
-    return response(200, { wsUrl, sessionId, userId, expiresIn: EXPIRES_IN_SECONDS });
+    const url = new URL(base);
+    url.searchParams.set('qualifier', 'DEFAULT');
+    url.searchParams.set(SESSION_ID_PARAM, sessionId);
+    const wsUrl = url.toString();
+
+    return response(200, { wsUrl, sessionId });
   } catch (error) {
-    console.error('Failed to generate presigned WebSocket URL', error);
+    console.error('Failed to build agent WebSocket URL', error);
     return response(500, {
       error: 'INTERNAL_SERVER_ERROR',
-      message: 'Failed to generate presigned WebSocket URL'
+      message: 'Failed to build agent WebSocket URL'
     });
   }
 };
