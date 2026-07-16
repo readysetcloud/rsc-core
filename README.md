@@ -196,6 +196,35 @@ surface with [`@readysetcloud/ui/chat`](ui/AGENTS.md).
 | --- | --- | --- |
 | `POST /agent/sessions` | Cognito JWT | Create a session (prompt/model/params); returns `{ sessionId }` |
 | `POST /agent/connect` | Cognito JWT | `wss://` URL to the runtime for a `sessionId` (auth is the bearer on the socket, not a signed URL) |
+| `POST /agent/tasks` | Cognito JWT | Trigger an autonomous (non-chat) task; `wait` (default) returns the result inline for a quick run, else `202 { taskId }` + a result event |
+| `GET /agent/tasks/{taskId}` | Cognito JWT | Read a task's status/result (owner only) |
+
+### Autonomous tasks (non-chat agents)
+
+Alongside streaming chat, the runtime runs **autonomous tasks** — a one-shot "do
+something" invocation of the agent through the *same* secure environment, with no
+browser or socket. Two triggers land on the same path: `POST /agent/tasks` (the
+verified caller is the task's `user` principal by default; `wait` returns the
+result inline under the REST API's ~29s window, else a `202` + event), and a
+`"Run Agent Task"` event a first-party backend emits via `@readysetcloud/agent`
+`requestAgentTask` (the decoupled path). `RunAgentTaskFunction` invokes the
+runtime; the runtime owns the durable lifecycle — a conditional task row
+(`pk=TASK#{taskId}`) makes the run **idempotent** under at-least-once delivery, an
+in-memory cache serves warm-instance duplicates/polls, and it emits `"Agent Task
+Completed"` on every outcome so the result reaches consumers over the bus even
+when a slow run outlives the caller's wait. Identity for an IAM-invoked run is the
+payload `principal` the trusted caller asserts (no inbound JWT), the same trust
+model as the "Create Agent Session" handoff.
+
+**System-scoped runs.** A first-party backend emitting a `"Run Agent Task"` event
+may assert a `system` principal (id = a service, e.g. `booked`) freely — the bus
+is account-internal. A *public* `POST /agent/tasks` caller may request one by
+passing `system: '<id>'`, but only if their verified `sub` is allowlisted for
+that id in the **`SystemTaskPrincipals`** deploy parameter (comma-separated
+`sub:systemId` grants; `sub:*` allows any; empty rejects all — opt in, like
+`McpAllowedHosts`). The human launcher is recorded as `createdBy` so they can
+still `GET` the task even though the run acts as the system. See the [package
+README](agent/README.md#autonomous-tasks-non-chat-agents).
 
 ### Pieces
 
@@ -204,7 +233,8 @@ surface with [`@readysetcloud/ui/chat`](ui/AGENTS.md).
 | Portable agent core (assistant, snapshots, streaming) | `@readysetcloud/agent` → [`agent/`](agent/) |
 | AgentCore Runtime artifact (NODE_22 WebSocket host, AgentCore Memory wiring) | [`agent-runtime/`](agent-runtime/) |
 | Session + connect Lambdas | [`functions/create-session.mjs`](functions/create-session.mjs), [`functions/websocket-connect.mjs`](functions/websocket-connect.mjs) |
-| Infra (table, AgentCore Memory, runtime, IAM, `POST /agent/sessions` + `/agent/connect`) | [`template.yaml`](template.yaml) |
+| Autonomous task Lambdas (create/get + `Run Agent Task` consumer) | [`functions/create-task.mjs`](functions/create-task.mjs), [`functions/get-task.mjs`](functions/get-task.mjs), [`functions/run-agent-task.mjs`](functions/run-agent-task.mjs) |
+| Infra (table, AgentCore Memory, runtime, IAM, `POST /agent/sessions` + `/agent/connect` + `/agent/tasks`) | [`template.yaml`](template.yaml) |
 | Artifact packaging (esbuild bundle + arm64 node_modules) | [`scripts/package-agent.mjs`](scripts/package-agent.mjs) |
 | React chat surface | `@readysetcloud/ui/chat` → [`ui/src/chat/`](ui/src/chat/) |
 

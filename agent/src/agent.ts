@@ -51,6 +51,12 @@ export interface CreateAssistantOptions {
   memoryManager?: MemoryManager | MemoryManagerConfig;
   /** Inject a storage backend (tests pass a fake); defaults to DynamoDB. */
   storage?: DynamoSnapshotStorage;
+  /**
+   * Table for the default snapshot storage; defaults to the `TABLE_NAME` env
+   * var. Ignored when an explicit `storage` is provided. Pass it to point a
+   * library-mode assistant at its own table.
+   */
+  tableName?: string;
 }
 
 /**
@@ -72,7 +78,7 @@ export function createAssistant(options: CreateAssistantOptions): Agent {
     maxTokens = DEFAULT_MAX_TOKENS,
     tools = [],
     memoryManager,
-    storage = new DynamoSnapshotStorage(),
+    storage = new DynamoSnapshotStorage(options.tableName),
   } = options;
 
   const sessionManager = new SessionManager({

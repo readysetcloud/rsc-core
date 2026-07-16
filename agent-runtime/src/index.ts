@@ -5,11 +5,19 @@ import { z } from 'zod';
 import {
   createAssistant,
   handleUserMessage,
+  handleTask,
   getSessionConfig,
   resolveTools,
+  startTask,
+  finishTask,
+  toTaskResult,
+  emitTaskCompleted,
+  TaskResultCache,
   type McpServerSpec,
   type ServerMessage,
   type ToolRegistry,
+  type Principal,
+  type AgentTaskResult,
 } from '@readysetcloud/agent';
 import { McpClient, MemoryManager, tool } from '@strands-agents/sdk';
 import type { Agent, McpServerConfig } from '@strands-agents/sdk';
@@ -185,14 +193,16 @@ async function closeMcpClients(clients: McpClient[]): Promise<void> {
  */
 async function buildAgentForSession(
   sessionId: string,
-  userId: string | undefined,
+  ownerId: string | undefined,
+  options: { enableMemory?: boolean } = {},
 ): Promise<{ agent: Agent; mcpClients: McpClient[] } | null> {
+  const { enableMemory = true } = options;
   const config = await getSessionConfig(sessionId);
-  if (config && config.userId !== userId) {
+  if (config && config.userId !== ownerId) {
     return null;
   }
 
-  const namedTools = resolveTools(config?.tools, TOOL_REGISTRY, { sessionId, userId });
+  const namedTools = resolveTools(config?.tools, TOOL_REGISTRY, { sessionId, userId: ownerId });
 
   // External tools: connect to any MCP servers the session declared. The specs
   // are validated + host-allowlisted at session-create time (create-session.mjs).
@@ -209,17 +219,151 @@ async function buildAgentForSession(
     temperature: config?.temperature,
     maxTokens: config?.maxTokens,
     tools: [...namedTools, ...mcpClients],
-    memoryManager: buildMemoryManager(userId, sessionId),
+    // Cross-session memory is per verified user. A `system` principal isn't a
+    // user, so autonomous system tasks opt out (enableMemory=false) rather than
+    // scope memory to a service id.
+    memoryManager: enableMemory ? buildMemoryManager(ownerId, sessionId) : undefined,
   });
 
   return { agent, mcpClients };
 }
 
+const principalSchema = z.object({
+  type: z.enum(['user', 'system']),
+  id: z.string(),
+});
+
 const invocationSchema = z.object({
   request: z.string(),
   session_id: z.string().optional(),
   user_id: z.string().optional(),
+  // Autonomous (non-chat) task mode: presence of task_id routes to the task path
+  // (durable row + result event) instead of the buffered debug invoke.
+  task_id: z.string().optional(),
+  // The identity the task runs as, asserted by the trusted IAM caller (the API
+  // Lambda or the "Run Agent Task" event consumer). See getUserId's note on the
+  // trust model: for an IAM-invoked autonomous run there is no inbound JWT, so
+  // the caller — reachable only by first-party principals — supplies the
+  // principal. Falls back to the JWT/debug user id when omitted.
+  principal: principalSchema.optional(),
 });
+
+// In-process, short-lived cache of finished task results. Serves duplicate
+// deliveries / quick polls that land on this warm instance without a Dynamo read;
+// the durable row + event remain the source of truth (a miss is always correct).
+const taskCache = new TaskResultCache();
+
+/**
+ * Resolves the identity an autonomous task runs as. Prefers the explicit
+ * `principal` the trusted caller asserted; falls back to the verified JWT user
+ * (or req.user_id on the debug/local path) as a `user` principal. Undefined when
+ * no identity can be determined.
+ */
+function resolveTaskPrincipal(
+  req: { principal?: Principal; user_id?: string },
+  context: RequestContext,
+): Principal | undefined {
+  if (req.principal) return req.principal;
+  const userId = getUserId(context) ?? req.user_id;
+  return userId ? { type: 'user', id: userId } : undefined;
+}
+
+/** The runtime's task-mode return shape: the public result envelope + session. */
+type TaskInvocationResponse = AgentTaskResult & { session_id: string };
+
+/**
+ * Runs one autonomous task to completion, owning its full durable lifecycle
+ * independently of whether a synchronous caller is still waiting on the
+ * invocation:
+ *
+ * 1. Warm-cache + durable claim make the run idempotent under at-least-once
+ *    "Run Agent Task" delivery — a duplicate never re-runs the agent (or its
+ *    tools). Exactly one invocation claims the task; the rest return the existing
+ *    result or report it in flight.
+ * 2. The claiming invocation builds the agent for the principal (user tasks reuse
+ *    session ownership + cross-session memory; system tasks run stateless), runs
+ *    the buffered turn, and records COMPLETED/FAILED.
+ * 3. It always emits "Agent Task Completed" and caches the result — so the
+ *    outcome reaches async consumers over the bus even if the API already
+ *    returned 202 to a caller who stopped waiting past the ~29s REST timeout.
+ */
+async function runAutonomousTask(
+  req: {
+    request: string;
+    task_id: string;
+    session_id?: string;
+    principal?: Principal;
+    user_id?: string;
+  },
+  context: RequestContext,
+): Promise<TaskInvocationResponse> {
+  const taskId = req.task_id;
+  // A one-shot task with no caller-supplied session still needs a session id for
+  // snapshot storage; derive a stable per-task one so a retry reuses it.
+  const sessionId = req.session_id ?? `task-${taskId}`;
+
+  const principal = resolveTaskPrincipal(req, context);
+  if (!principal) {
+    // Caller error: nothing was claimed and there's no one to attribute an event
+    // to. Return a failed envelope inline without writing a row.
+    return { taskId, status: 'FAILED', error: 'No principal for task', session_id: sessionId };
+  }
+
+  // Fast path: a duplicate/poll on this warm instance skips Dynamo entirely.
+  const cached = taskCache.get(taskId);
+  if (cached) return { ...cached, session_id: sessionId };
+
+  // Durable exclusive claim — the real idempotency guard.
+  const claim = await startTask({
+    taskId,
+    principal,
+    request: req.request,
+    ...(req.session_id ? { sessionId: req.session_id } : {}),
+  });
+  if (!claim.claimed) {
+    const existing = claim.existing;
+    const result: AgentTaskResult = existing ? toTaskResult(existing) : { taskId, status: 'RUNNING' };
+    // Cache only terminal outcomes; a still-RUNNING peer will finish + emit.
+    if (existing && (existing.status === 'COMPLETED' || existing.status === 'FAILED')) {
+      taskCache.set(result);
+    }
+    return { ...result, session_id: sessionId };
+  }
+
+  let built: { agent: Agent; mcpClients: McpClient[] } | null = null;
+  let result: AgentTaskResult;
+  try {
+    built = await buildAgentForSession(sessionId, principal.id, {
+      enableMemory: principal.type === 'user',
+    });
+    if (!built) {
+      result = await finishTask({
+        taskId,
+        status: 'FAILED',
+        error: 'Session does not belong to this principal',
+      });
+    } else {
+      // handleTask flushes memory at the turn boundary; we just close MCP below.
+      const output = await handleTask(built.agent, { request: req.request });
+      result = await finishTask({ taskId, status: 'COMPLETED', output });
+    }
+  } catch (err) {
+    context.log.error({ err, taskId }, 'Autonomous task failed');
+    result = await finishTask({
+      taskId,
+      status: 'FAILED',
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+  } finally {
+    if (built) await closeMcpClients(built.mcpClients);
+  }
+
+  // Cache + announce on every outcome so async consumers are uniform.
+  taskCache.set(result);
+  await emitTaskCompleted({ result, principal });
+
+  return { ...result, session_id: sessionId };
+}
 
 const app = new BedrockAgentCoreApp({
   // The HTTP entrypoint is required even though the browser uses the
@@ -228,6 +372,14 @@ const app = new BedrockAgentCoreApp({
   invocationHandler: {
     requestSchema: invocationSchema,
     process: async (req, context) => {
+      // Autonomous (non-chat) task: durable row + result event. This is the
+      // entry point a first-party caller (POST /agent/tasks Lambda, or the
+      // "Run Agent Task" event consumer) invokes over the AgentCore data plane.
+      if (req.task_id) {
+        return runAutonomousTask({ ...req, task_id: req.task_id }, context);
+      }
+
+      // Debug/non-streaming invoke (no task tracking) — the original buffered path.
       const sessionId = req.session_id ?? context.sessionId;
       // Verified JWT identity wins; req.user_id is only a local/debug fallback.
       const userId = getUserId(context) ?? req.user_id;

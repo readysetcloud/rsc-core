@@ -27,7 +27,9 @@ Strands SDK and `zod`.
 | --- | --- |
 | `createAssistant({ sessionId, modelId?, systemPrompt?, temperature?, maxTokens?, tools?, memoryManager?, storage? })` | Builds a Strands `Agent` with a DynamoDB session manager (snapshots) and, when a `memoryManager` is passed, cross-session memory (recall + auto-injection + extraction). |
 | `handleUserMessage(agent, { request, sessionId, send })` | Runs one turn: streams wire messages via `send`, flushes the memory manager so the turn is durably captured, returns the assistant text. |
-| `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers?, sessionId? })`, `getSessionConfig(sessionId)` | Per-session config so a generic host loads prompt/model/tools by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. `tools` selects first-party tools by name; `mcpServers` attaches external MCP tool sources (see [MCP servers](#mcp-servers-external-tools)). Also on the `./memory` subpath. |
+| `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers?, sessionId?, tableName? })`, `getSessionConfig(sessionId, tableName?)` | Per-session config so a generic host loads prompt/model/tools by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. `tools` selects first-party tools by name; `mcpServers` attaches external MCP tool sources (see [MCP servers](#mcp-servers-external-tools)). Also on the `./memory` subpath. |
+| `handleTask(agent, { request })` | Buffered sibling of `handleUserMessage` for an autonomous (non-chat) run: invokes the agent, flushes memory, returns the final text — no streaming. See [Autonomous tasks](#autonomous-tasks-non-chat-agents). |
+| `createTask` / `startTask` / `finishTask` / `getTask`, `requestAgentTask` / `emitTaskCompleted`, `TaskResultCache` | The autonomous-task data plane: durable task rows (idempotent lifecycle), the EventBridge trigger/result contract, and an in-memory result cache. All Strands-free (on `./memory`). |
 | `streamTurn(stream, { sessionId, send })`, `toStreamEventBodies(event)` | Streaming primitives / the SDK→wire normalizer (the one SDK coupling point). |
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
 | `DEFAULT_MODEL_ID`, `DEFAULT_REGION`, `DEFAULT_SYSTEM_PROMPT`, `DEFAULT_MAX_TOKENS`, `DEFAULT_TEMPERATURE` | Config constants (env-overridable). |
@@ -108,6 +110,114 @@ conversation. A session with no config row → package defaults. `createSession`
 is conditional on the session not already existing, so an owner can't be
 overwritten. The generated `sessionId` is a UUID (satisfies AgentCore's runtime
 session-id length requirement).
+
+## Autonomous tasks (non-chat agents)
+
+Beyond the streaming chat surface, the package runs **autonomous tasks**: a
+one-shot "do something" invocation of the agent that goes through the same secure
+runtime with no browser holding a socket. Chat needs a socket; a task needs a
+**trigger**, an **identity**, and a **result sink** — those are the three pieces
+here.
+
+**One envelope.** The same `AgentTaskResult` shape — `{ taskId, status, output?,
+error? }` — is what an API returns, what the task row stores, and what the result
+event carries. `status` is `PENDING | RUNNING | COMPLETED | FAILED`.
+
+**Identity is a `Principal`** — `{ type: 'user' | 'system', id }`. A `user` task
+(id = verified Cognito `sub`) reuses per-user memory scoping, session ownership,
+and MCP `authHeader` propagation unchanged. A `system` task (id = a service, e.g.
+`booked`) is for ecosystem work with no owning user; it runs **stateless** (no
+cross-session memory). Asserting a `system` principal is privileged — over the
+account-internal event bus a first-party emitter is already trusted to assert it;
+over a public host API it must be gated (see [Gating a system
+principal](#gating-a-system-principal-a-host-responsibility)). When a human
+launches a system task, the host records their id as `createdBy` (distinct from
+`principal`) so they can still read it back even though the run acts as the
+system.
+
+### Triggering — event (decoupled) or a host API (sync-capable)
+
+`requestAgentTask` emits a `"Run Agent Task"` event and returns the `taskId`
+immediately — the fire-and-forget path, mirroring `requestSession`. A first-party
+backend needs only `events:PutEvents`:
+
+```ts
+import { requestAgentTask } from '@readysetcloud/agent/memory';
+
+const { taskId } = await requestAgentTask({
+  principal: { type: 'system', id: 'booked' },   // or { type: 'user', id: sub }
+  request: 'Summarize this week’s new blog comments',
+  // optional: sessionId, systemPrompt/modelId/…, tools, mcpServers
+});
+```
+
+A host can also expose a synchronous API (in rsc-core, `POST /agent/tasks` with a
+`wait` flag) that triggers the run and waits briefly for the result, falling back
+to the event when the run outlives the request timeout. See the [rsc-core
+README](../README.md#agent-service--streaming-ai-chat).
+
+### Running — `handleTask` + the idempotent lifecycle
+
+The host builds the agent (via `createAssistant`, loading task/session config)
+and runs one buffered turn with `handleTask`. Around it, the durable task row
+makes the run **idempotent under at-least-once delivery** — a duplicate never
+re-runs the agent (or its tools):
+
+```ts
+import { startTask, finishTask, handleTask, emitTaskCompleted } from '@readysetcloud/agent';
+
+const claim = await startTask({ taskId, principal, request });   // exclusive claim
+if (!claim.claimed) return claim.existing;                       // duplicate → existing result
+
+let result;
+try {
+  const output = await handleTask(agent, { request });
+  result = await finishTask({ taskId, status: 'COMPLETED', output });
+} catch (err) {
+  result = await finishTask({ taskId, status: 'FAILED', error: String(err) });
+}
+await emitTaskCompleted({ result, principal });                  // announce on every outcome
+```
+
+`startTask` is a conditional write (claim only from absent/PENDING/FAILED), so
+DynamoDB serializes N duplicate deliveries and exactly one wins. This is the
+correctness guard; the in-memory `TaskResultCache` is only a warm-instance fast
+path in front of it (a miss is always correct — never "task not found").
+
+### Result — event + row (never a cross-boundary table read)
+
+The host emits `"Agent Task Completed"` on **every** finished run, so async
+consumers are uniform regardless of whether a synchronous caller was still
+waiting. The task row is the host's own bookkeeping and the target of a
+`GET /agent/tasks/{id}`; a result crosses a stack boundary as the **event**, not
+a table read.
+
+### Gating a system principal — a host responsibility
+
+Like the MCP `mcpServers` allowlist, **who may assert a `system` principal is a
+host decision, not the package's** — `requestAgentTask`/`createTask` take a
+principal at face value, because their trusted callers (a first-party backend on
+the account-internal bus) are already entitled to one. The gate matters only when
+a host exposes task creation to a *public* caller.
+
+In rsc-core, [`functions/create-task.mjs`](../functions/create-task.mjs) does
+this for `POST /agent/tasks`: a request may include `system: '<id>'`, and the
+Lambda mints a `system` principal only if the verified caller is allowlisted for
+that id in `SYSTEM_TASK_PRINCIPALS` (comma-separated `sub:systemId` grants; a
+`sub:*` grant allows any id; empty rejects all — opt in explicitly). The human
+launcher is recorded as `createdBy` so they can still `GET` the task. A public
+caller with no grant only ever gets a `user` task scoped to themselves. Add a
+grant before a public caller can run as a system.
+
+### `tableName` — library mode
+
+Every data-plane call (`createTask`/`getTask`/…, `createSession`/
+`getSessionConfig`, `new DynamoSnapshotStorage(tableName)`, and `createAssistant({
+tableName })`) takes an optional `tableName`, defaulting to the `TABLE_NAME` env.
+Pass it to run the agent in **your own** stack against **your own** table
+(library mode) instead of through a shared host. Note the boundary: a library-mode
+run does not go through the shared runtime's guarantees (Bedrock grant, MCP
+allowlist, memory isolation) — your stack owns them.
 
 ## MCP servers (external tools)
 
@@ -225,6 +335,11 @@ adapt `DynamoSnapshotStorage`):
 
 - **Snapshots:** `pk=SESSION#{sessionId}`, `sk=SNAPSHOT#{scope}#{scopeId}#{id}` / `LATEST#…` / `MANIFEST#…`.
 - **Session config:** `pk=SESSION#{sessionId}`, `sk=CONFIG` (owner + prompt/model/tools).
+- **Task records:** `pk=TASK#{taskId}`, `sk=STATUS` (autonomous-run status/result, short TTL).
+
+Every data-plane function takes an optional `tableName` (defaulting to
+`TABLE_NAME`) so the package can be pointed at any table — see [`tableName` —
+library mode](#tablename--library-mode).
 
 Cross-session semantic memory is **not** in this table — it lives in AgentCore
 Memory (managed), written per turn via `createEvent` and retrieved by the

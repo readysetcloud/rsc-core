@@ -65,6 +65,15 @@ Parameters:
       allowlist enforced by create-session). Empty (default) rejects any
       mcpServers — opt in explicitly. Add Booked's MCP host here once its
       server has a stable URL (issue #196).
+  SystemTaskPrincipals:
+    Type: String
+    Default: ''
+    Description: >
+      Comma-separated `sub:systemId` grants authorizing a caller to launch an
+      autonomous task as a system principal via POST /agent/tasks (a `sub:*`
+      grant allows any system id for that sub). Empty (default) rejects all
+      system-scoped API requests — opt in explicitly, like McpAllowedHosts.
+      First-party backends that emit "Run Agent Task" events are unaffected.
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -731,6 +740,128 @@ Resources:
               detail-type:
                 - Create Agent Session
 
+  # ----------------------------------------------------------------------------
+  # Autonomous (non-chat) agent tasks. A caller triggers a one-shot "do something"
+  # run through the same secure runtime — no browser, no socket. Two triggers:
+  #   * POST /agent/tasks (CreateTaskFunction) — authenticated, verified sub is
+  #     the task's `user` principal; `wait` returns the result inline for a quick
+  #     run, else 202 + event.
+  #   * "Run Agent Task" event (a first-party backend via @readysetcloud/agent
+  #     `requestAgentTask`) — decoupled, and the path a `system` principal uses.
+  # Both land on RunAgentTaskFunction, which invokes the runtime; the runtime owns
+  # the durable lifecycle (task row) and emits "Agent Task Completed".
+  # ----------------------------------------------------------------------------
+
+  # POST /agent/tasks — create + trigger a task; optionally wait for the result.
+  CreateTaskFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - create-task.mjs
+    Properties:
+      Handler: create-task.handler
+      # Covers the ~25s synchronous `wait` budget plus overhead (still under the
+      # CoreApi REST ~29s integration timeout).
+      Timeout: 29
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+          # `sub:systemId` grants authorizing a system-scoped task via the API.
+          # Empty rejects all system requests (opt-in) — see create-task.mjs.
+          SYSTEM_TASK_PRINCIPALS: !Ref SystemTaskPrincipals
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            # Write the PENDING row + poll it for the wait path.
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+              Resource: !GetAtt AgentChatTable.Arn
+            # Trigger the run ("Run Agent Task").
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        PostAgentTask:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CoreRestApi
+            Path: /agent/tasks
+            Method: POST
+
+  # GET /agent/tasks/{taskId} — read a task's status/result (owner only).
+  GetTaskFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - get-task.mjs
+    Properties:
+      Handler: get-task.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt AgentChatTable.Arn
+      Events:
+        GetAgentTask:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CoreRestApi
+            Path: /agent/tasks/{taskId}
+            Method: GET
+
+  # Consumes "Run Agent Task" and invokes the runtime to run it in the secure
+  # environment. The runtime writes the task row and emits "Agent Task Completed";
+  # this only triggers it, so a duplicate delivery is harmless (idempotent claim).
+  RunAgentTaskFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - run-agent-task.mjs
+    Properties:
+      Handler: run-agent-task.handler
+      # A long autonomous run blocks the synchronous InvokeAgentRuntime call; this
+      # consumer isn't behind the API gateway, so it can wait well past 29s.
+      Timeout: 300
+      Environment:
+        Variables:
+          AGENT_RUNTIME_ARN: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentCoreRuntime}'
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: bedrock-agentcore:InvokeAgentRuntime
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentCoreRuntime}'
+                - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentCoreRuntime}/*'
+      Events:
+        TaskRequest:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - readysetcloud.agent
+              detail-type:
+                - Run Agent Task
+
   AgentCoreRuntime:
     Type: AWS::BedrockAgentCore::Runtime
     Properties:
@@ -834,14 +965,22 @@ Resources:
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
                   - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
-              # Conversation snapshots (Strands session continuity).
+              # Conversation snapshots (Strands session continuity) + autonomous
+              # task rows (pk=TASK#..). UpdateItem drives the task lifecycle
+              # (startTask claim / finishTask result — see @readysetcloud/agent).
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
+                  - dynamodb:UpdateItem
                   - dynamodb:Query
                   - dynamodb:BatchWriteItem
                 Resource: !GetAtt AgentChatTable.Arn
+              # Announce a finished autonomous run ("Agent Task Completed") so any
+              # app can react — the result's path across the permissions boundary.
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
               # Cross-session memory: write turns (createEvent) + retrieve records.
               - Effect: Allow
                 Action:

@@ -8,6 +8,13 @@ export {
   type HandleUserMessageOptions,
 } from './agent.js';
 
+// Autonomous (non-chat) task orchestration — the buffered sibling of
+// handleUserMessage.
+export {
+  handleTask,
+  type HandleTaskOptions,
+} from './task.js';
+
 // Wire protocol (shared with the UI client).
 export type {
   ServerMessage,
@@ -50,6 +57,40 @@ export {
   type SessionRequestDetail,
   type RequestSessionOptions,
 } from './memory/session-events.js';
+
+// Autonomous task records + EventBridge contract + in-memory result cache. Also
+// on the Strands-free ./memory subpath for Lambda consumers.
+export {
+  createTask,
+  startTask,
+  finishTask,
+  getTask,
+  toTaskResult,
+  TASK_ENTITY,
+  type Principal,
+  type TaskStatus,
+  type AgentTask,
+  type AgentTaskResult,
+  type CreateTaskOptions,
+  type StartTaskOptions,
+  type StartTaskResult,
+  type FinishTaskOptions,
+} from './memory/tasks.js';
+export {
+  requestAgentTask,
+  emitTaskCompleted,
+  TASK_EVENT_SOURCE,
+  TASK_REQUEST_DETAIL_TYPE,
+  TASK_COMPLETED_DETAIL_TYPE,
+  type TaskRequestDetail,
+  type TaskCompletedDetail,
+  type RequestAgentTaskOptions,
+  type EmitTaskCompletedOptions,
+} from './memory/task-events.js';
+export {
+  TaskResultCache,
+  type TaskResultCacheOptions,
+} from './task-cache.js';
 
 // Tools.
 export {
