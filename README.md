@@ -154,13 +154,27 @@ memory model, so any app can drop in a chat surface with
 2. **Presign.** The browser calls `POST /agent/connect` with that `sessionId`.
    `WebSocketConnectFunction` returns a SigV4-presigned `wss://` URL to the
    AgentCore Runtime, carrying the verified Cognito `sub` as a custom header — so
-   the agent's identity is the real caller, never a client value.
-3. **Stream.** The browser opens the presigned socket directly to the runtime.
-   The runtime **loads the session's config by `sessionId`, enforces that the
-   verified caller is the session's owner** (a leaked/guessed id can't resume
-   someone else's conversation; missing config falls back to defaults), builds
-   the assistant, and streams `stream_event` → `complete` frames over the wire
-   protocol `@readysetcloud/ui/chat` speaks.
+   the agent's identity is the real caller, never a client value. When a custom
+   domain is deployed, that URL points at the `chat.${RootDomainName}` CloudFront
+   proxy (see below) instead of the raw `bedrock-agentcore` host, so the AWS
+   account id never appears in the client-visible URL.
+3. **Stream.** The browser opens the presigned socket to the runtime (directly,
+   or through the proxy). The runtime **loads the session's config by
+   `sessionId`, enforces that the verified caller is the session's owner** (a
+   leaked/guessed id can't resume someone else's conversation; missing config
+   falls back to defaults), builds the assistant, and streams `stream_event` →
+   `complete` frames over the wire protocol `@readysetcloud/ui/chat` speaks.
+
+   > **Reverse proxy (custom-domain deploys).** The presigned URL would
+   > otherwise expose the account id — it sits in the runtime ARN in the path
+   > (`…/runtimes/arn:aws:bedrock-agentcore:<region>:<account>:runtime/…/ws`).
+   > `ChatProxyDistribution` fronts the runtime at `wss://chat.${RootDomainName}`:
+   > the browser connects to `/ws?<sigv4 query>`, CloudFront prepends
+   > `/runtimes/<arn>` (OriginPath) and restores the `bedrock-agentcore` Host
+   > (the `AllViewerExceptHostHeader` managed policy), so the **same** signature
+   > validates. The Lambda signs the real host + path; only the URL it returns is
+   > rewritten. Region survives inside `X-Amz-Credential` (unavoidable for any
+   > presigned URL) but is not sensitive — the account id is gone.
 4. **Remember.** Each turn is written to `AgentChatTable` (`pk=MEMORY#{userId}` /
    `SESSION#{sessionId}`, TTL `expiresAt`). A stream filter on `entity=Turn`
    drives `VectorizeTurnFunction`, which embeds turns (Titan v2 @ 1024) into the

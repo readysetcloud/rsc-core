@@ -12,6 +12,10 @@ import { randomUUID } from 'crypto';
  *      authorizer). The verified `sub` is the identity — never the body.
  *   2. This function signs a wss:// URL with the Lambda execution role (SigV4).
  *   3. The browser connects with the presigned URL (no custom headers needed).
+ *      When PROXY_WSS_HOST is set, that URL points at the CloudFront reverse
+ *      proxy (chat.<domain>) rather than the raw bedrock-agentcore host, so the
+ *      account id in the runtime ARN never reaches the client. See the wsUrl
+ *      construction below and ChatProxyDistribution in template.yaml.
  *   4. The verified user id rides along as a Custom-* query param, surfaced to
  *      the agent as the x-amzn-bedrock-agentcore-runtime-custom-user-id header,
  *      so memory recall is scoped to the real caller.
@@ -31,13 +35,10 @@ const escapeUri = (value) =>
   );
 
 /**
- * Formats a signed HttpRequest into a URL string. SignatureV4.presign() stores
- * raw (unencoded) query values, so we encode keys and values here.
+ * Builds the query string from a signed HttpRequest. SignatureV4.presign()
+ * stores raw (unencoded) query values, so we encode keys and values here.
  */
-const formatSignedUrl = (request) => {
-  const { protocol, hostname, path, query } = request;
-  const proto = protocol?.endsWith(':') ? protocol : `${protocol}:`;
-
+const buildQueryString = (query) => {
   const parts = [];
   for (const [key, value] of Object.entries(query ?? {})) {
     const encodedKey = escapeUri(key);
@@ -49,9 +50,7 @@ const formatSignedUrl = (request) => {
       parts.push(encodedKey);
     }
   }
-
-  const queryString = parts.join('&');
-  return `${proto}//${hostname}${path}${queryString ? `?${queryString}` : ''}`;
+  return parts.join('&');
 };
 
 export const handler = async (event) => {
@@ -108,7 +107,27 @@ export const handler = async (event) => {
       signingDate: new Date()
     });
 
-    const wsUrl = formatSignedUrl(signedRequest).replace('https://', 'wss://');
+    const queryString = buildQueryString(signedRequest.query);
+
+    // The signature is bound to the bedrock-agentcore host + /runtimes/<arn>/ws
+    // path signed above; the query string (X-Amz-Signature and friends) is what
+    // authorizes the connection and never changes below.
+    //
+    // With PROXY_WSS_HOST set, the browser connects through the CloudFront
+    // reverse proxy at chat.<domain> instead of the raw AgentCore host. The proxy
+    // is configured (template.yaml, ChatProxyDistribution) to prepend
+    // /runtimes/<arn> via OriginPath and restore the bedrock-agentcore Host
+    // header, so this same signature still validates at the runtime — while the
+    // browser only ever sees "/ws" and the account id in the ARN stays hidden.
+    // Region is unavoidably present inside X-Amz-Credential (a property of every
+    // presigned URL), but it is not sensitive.
+    //
+    // Without PROXY_WSS_HOST (no custom domain deployed), the browser connects
+    // straight to the runtime with the full signed host and path.
+    const proxyHost = process.env.PROXY_WSS_HOST;
+    const wsUrl = proxyHost
+      ? `wss://${proxyHost}/ws?${queryString}`
+      : `wss://${signedRequest.hostname}${signedRequest.path}?${queryString}`;
 
     return response(200, { wsUrl, sessionId, userId, expiresIn: EXPIRES_IN_SECONDS });
   } catch (error) {

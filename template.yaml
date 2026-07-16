@@ -682,6 +682,12 @@ Resources:
       Environment:
         Variables:
           AGENT_RUNTIME_ARN: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentCoreRuntime}'
+          # When a custom domain is deployed, hand the browser a wss:// URL that
+          # points at the CloudFront reverse proxy (ChatProxyDistribution) instead
+          # of the raw bedrock-agentcore host, so the account id in the runtime ARN
+          # never appears in the client-visible URL. Unset (no custom domain) =>
+          # the Lambda returns the direct signed URL.
+          PROXY_WSS_HOST: !If [DeployCustomDomainSupport, !Sub 'chat.${RootDomainName}', !Ref 'AWS::NoValue']
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -1028,6 +1034,80 @@ Resources:
       RestApiId: !Ref CoreRestApi
       Stage: Prod
       BasePath: core
+
+  # --- AgentCore runtime WebSocket reverse proxy ---------------------------
+  # Without this, the browser's presigned wss:// URL points straight at
+  #   bedrock-agentcore.<region>.amazonaws.com/runtimes/<runtimeArn>/ws
+  # which exposes the AWS account id (embedded in the ARN) to every client. This
+  # CloudFront distribution fronts the runtime under chat.${RootDomainName}: the
+  # browser connects to wss://chat.${RootDomainName}/ws?<sigv4 query>, CloudFront
+  # prepends /runtimes/<arn> (OriginPath) and sets the Host back to the
+  # bedrock-agentcore origin (the AllViewerExceptHostHeader managed policy), so
+  # the SigV4 signature websocket-connect produced still validates. Only the URL
+  # handed to the browser is rewritten; the Lambda signs the real host + path.
+  # Region still rides inside X-Amz-Credential (unavoidable for any presigned
+  # URL), but it is not sensitive; the account id no longer appears at all.
+  #
+  # The ACM cert MUST be in us-east-1 for CloudFront — this stack deploys there,
+  # so an in-stack certificate works (same pattern as AuthCertificate).
+  ChatCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DomainName: !Sub chat.${RootDomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub chat.${RootDomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  ChatProxyDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: DeployCustomDomainSupport
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub 'AgentCore runtime WebSocket proxy (${RootDomainName})'
+        Aliases:
+          - !Sub chat.${RootDomainName}
+        ViewerCertificate:
+          AcmCertificateArn: !Ref ChatCertificate
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: agentcore-runtime
+            DomainName: !Sub bedrock-agentcore.${AWS::Region}.amazonaws.com
+            # Prepended to every request path: the browser sends "/ws" and the
+            # origin receives "/runtimes/<arn>/ws". This is where the account-id-
+            # bearing ARN is kept off the wire the client sees.
+            OriginPath: !Sub '/runtimes/arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentCoreRuntime}'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: agentcore-runtime
+          ViewerProtocolPolicy: https-only
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          # Managed CachingDisabled — a streaming socket handshake is never cached.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          # Managed AllViewerExceptHostHeader — forwards every viewer query param
+          # (the SigV4 signature) while letting CloudFront set Host to the origin
+          # (bedrock-agentcore), which is exactly the Host the presign signed.
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+  ChatProxyDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: DeployCustomDomainSupport
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub chat.${RootDomainName}
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ChatProxyDistribution.DomainName
+        # Fixed CloudFront hosted-zone id — identical for every distribution.
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
