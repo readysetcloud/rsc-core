@@ -207,14 +207,21 @@ browser or socket. Two triggers land on the same path: `POST /agent/tasks` (the
 verified caller is the task's `user` principal by default; `wait` returns the
 result inline under the REST API's ~29s window, else a `202` + event), and a
 `"Run Agent Task"` event a first-party backend emits via `@readysetcloud/agent`
-`requestAgentTask` (the decoupled path). `RunAgentTaskFunction` invokes the
-runtime; the runtime owns the durable lifecycle — a conditional task row
-(`pk=TASK#{taskId}`) makes the run **idempotent** under at-least-once delivery, an
-in-memory cache serves warm-instance duplicates/polls, and it emits `"Agent Task
-Completed"` on every outcome so the result reaches consumers over the bus even
-when a slow run outlives the caller's wait. Identity for an IAM-invoked run is the
-payload `principal` the trusted caller asserts (no inbound JWT), the same trust
-model as the "Create Agent Session" handoff.
+`requestAgentTask` (the decoupled path). `RunAgentTaskFunction` runs the agent
+**in-Lambda** via the portable `@readysetcloud/agent` core (same Bedrock grant,
+MCP allowlist, and table as chat) and owns the durable lifecycle — a conditional
+task row (`pk=TASK#{taskId}`) makes the run **idempotent** under at-least-once
+delivery, an in-memory cache serves warm-instance duplicates, and it emits
+`"Agent Task Completed"` on every outcome so the result reaches consumers over the
+bus even when a slow run outlives the caller's wait. Identity is the event's
+`principal`, asserted by the first-party emitter — the same trust model as the
+"Create Agent Session" handoff.
+
+> **Why in-Lambda, not the AgentCore runtime?** The chat runtime uses a Cognito
+> **JWT** inbound authorizer (for the browser), and an AgentCore runtime is JWT-
+> *or* IAM-authorized, never both — so an IAM-invoked, no-JWT task call can't
+> reach it. Running the portable core in a Lambda keeps tasks inside the same
+> account/guarantees without a second runtime.
 
 **System-scoped runs.** A first-party backend emitting a `"Run Agent Task"` event
 may assert a `system` principal (id = a service, e.g. `booked`) freely — the bus

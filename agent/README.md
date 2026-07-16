@@ -28,7 +28,8 @@ Strands SDK and `zod`.
 | `createAssistant({ sessionId, modelId?, systemPrompt?, temperature?, maxTokens?, tools?, memoryManager?, storage? })` | Builds a Strands `Agent` with a DynamoDB session manager (snapshots) and, when a `memoryManager` is passed, cross-session memory (recall + auto-injection + extraction). |
 | `handleUserMessage(agent, { request, sessionId, send })` | Runs one turn: streams wire messages via `send`, flushes the memory manager so the turn is durably captured, returns the assistant text. |
 | `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers?, sessionId?, tableName? })`, `getSessionConfig(sessionId, tableName?)` | Per-session config so a generic host loads prompt/model/tools by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. `tools` selects first-party tools by name; `mcpServers` attaches external MCP tool sources (see [MCP servers](#mcp-servers-external-tools)). Also on the `./memory` subpath. |
-| `handleTask(agent, { request })` | Buffered sibling of `handleUserMessage` for an autonomous (non-chat) run: invokes the agent, flushes memory, returns the final text — no streaming. See [Autonomous tasks](#autonomous-tasks-non-chat-agents). |
+| `runAgentTask({ taskId, principal, request, buildAgent, … })` | Runs one autonomous (non-chat) task to completion in the host: warm-cache → idempotent claim → `buildAgent` → run → record row → emit result event. See [Autonomous tasks](#autonomous-tasks-non-chat-agents). |
+| `handleTask(agent, { request })` | Buffered sibling of `handleUserMessage`: invokes the agent, flushes memory, returns the final text — no streaming. The single-turn primitive `runAgentTask` wraps. |
 | `createTask` / `startTask` / `finishTask` / `getTask`, `requestAgentTask` / `emitTaskCompleted`, `TaskResultCache` | The autonomous-task data plane: durable task rows (idempotent lifecycle), the EventBridge trigger/result contract, and an in-memory result cache. All Strands-free (on `./memory`). |
 | `streamTurn(stream, { sessionId, send })`, `toStreamEventBodies(event)` | Streaming primitives / the SDK→wire normalizer (the one SDK coupling point). |
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
@@ -124,10 +125,9 @@ error? }` — is what an API returns, what the task row stores, and what the res
 event carries. `status` is `PENDING | RUNNING | COMPLETED | FAILED`.
 
 **Identity is a `Principal`** — `{ type: 'user' | 'system', id }`. A `user` task
-(id = verified Cognito `sub`) reuses per-user memory scoping, session ownership,
-and MCP `authHeader` propagation unchanged. A `system` task (id = a service, e.g.
-`booked`) is for ecosystem work with no owning user; it runs **stateless** (no
-cross-session memory). Asserting a `system` principal is privileged — over the
+(id = verified Cognito `sub`) reuses session ownership and MCP `authHeader`
+propagation unchanged. A `system` task (id = a service, e.g. `booked`) is for
+ecosystem work with no owning user. Asserting a `system` principal is privileged — over the
 account-internal event bus a first-party emitter is already trusted to assert it;
 over a public host API it must be gated (see [Gating a system
 principal](#gating-a-system-principal-a-host-responsibility)). When a human
@@ -156,33 +156,46 @@ A host can also expose a synchronous API (in rsc-core, `POST /agent/tasks` with 
 to the event when the run outlives the request timeout. See the [rsc-core
 README](../README.md#agent-service--streaming-ai-chat).
 
-### Running — `handleTask` + the idempotent lifecycle
+### Running — `runAgentTask` (the host runs the agent)
 
-The host builds the agent (via `createAssistant`, loading task/session config)
-and runs one buffered turn with `handleTask`. Around it, the durable task row
-makes the run **idempotent under at-least-once delivery** — a duplicate never
-re-runs the agent (or its tools):
+The task **runs wherever the host runs it** — the portable core has no runtime of
+its own. In rsc-core that's a Lambda consuming the `"Run Agent Task"` event; it
+could equally be any compute with the package installed. `runAgentTask` owns the
+whole lifecycle; you supply a `buildAgent` factory (called only *after* the claim
+succeeds, so a duplicate never builds or connects anything):
 
 ```ts
-import { startTask, finishTask, handleTask, emitTaskCompleted } from '@readysetcloud/agent';
+import { runAgentTask, createAssistant, getSessionConfig, TaskResultCache } from '@readysetcloud/agent';
 
-const claim = await startTask({ taskId, principal, request });   // exclusive claim
-if (!claim.claimed) return claim.existing;                       // duplicate → existing result
+const cache = new TaskResultCache();   // module scope — reused across warm invocations
 
-let result;
-try {
-  const output = await handleTask(agent, { request });
-  result = await finishTask({ taskId, status: 'COMPLETED', output });
-} catch (err) {
-  result = await finishTask({ taskId, status: 'FAILED', error: String(err) });
-}
-await emitTaskCompleted({ result, principal });                  // announce on every outcome
+const result = await runAgentTask({
+  taskId, principal, request, sessionId,
+  cache,
+  buildAgent: async () => {
+    const config = sessionId ? await getSessionConfig(sessionId) : null;
+    if (config && config.userId !== principal.id) throw new Error('not your session');
+    const agent = createAssistant({ sessionId: sessionId ?? `task-${taskId}`, /* prompt/model/tools/mcp */ });
+    return { agent, cleanup: async () => {/* disconnect MCP clients */} };
+  },
+});
 ```
 
-`startTask` is a conditional write (claim only from absent/PENDING/FAILED), so
-DynamoDB serializes N duplicate deliveries and exactly one wins. This is the
-correctness guard; the in-memory `TaskResultCache` is only a warm-instance fast
-path in front of it (a miss is always correct — never "task not found").
+`runAgentTask` = warm-cache check → **exclusive claim** → `buildAgent` →
+`handleTask` → `finishTask` → `emitTaskCompleted`, returning the result envelope.
+The claim (`startTask`) is a conditional write (only from absent/PENDING/FAILED),
+so DynamoDB serializes N duplicate deliveries and exactly one wins — the
+correctness guard against re-running the agent or its tools. The in-memory
+`TaskResultCache` is only a warm-instance fast path in front of it (a miss is
+always correct — never "task not found"). The lower-level primitives
+(`startTask` / `finishTask` / `handleTask` / `emitTaskCompleted`) are exported too
+if you need to compose the lifecycle yourself.
+
+> **Memory:** `runAgentTask` runs whatever agent `buildAgent` returns. Pass a
+> `memoryManager` to `createAssistant` for cross-session recall, or omit it for a
+> stateless run — the host's choice. rsc-core's task Lambda runs memory-light
+> (snapshots only) to avoid pulling the AgentCore Memory dependency into the
+> function; the chat runtime is the one that wires full cross-session memory.
 
 ### Result — event + row (never a cross-boundary table read)
 

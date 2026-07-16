@@ -8,11 +8,14 @@ export {
   type HandleUserMessageOptions,
 } from './agent.js';
 
-// Autonomous (non-chat) task orchestration — the buffered sibling of
-// handleUserMessage.
+// Autonomous (non-chat) task orchestration — the buffered turn (handleTask) and
+// the host-agnostic run-to-completion orchestrator (runAgentTask).
 export {
   handleTask,
+  runAgentTask,
   type HandleTaskOptions,
+  type RunAgentTaskOptions,
+  type BuiltTaskAgent,
 } from './task.js';
 
 // Wire protocol (shared with the UI client).
