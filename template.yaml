@@ -65,6 +65,15 @@ Parameters:
       allowlist enforced by create-session). Empty (default) rejects any
       mcpServers — opt in explicitly. Add Booked's MCP host here once its
       server has a stable URL (issue #196).
+  SystemTaskPrincipals:
+    Type: String
+    Default: ''
+    Description: >
+      Comma-separated `sub:systemId` grants authorizing a caller to launch an
+      autonomous task as a system principal via POST /agent/tasks (a `sub:*`
+      grant allows any system id for that sub). Empty (default) rejects all
+      system-scoped API requests — opt in explicitly, like McpAllowedHosts.
+      First-party backends that emit "Run Agent Task" events are unaffected.
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -730,6 +739,154 @@ Resources:
                 - readysetcloud.agent
               detail-type:
                 - Create Agent Session
+
+  # ----------------------------------------------------------------------------
+  # Autonomous (non-chat) agent tasks. A caller triggers a one-shot "do something"
+  # run in the RSC account (same Bedrock/table/MCP-allowlist as chat) — no browser,
+  # no socket. Two triggers:
+  #   * POST /agent/tasks (CreateTaskFunction) — authenticated, verified sub is
+  #     the task's `user` principal; `wait` returns the result inline for a quick
+  #     run, else 202 + event.
+  #   * "Run Agent Task" event (a first-party backend via @readysetcloud/agent
+  #     `requestAgentTask`) — decoupled, and the path a `system` principal uses.
+  # Both land on RunAgentTaskFunction, which runs the agent in-Lambda via the
+  # portable @readysetcloud/agent core and owns the durable lifecycle (task row +
+  # "Agent Task Completed"). Tasks do NOT use the AgentCore runtime — see that
+  # function's comment for why (JWT-vs-IAM inbound auth).
+  # ----------------------------------------------------------------------------
+
+  # POST /agent/tasks — create + trigger a task; optionally wait for the result.
+  CreateTaskFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - create-task.mjs
+    Properties:
+      Handler: create-task.handler
+      # Covers the ~25s synchronous `wait` budget plus overhead (still under the
+      # CoreApi REST ~29s integration timeout).
+      Timeout: 29
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+          # `sub:systemId` grants authorizing a system-scoped task via the API.
+          # Empty rejects all system requests (opt-in) — see create-task.mjs.
+          SYSTEM_TASK_PRINCIPALS: !Ref SystemTaskPrincipals
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            # Write the PENDING row + poll it for the wait path.
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+              Resource: !GetAtt AgentChatTable.Arn
+            # Trigger the run ("Run Agent Task").
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        PostAgentTask:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CoreRestApi
+            Path: /agent/tasks
+            Method: POST
+
+  # GET /agent/tasks/{taskId} — read a task's status/result (owner only).
+  GetTaskFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - get-task.mjs
+    Properties:
+      Handler: get-task.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt AgentChatTable.Arn
+      Events:
+        GetAgentTask:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CoreRestApi
+            Path: /agent/tasks/{taskId}
+            Method: GET
+
+  # Consumes "Run Agent Task" and runs the autonomous agent IN THIS LAMBDA via the
+  # portable @readysetcloud/agent core (not the AgentCore runtime — that runtime
+  # uses a JWT inbound authorizer for the browser, and an AgentCore runtime is
+  # JWT- OR IAM-authorized but not both, so an IAM-invoked task call can't reach
+  # it). The idempotent claim (startTask) makes a duplicate delivery harmless; the
+  # run records the task row and emits "Agent Task Completed".
+  RunAgentTaskFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - run-agent-task.mjs
+    Properties:
+      Handler: run-agent-task.handler
+      # Runs the whole agent turn (model + tools/MCP) synchronously; not behind the
+      # API gateway, so it can take well past 29s.
+      Timeout: 300
+      # Bundles the Strands SDK + @readysetcloud/agent, and holds MCP connections.
+      MemorySize: 2048
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AgentChatTable
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_REGION: !Ref AWS::Region
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            # Run the chat model + any first-party/MCP tool that calls Bedrock.
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+                - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+            # Task rows (claim/finish) + session config + Strands snapshots.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:BatchWriteItem
+              Resource: !GetAtt AgentChatTable.Arn
+            # Announce the finished run ("Agent Task Completed").
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        TaskRequest:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - readysetcloud.agent
+              detail-type:
+                - Run Agent Task
 
   AgentCoreRuntime:
     Type: AWS::BedrockAgentCore::Runtime

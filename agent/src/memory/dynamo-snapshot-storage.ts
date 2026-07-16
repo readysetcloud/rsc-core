@@ -33,6 +33,12 @@ const TTL_SECONDS = 30 * 24 * 60 * 60; // 30-day retention, mirrors turns.
  * ```
  */
 export class DynamoSnapshotStorage implements SnapshotStorage {
+  /**
+   * @param tableName Table to persist snapshots in; defaults to the `TABLE_NAME`
+   *   env var. Pass it to point the storage at a specific table (library mode).
+   */
+  constructor(private readonly tableName?: string) {}
+
   private pk(location: SnapshotLocation): string {
     return `SESSION#${location.sessionId}`;
   }
@@ -64,7 +70,7 @@ export class DynamoSnapshotStorage implements SnapshotStorage {
     isLatest: boolean;
     snapshot: Snapshot;
   }): Promise<void> {
-    const TableName = requireTableName();
+    const TableName = requireTableName(this.tableName);
     const { location, snapshotId, isLatest, snapshot } = params;
     const pk = this.pk(location);
     const expiresAt = this.expiresAt();
@@ -100,7 +106,7 @@ export class DynamoSnapshotStorage implements SnapshotStorage {
     location: SnapshotLocation;
     snapshotId?: string;
   }): Promise<Snapshot | null> {
-    const TableName = requireTableName();
+    const TableName = requireTableName(this.tableName);
     const { location } = params;
     const pk = this.pk(location);
 
@@ -127,7 +133,7 @@ export class DynamoSnapshotStorage implements SnapshotStorage {
     limit?: number;
     startAfter?: string;
   }): Promise<string[]> {
-    const TableName = requireTableName();
+    const TableName = requireTableName(this.tableName);
     const { location, limit, startAfter } = params;
     const pk = this.pk(location);
     const prefix = `SNAPSHOT#${this.scopePrefix(location)}#`;
@@ -147,7 +153,7 @@ export class DynamoSnapshotStorage implements SnapshotStorage {
 
   /** Deletes every row (all scopes: snapshots, pointers, manifest) under a session. */
   async deleteSession(params: { sessionId: string }): Promise<void> {
-    const TableName = requireTableName();
+    const TableName = requireTableName(this.tableName);
     const pk = `SESSION#${params.sessionId}`;
 
     // Query every row under the session partition (all scopes), then batch-delete.
@@ -171,7 +177,7 @@ export class DynamoSnapshotStorage implements SnapshotStorage {
 
   /** Loads the session manifest, synthesizing a fresh one when none exists yet. */
   async loadManifest(params: { location: SnapshotLocation }): Promise<SnapshotManifest> {
-    const TableName = requireTableName();
+    const TableName = requireTableName(this.tableName);
     const result = await ddb.send(new GetCommand({
       TableName,
       Key: { pk: this.pk(params.location), sk: this.manifestSk(params.location) },
@@ -192,7 +198,7 @@ export class DynamoSnapshotStorage implements SnapshotStorage {
     location: SnapshotLocation;
     manifest: SnapshotManifest;
   }): Promise<void> {
-    const TableName = requireTableName();
+    const TableName = requireTableName(this.tableName);
     await ddb.send(new PutCommand({
       TableName,
       Item: {

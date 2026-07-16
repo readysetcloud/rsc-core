@@ -124,6 +124,8 @@ export interface CreateSessionOptions {
   title?: string;
   /** Override the creation timestamp (epoch millis); defaults to `Date.now()`. */
   now?: number;
+  /** Table to write to; defaults to the `TABLE_NAME` env var (see `requireTableName`). */
+  tableName?: string;
 }
 
 function sessionConfigKey(sessionId: string) {
@@ -141,7 +143,7 @@ export async function createSession(options: CreateSessionOptions): Promise<Sess
   const { userId } = options;
   if (!userId) throw new Error('createSession requires a userId');
 
-  const TableName = requireTableName();
+  const TableName = requireTableName(options.tableName);
   const now = options.now ?? Date.now();
   const sessionId = options.sessionId ?? randomUUID();
 
@@ -175,11 +177,15 @@ export async function createSession(options: CreateSessionOptions): Promise<Sess
 /**
  * Loads a session's configuration, or null if none exists (in which case the
  * caller uses package defaults). Does not enforce ownership — the caller
- * compares `config.userId` against the verified connecting user.
+ * compares `config.userId` against the verified connecting user. Pass
+ * `tableName` to read from a specific table; defaults to the `TABLE_NAME` env.
  */
-export async function getSessionConfig(sessionId: string): Promise<SessionConfig | null> {
+export async function getSessionConfig(
+  sessionId: string,
+  tableName?: string,
+): Promise<SessionConfig | null> {
   if (!sessionId) return null;
-  const TableName = requireTableName();
+  const TableName = requireTableName(tableName);
 
   const res = await ddb.send(new GetCommand({
     TableName,
