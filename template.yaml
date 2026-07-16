@@ -45,13 +45,6 @@ Parameters:
     Type: String
     Default: us.amazon.nova-lite-v1:0
     Description: Chat model for the agent assistant (cross-region inference profile prefix included).
-  EmbeddingModelId:
-    Type: String
-    Default: amazon.titan-embed-text-v2:0
-    Description: >
-      Embedding model for the agent's semantic memory (Titan v2 @ 1024 dims). If
-      changed, ConversationMemoryIndex Dimension must match and existing vectors
-      be re-embedded.
   AgentArtifactKey:
     Type: String
     Default: agent/agent.zip
@@ -555,9 +548,11 @@ Resources:
   # runtime's inbound JWT authorizer validates it and the runtime reads the
   # verified sub, so memory recall is scoped to the real caller.
   #
-  # Memory is owned here: conversation turns + Strands snapshots in AgentChatTable
-  # (TTL expiresAt), semantic recall in an S3 Vectors index fed by the
-  # stream-driven VectorizeTurnFunction.
+  # Memory is two-plane: Strands conversation snapshots (within/across-connection
+  # continuity) live in AgentChatTable (TTL expiresAt); cross-session semantic
+  # memory (facts + user preferences) is the managed AgentCore Memory resource
+  # (AgentMemory) — the runtime writes turns via createEvent and AgentCore
+  # extracts + serves them, replacing the old S3 Vectors + Titan + vectorizer.
   # ----------------------------------------------------------------------------
   AgentChatTable:
     Type: AWS::DynamoDB::Table
@@ -576,98 +571,62 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
-      StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
+      # No stream needed: memory is no longer built from a DynamoDB-stream
+      # vectorizer. This table now holds only Strands conversation snapshots.
 
-  MemoryVectorBucket:
-    Type: AWS::S3Vectors::VectorBucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+  # Managed cross-session memory. The runtime writes each turn via createEvent
+  # (short-term events, kept EventExpiryDuration days), and AgentCore
+  # asynchronously extracts long-term records per strategy into the namespaces
+  # below. {actorId} is the verified Cognito sub, so memory is per-user; the
+  # runtime resolves it and reads /facts/<sub> and /users/<sub>/preferences
+  # (agent-runtime/src/index.ts). Replaces MemoryVectorBucket + the vectorizer.
+  AgentMemory:
+    Type: AWS::BedrockAgentCore::Memory
     Properties:
-      VectorBucketName: !Sub 'rsc-agent-memory-${AWS::AccountId}'
+      Name: rsccore_agent_memory
+      Description: Cross-session conversation memory for the RSC agent
+      # Raw event retention (days). Matches the old 30-day turn TTL.
+      EventExpiryDuration: 30
+      MemoryExecutionRoleArn: !GetAtt AgentMemoryRole.Arn
+      MemoryStrategies:
+        # Facts: the direct successor to the old raw-turn semantic recall.
+        - SemanticMemoryStrategy:
+            Name: facts
+            NamespaceTemplates:
+              - /facts/{actorId}
+        # Durable user preferences/style, personalized across sessions.
+        - UserPreferenceMemoryStrategy:
+            Name: preferences
+            NamespaceTemplates:
+              - /users/{actorId}/preferences
 
-  ConversationMemoryIndex:
-    Type: AWS::S3Vectors::Index
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+  # Role AgentCore assumes to run extraction (it invokes a Bedrock model to
+  # distill events into memory records).
+  AgentMemoryRole:
+    Type: AWS::IAM::Role
     Properties:
-      VectorBucketArn: !GetAtt MemoryVectorBucket.VectorBucketArn
-      IndexName: conversation-memory
-      DataType: float32
-      Dimension: 1024
-      DistanceMetric: cosine
-      MetadataConfiguration:
-        NonFilterableMetadataKeys:
-          - text
-
-  VectorizeTurnDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      MessageRetentionPeriod: 1209600 # 14 days
-
-  VectorizeTurnFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        <<: *esbuild-properties
-        EntryPoints:
-          - vectorize-turn.mjs
-    Properties:
-      Handler: vectorize-turn.handler
-      Timeout: 60
-      Environment:
-        Variables:
-          VECTOR_BUCKET_NAME: !Sub 'rsc-agent-memory-${AWS::AccountId}'
-          MEMORY_VECTOR_INDEX_NAME: conversation-memory
-          EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
-      Events:
-        TurnStream:
-          Type: DynamoDB
-          Properties:
-            Stream: !GetAtt AgentChatTable.StreamArn
-            StartingPosition: LATEST
-            BatchSize: 5
-            MaximumRetryAttempts: 3
-            BisectBatchOnFunctionError: true
-            # Only Turn rows reach the function: INSERT/MODIFY key off NewImage,
-            # REMOVE off OldImage (REMOVE has no NewImage).
-            FilterCriteria:
-              Filters:
-                - Pattern: '{"eventName":["INSERT","MODIFY"],"dynamodb":{"NewImage":{"entity":{"S":["Turn"]}}}}'
-                - Pattern: '{"eventName":["REMOVE"],"dynamodb":{"OldImage":{"entity":{"S":["Turn"]}}}}'
-            DestinationConfig:
-              OnFailure:
-                Destination: !GetAtt VectorizeTurnDLQ.Arn
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
       Policies:
-        - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action:
-                - dynamodb:DescribeStream
-                - dynamodb:GetRecords
-                - dynamodb:GetShardIterator
-                - dynamodb:ListStreams
-              Resource:
-                - !GetAtt AgentChatTable.StreamArn
-                - !Sub '${AgentChatTable.StreamArn}/*'
-            # Embed via Titan. Wildcard region/model so a model swap needs no IAM change.
-            - Effect: Allow
-              Action: bedrock:InvokeModel
-              Resource: !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
-            - Effect: Allow
-              Action:
-                - s3vectors:PutVectors
-                - s3vectors:DeleteVectors
-                - s3vectors:GetVectors
-                - s3vectors:QueryVectors
-              Resource:
-                - !GetAtt MemoryVectorBucket.VectorBucketArn
-                - !GetAtt ConversationMemoryIndex.IndexArn
-            - Effect: Allow
-              Action: sqs:SendMessage
-              Resource: !GetAtt VectorizeTurnDLQ.Arn
+        - PolicyName: AgentMemoryExtraction
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
 
   WebSocketConnectFunction:
     Type: AWS::Serverless::Function
@@ -817,9 +776,9 @@ Resources:
       RoleArn: !GetAtt AgentCoreRole.Arn
       EnvironmentVariables:
         TABLE_NAME: !Ref AgentChatTable
-        VECTOR_BUCKET_NAME: !Sub 'rsc-agent-memory-${AWS::AccountId}'
-        MEMORY_VECTOR_INDEX_NAME: conversation-memory
-        EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
+        # AgentCore Memory resource id — enables cross-session memory in the
+        # runtime (buildMemoryManager). Unset => no cross-session memory.
+        AGENT_MEMORY_ID: !GetAtt AgentMemory.MemoryId
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         BEDROCK_REGION: !Ref AWS::Region
 
@@ -867,7 +826,7 @@ Resources:
                 Condition:
                   StringEquals:
                     cloudwatch:namespace: bedrock-agentcore
-              # Chat + embedding model invocation.
+              # Chat model invocation.
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
@@ -875,7 +834,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
                   - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
-              # Conversation history + snapshots.
+              # Conversation snapshots (Strands session continuity).
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
@@ -883,14 +842,13 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:BatchWriteItem
                 Resource: !GetAtt AgentChatTable.Arn
-              # Semantic recall.
+              # Cross-session memory: write turns (createEvent) + retrieve records.
               - Effect: Allow
                 Action:
-                  - s3vectors:QueryVectors
-                  - s3vectors:GetVectors
-                Resource:
-                  - !GetAtt MemoryVectorBucket.VectorBucketArn
-                  - !GetAtt ConversationMemoryIndex.IndexArn
+                  - bedrock-agentcore:CreateEvent
+                  - bedrock-agentcore:RetrieveMemoryRecords
+                  - bedrock-agentcore:GetMemory
+                Resource: !GetAtt AgentMemory.MemoryArn
 
   Secrets:
     Type: AWS::SecretsManager::Secret

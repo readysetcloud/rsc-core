@@ -25,18 +25,10 @@ export {
   type StreamTurnOptions,
 } from './stream.js';
 
-// Memory: snapshot persistence, turn recording, and semantic recall.
+// Memory: snapshot persistence for within/across-connection conversation
+// continuity. Cross-session semantic memory is provided by the Strands
+// `memoryManager` (AgentCore Memory), wired by the host — not exported here.
 export { DynamoSnapshotStorage } from './memory/dynamo-snapshot-storage.js';
-export { recordTurn, turnKey, TURN_ENTITY, type TurnRow } from './memory/turns.js';
-export {
-  putMemoryTurns,
-  recallMemory,
-  deleteMemoryKeys,
-  memoryVectorKey,
-  type MemoryTurn,
-  type RecalledMemory,
-} from './memory/vector-memory.js';
-export { embedText, EMBEDDING_DIMENSIONS } from './memory/embeddings.js';
 
 // Session configuration (per-session prompt/model/tools, loaded by the runtime).
 export {
@@ -60,7 +52,6 @@ export {
 } from './memory/session-events.js';
 
 // Tools.
-export { createRecallMemoryTool } from './tools/recall-memory.js';
 export {
   resolveTools,
   type ToolRegistry,

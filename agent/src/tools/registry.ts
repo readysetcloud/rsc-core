@@ -8,8 +8,9 @@ import type { AgentConfig } from '@strands-agents/sdk';
 // sub-agents), which are passed alongside the resolved named tools.
 //
 // The registry lives in the HOST, not this package: apps register whatever tools
-// they own. The package provides the type + resolver machinery and ships
-// `recall_memory` as a built-in factory (see createRecallMemoryTool).
+// they own. The package provides the type + resolver machinery. (Cross-session
+// recall is no longer a tool here — it's handled by the Strands `memoryManager`,
+// which the host backs with AgentCore Memory; see createAssistant.)
 
 /**
  * A single item acceptable in a Strands `Agent`'s tool list — a `tool()`, an

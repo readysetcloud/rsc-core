@@ -130,9 +130,9 @@ surface — badges are its first routes, more will live here over time.
 
 A Strands-TS assistant ([`@readysetcloud/agent`](agent/README.md)) hosted in
 **AgentCore Runtime** (NODE_22) that streams responses to the browser over a
-direct WebSocket. It shares the ecosystem's Cognito pool and single-conversation
-memory model, so any app can drop in a chat surface with
-[`@readysetcloud/ui/chat`](ui/AGENTS.md).
+direct WebSocket. It shares the ecosystem's Cognito pool and a managed
+cross-session memory model (AgentCore Memory), so any app can drop in a chat
+surface with [`@readysetcloud/ui/chat`](ui/AGENTS.md).
 
 ### How it works
 
@@ -181,11 +181,16 @@ memory model, so any app can drop in a chat surface with
    > (the `AllViewerExceptHostHeader` managed policy, which also forwards the
    > `Sec-WebSocket-Protocol` bearer). Only the URL is rewritten; the bearer token
    > still authorizes the connection at the runtime. The account id is gone.
-4. **Remember.** Each turn is written to `AgentChatTable` (`pk=MEMORY#{userId}` /
-   `SESSION#{sessionId}`, TTL `expiresAt`). A stream filter on `entity=Turn`
-   drives `VectorizeTurnFunction`, which embeds turns (Titan v2 @ 1024) into the
-   `conversation-memory` **S3 Vectors** index. The agent's `recall_memory` tool
-   queries that index, scoped to the caller, for cross-session recall.
+4. **Remember.** Memory is two-plane. *Within/across a connection,* Strands
+   conversation **snapshots** persist to `AgentChatTable`
+   (`pk=SESSION#{sessionId}`, TTL `expiresAt`) so a conversation resumes exactly.
+   *Across sessions,* the runtime hands each turn to the managed **AgentCore
+   Memory** resource (`createEvent`); AgentCore asynchronously extracts long-term
+   records — **facts** (`/facts/{sub}`) and **user preferences**
+   (`/users/{sub}/preferences`), scoped per verified caller — and the Strands
+   `memoryManager` injects the relevant ones into each turn automatically (plus a
+   `search_memory` tool for explicit lookups). This replaces the old S3 Vectors +
+   Titan + stream-vectorizer stack.
 
 | Method & path | Auth | Purpose |
 | --- | --- | --- |
@@ -196,16 +201,15 @@ memory model, so any app can drop in a chat surface with
 
 | Piece | Where |
 | --- | --- |
-| Portable agent core (assistant, memory, streaming) | `@readysetcloud/agent` → [`agent/`](agent/) |
-| AgentCore Runtime artifact (NODE_22 WebSocket host) | [`agent-runtime/`](agent-runtime/) |
-| Session, connect + vectorizer Lambdas | [`functions/create-session.mjs`](functions/create-session.mjs), [`functions/websocket-connect.mjs`](functions/websocket-connect.mjs), [`functions/vectorize-turn.mjs`](functions/vectorize-turn.mjs) |
-| Infra (table, S3 Vectors, runtime, IAM, `POST /agent/sessions` + `/agent/connect`) | [`template.yaml`](template.yaml) |
+| Portable agent core (assistant, snapshots, streaming) | `@readysetcloud/agent` → [`agent/`](agent/) |
+| AgentCore Runtime artifact (NODE_22 WebSocket host, AgentCore Memory wiring) | [`agent-runtime/`](agent-runtime/) |
+| Session + connect Lambdas | [`functions/create-session.mjs`](functions/create-session.mjs), [`functions/websocket-connect.mjs`](functions/websocket-connect.mjs) |
+| Infra (table, AgentCore Memory, runtime, IAM, `POST /agent/sessions` + `/agent/connect`) | [`template.yaml`](template.yaml) |
 | Artifact packaging (esbuild bundle + arm64 node_modules) | [`scripts/package-agent.mjs`](scripts/package-agent.mjs) |
 | React chat surface | `@readysetcloud/ui/chat` → [`ui/src/chat/`](ui/src/chat/) |
 
-The deploy builds the agent package (its `/memory` subpath is bundled into the
-vectorizer) and packages + uploads the runtime artifact to the assets bucket
-before `sam deploy`.
+The deploy builds the agent package (inlined into the runtime bundle) and
+packages + uploads the runtime artifact to the assets bucket before `sam deploy`.
 
 ### Frontend consumer
 
@@ -271,8 +275,21 @@ row.
   token as the `Authorization` header (the SDK filters headers to
   `Authorization` + `Custom-*`), so `getUserId` decodes the `sub`. If it surfaces
   identity differently, adjust `agent-runtime/src/index.ts`.
+- **AgentCore Memory resource** — cfn-lint won't know
+  `AWS::BedrockAgentCore::Memory`; confirm on a real deploy that the
+  `MemoryStrategies` shape (`SemanticMemoryStrategy`/`UserPreferenceMemoryStrategy`
+  wrappers, `NamespaceTemplates`), `EventExpiryDuration` (days), and the
+  `!GetAtt AgentMemory.MemoryId` / `.MemoryArn` attributes resolve. The
+  `bedrock-agentcore/experimental/memory/strands` subpath is **experimental**
+  (pinned exact at 0.4.0) — re-verify the `createAgentCoreMemoryStores` signature
+  on any bump.
+- **Memory read/write path** — confirm the runtime's read namespaces
+  (`/facts/<sub>`, `/users/<sub>/preferences`) match the resource's strategy
+  `NamespaceTemplates` after `{actorId}` resolves, that `createEvent` writes
+  succeed, and that long-term records appear (extraction is async — allow a lag).
 - **End-to-end stream** — sign in → `POST /agent/connect` → open the socket →
   confirm `stream_event`→`complete`, multi-turn continuity (snapshots), and that
-  `recall_memory` returns prior-session facts.
+  cross-session facts/preferences are injected (and `search_memory` returns them)
+  on a later session.
 - **arm64 packaging** — `scripts/package-agent.mjs` stages the zip; confirm it
   runs on the runtime (all deps are pure-JS today).

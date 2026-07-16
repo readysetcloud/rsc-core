@@ -71,9 +71,9 @@ jobs:
           npm install -g esbuild
           npm ci
 
-          # Build the agent package (functions/vectorize-turn.mjs bundles
-          # @readysetcloud/agent/memory) and stage + upload the NODE_22 runtime
-          # artifact before deploy (AgentCoreRuntime pulls it from the bucket).
+          # Build the agent package (inlined into the runtime bundle) and stage +
+          # upload the NODE_22 runtime artifact before deploy (AgentCoreRuntime
+          # pulls it from the bucket).
           node scripts/package-agent.mjs
           ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
           # Version the artifact key by commit SHA so the AgentCoreRuntime
@@ -159,9 +159,9 @@ jobs:
           npm install -g esbuild
           npm ci
 
-          # Build the agent package (functions/vectorize-turn.mjs bundles
-          # @readysetcloud/agent/memory) and stage + upload the NODE_22 runtime
-          # artifact before deploy (AgentCoreRuntime pulls it from the bucket).
+          # Build the agent package (inlined into the runtime bundle) and stage +
+          # upload the NODE_22 runtime artifact before deploy (AgentCoreRuntime
+          # pulls it from the bucket).
           node scripts/package-agent.mjs
           ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
           # Version the artifact key by commit SHA so the AgentCoreRuntime

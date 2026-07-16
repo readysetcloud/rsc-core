@@ -35,7 +35,7 @@ const toolStartEvent = new ModelContentBlockStartEvent({
   type: 'modelContentBlockStartEvent',
   start: {
     type: 'toolUseStart',
-    name: 'recall_memory',
+    name: 'search_memory',
     toolUseId: 'tu-1',
   } satisfies ToolUseStart,
 });
@@ -69,7 +69,7 @@ describe('stream contract (real @strands-agents/sdk shapes)', () => {
 
   it('maps a real tool-use start event', () => {
     expect(toStreamEventBodies(toolStartEvent as unknown as StrandsStreamEvent)).toEqual([
-      { current_tool_use: { name: 'recall_memory', tool_use_id: 'tu-1' } },
+      { current_tool_use: { name: 'search_memory', tool_use_id: 'tu-1' } },
     ]);
   });
 

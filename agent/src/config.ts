@@ -22,15 +22,16 @@ export const DEFAULT_MAX_TOKENS = Number(process.env.BEDROCK_MAX_TOKENS || 4096)
 export const DEFAULT_TEMPERATURE = Number(process.env.BEDROCK_TEMPERATURE || 0.7);
 
 /**
- * Default system prompt, ported verbatim from the original Python agent so
- * behavior is unchanged across the rewrite. The `recall_memory` tool replaces
- * the Strands Python `memory` tool referenced here.
+ * Default system prompt. Memory is handled by the Strands `memoryManager`
+ * (AgentCore Memory): relevant facts/preferences from past sessions are injected
+ * automatically before each turn, and a `search_memory` tool is available for
+ * explicit recall.
  */
 export const DEFAULT_SYSTEM_PROMPT = `You are a helpful assistant. You can have multi-turn conversations with users,
-remembering context from previous messages and past sessions using your memory tools.
+remembering context from previous messages and past sessions.
 
 When responding:
 - Be concise and helpful
-- Use your recall_memory tool to bring back relevant context from earlier conversations when it would help
+- Relevant context from earlier conversations is provided to you automatically; use your search_memory tool if you need to look up something more specific
 - Format responses in Markdown when appropriate
 - If you're unsure about something, ask for clarification`;

@@ -11,8 +11,11 @@ import {
   type ServerMessage,
   type ToolRegistry,
 } from '@readysetcloud/agent';
-import { McpClient, tool } from '@strands-agents/sdk';
+import { McpClient, MemoryManager, tool } from '@strands-agents/sdk';
 import type { Agent, McpServerConfig } from '@strands-agents/sdk';
+// Experimental subpath (pinned exact at bedrock-agentcore 0.4.0): AgentCore
+// Memory as a set of Strands MemoryStores.
+import { createAgentCoreMemoryStores } from 'bedrock-agentcore/experimental/memory/strands';
 
 // The AgentCore Runtime artifact. Hosts the portable @readysetcloud/agent
 // assistant behind AgentCore's WebSocket endpoint (/ws), preserving the exact
@@ -113,6 +116,47 @@ function toMcpServerConfigs(
   return configs;
 }
 
+// The AWS::BedrockAgentCore::Memory resource id (template.yaml). When unset
+// (local/test), the assistant runs without cross-session memory.
+const MEMORY_ID = process.env.AGENT_MEMORY_ID;
+
+/**
+ * Builds a Strands `MemoryManager` backed by AgentCore Memory for one
+ * (user, session). `actorId` is the **verified** user, so memory is scoped per
+ * user and never leaks across tenants — the same isolation rule the old
+ * user-scoped recall tool enforced.
+ *
+ * The read namespaces mirror the strategy `Namespaces` on the Memory resource
+ * (`/facts/{actorId}`, `/users/{actorId}/preferences`); `{actorId}` is resolved
+ * to `userId` here. Exactly one store is writable (`/facts`) — `createEvent` is
+ * namespace-free, so one write per turn feeds every strategy's extraction
+ * server-side. `MemoryManager` defaults do the rest: automatic context injection
+ * on each user turn + a `search_memory` tool (no agent-driven writes; extraction
+ * is the only write path).
+ *
+ * Returns undefined when memory isn't configured (no `AGENT_MEMORY_ID`) or there
+ * is no verified user to scope to.
+ */
+function buildMemoryManager(
+  userId: string | undefined,
+  sessionId: string,
+): MemoryManager | undefined {
+  if (!MEMORY_ID || !userId) return undefined;
+
+  const stores = createAgentCoreMemoryStores({
+    memoryId: MEMORY_ID,
+    actorId: userId,
+    sessionId,
+    namespaces: [
+      { namespace: `/facts/${userId}`, writable: true },
+      { namespace: `/users/${userId}/preferences` },
+    ],
+    extraction: true,
+  });
+
+  return new MemoryManager({ stores });
+}
+
 /** Best-effort disconnect of a session's MCP clients (never throws). */
 async function closeMcpClients(clients: McpClient[]): Promise<void> {
   await Promise.all(
@@ -160,12 +204,12 @@ async function buildAgentForSession(
 
   const agent = createAssistant({
     sessionId,
-    userId,
     systemPrompt: config?.systemPrompt,
     modelId: config?.modelId,
     temperature: config?.temperature,
     maxTokens: config?.maxTokens,
     tools: [...namedTools, ...mcpClients],
+    memoryManager: buildMemoryManager(userId, sessionId),
   });
 
   return { agent, mcpClients };
@@ -199,6 +243,8 @@ const app = new BedrockAgentCoreApp({
         const result = await built.agent.invoke(req.request);
         return { request: req.request, response: result.toString(), session_id: sessionId };
       } finally {
+        // Persist any buffered memory before tearing down (no-op without memory).
+        await built.agent.memoryManager?.flush();
         await closeMcpClients(built.mcpClients);
       }
     },
@@ -257,7 +303,10 @@ const app = new BedrockAgentCoreApp({
           mcpClients = built.mcpClients;
         }
 
-        await handleUserMessage(agent, { request, sessionId, userId, send });
+        // handleUserMessage flushes memory per turn, so durability doesn't
+        // depend on a clean socket close (AgentCore may reclaim the runtime
+        // between turns).
+        await handleUserMessage(agent, { request, sessionId, send });
       } catch (err) {
         context.log.error({ err }, 'Error handling message');
         send({
@@ -269,6 +318,8 @@ const app = new BedrockAgentCoreApp({
     });
 
     socket.on('close', () => {
+      // Backstop flush (per-turn flush already covers the common case).
+      void agent?.memoryManager?.flush();
       void closeMcpClients(mcpClients);
       context.log.info({ sessionId }, 'WebSocket closed');
     });
