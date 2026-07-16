@@ -2,13 +2,15 @@
 
 Portable, framework-agnostic Node agent core for Ready, Set, Cloud: a
 [Strands-TS](https://github.com/strands-agents) assistant with DynamoDB-backed
-conversation history and semantic vector memory.
+conversation snapshots and pluggable cross-session memory.
 
 The package knows nothing about WebSockets, AgentCore, HTTP, or any app. It
 produces a configured Strands `Agent`, runs a turn through a wire-protocol
-streamer, and persists the conversation for multi-turn continuity and semantic
-recall. A host (an AgentCore Runtime artifact, a Lambda, a test) supplies the
-transport and identity.
+streamer, and persists conversation snapshots for multi-turn continuity. Cross-
+session memory is transport-specific, so the host supplies a Strands
+`memoryManager` (in rsc-core, the runtime backs it with AgentCore Memory). A host
+(an AgentCore Runtime artifact, a Lambda, a test) supplies the transport,
+identity, and memory backend.
 
 ## Install
 
@@ -23,48 +25,50 @@ Strands SDK and `zod`.
 
 | Export | Purpose |
 | --- | --- |
-| `createAssistant({ sessionId, userId?, modelId?, systemPrompt?, temperature?, maxTokens?, tools?, storage? })` | Builds a Strands `Agent` with a DynamoDB session manager + `recall_memory` tool (added only when `userId` is set). |
-| `handleUserMessage(agent, { request, sessionId, userId?, send })` | Runs one turn: streams wire messages via `send`, records the turn to DynamoDB, returns the assistant text. |
+| `createAssistant({ sessionId, modelId?, systemPrompt?, temperature?, maxTokens?, tools?, memoryManager?, storage? })` | Builds a Strands `Agent` with a DynamoDB session manager (snapshots) and, when a `memoryManager` is passed, cross-session memory (recall + auto-injection + extraction). |
+| `handleUserMessage(agent, { request, sessionId, send })` | Runs one turn: streams wire messages via `send`, flushes the memory manager so the turn is durably captured, returns the assistant text. |
 | `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers?, sessionId? })`, `getSessionConfig(sessionId)` | Per-session config so a generic host loads prompt/model/tools by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. `tools` selects first-party tools by name; `mcpServers` attaches external MCP tool sources (see [MCP servers](#mcp-servers-external-tools)). Also on the `./memory` subpath. |
 | `streamTurn(stream, { sessionId, send })`, `toStreamEventBodies(event)` | Streaming primitives / the SDK→wire normalizer (the one SDK coupling point). |
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
-| `recordTurn`, `turnKey`, `TURN_ENTITY` | Conversation-turn rows. |
-| `putMemoryTurns`, `recallMemory`, `deleteMemoryKeys`, `memoryVectorKey`, `embedText`, `EMBEDDING_DIMENSIONS` | Semantic-memory data plane (S3 Vectors + Titan). |
-| `createRecallMemoryTool(userId)` | The `recall_memory` Strands tool (user-scoped). |
 | `DEFAULT_MODEL_ID`, `DEFAULT_REGION`, `DEFAULT_SYSTEM_PROMPT`, `DEFAULT_MAX_TOKENS`, `DEFAULT_TEMPERATURE` | Config constants (env-overridable). |
 | wire types — `ServerMessage`, `ClientMessage`, `AgentStreamEventBody`, `SendMessage` | The streaming contract shared with the UI client. |
+
+Cross-session memory is **not** built into `createAssistant`. Pass a Strands
+`memoryManager` — the host owns the backend. In rsc-core the AgentCore Runtime
+builds it from AgentCore Memory (`bedrock-agentcore/experimental/memory/strands`);
+see `agent-runtime/src/index.ts`. This keeps the package transport-agnostic.
 
 ### `@readysetcloud/agent/memory` subpath
 
 ```ts
-import { putMemoryTurns, recordTurn } from '@readysetcloud/agent/memory';
+import { DynamoSnapshotStorage, createSession } from '@readysetcloud/agent/memory';
 ```
 
-Re-exports only the memory data plane and pulls in **no** Strands SDK — import
-it from Lambdas (e.g. the DynamoDB-stream vectorizer) so they don't bundle the
-agent runtime. Importing the package root would transitively load Strands and
-its optional integrations.
+Re-exports only the modules that pull in **no** Strands SDK (snapshot storage +
+session config) — import it from Lambdas so they don't bundle the agent runtime.
+Importing the package root would transitively load Strands and its optional
+integrations.
 
 ## Usage
 
 ```ts
 import { createAssistant, handleUserMessage } from '@readysetcloud/agent';
 
-// Once per session/connection:
-const agent = createAssistant({ sessionId, userId });
+// Once per session/connection. Pass a memoryManager (built by the host from the
+// verified user) to enable cross-session memory; omit it for a stateless one.
+const agent = createAssistant({ sessionId, memoryManager });
 
 // Per turn — `send` pushes wire messages to the client (e.g. over a WebSocket):
 const answer = await handleUserMessage(agent, {
   request: userText,
   sessionId,
-  userId,          // verified caller id — never client-supplied
   send: (msg) => socket.send(JSON.stringify(msg)),
 });
 ```
 
-**Identity is the verified caller.** Pass `userId` from a trusted source (e.g. a
-Cognito `sub` from a verified inbound JWT), never a client-supplied value.
-`recall_memory` closes over that `userId`, so memory can't leak across users.
+**Identity is the verified caller.** The host builds the `memoryManager` scoped
+to a trusted user id (e.g. a Cognito `sub` from a verified inbound JWT), never a
+client-supplied value — so memory can't leak across users.
 
 ## Sessions (dynamic config)
 
@@ -204,26 +208,27 @@ Read at module scope; the same code runs in AgentCore, a Lambda, or a test.
 
 | Variable | Required | Default | Used by |
 | --- | --- | --- | --- |
-| `TABLE_NAME` | Yes | — | Snapshot storage + turn rows (DynamoDB). |
-| `VECTOR_BUCKET_NAME` | Yes (for memory) | — | S3 Vectors semantic memory. |
-| `MEMORY_VECTOR_INDEX_NAME` | No | `conversation-memory` | S3 Vectors index name. |
-| `EMBEDDING_MODEL_ID` | No | `amazon.titan-embed-text-v2:0` | Titan embeddings (must match the index dimension, 1024). |
+| `TABLE_NAME` | Yes | — | Snapshot storage + session config (DynamoDB). |
 | `BEDROCK_MODEL_ID` | No | `us.amazon.nova-lite-v1:0` | Chat model. |
 | `BEDROCK_REGION` / `AWS_REGION` | No | `us-east-1` | Bedrock region. |
 | `BEDROCK_MAX_TOKENS` | No | `4096` | Model max tokens. |
 | `BEDROCK_TEMPERATURE` | No | `0.7` | Model temperature. |
 
+Cross-session memory has **no** env here — the host owns the backend. In
+rsc-core the runtime reads `AGENT_MEMORY_ID` (the AgentCore Memory resource) to
+build the `memoryManager`; see `agent-runtime`.
+
 ### Single-table keys
 
 The agent core expects a single DynamoDB table with these keys (match them, or
-adapt `DynamoSnapshotStorage` / `turns.ts`):
+adapt `DynamoSnapshotStorage`):
 
-- **Turn rows:** `pk=MEMORY#{userId}`, `sk=TURN#{sessionId}#{ts}#{role}`, `entity="Turn"`, `expiresAt` TTL.
 - **Snapshots:** `pk=SESSION#{sessionId}`, `sk=SNAPSHOT#{scope}#{scopeId}#{id}` / `LATEST#…` / `MANIFEST#…`.
-- A stream (`NEW_AND_OLD_IMAGES`) filtered to `entity=Turn` drives the vectorizer that populates S3 Vectors.
+- **Session config:** `pk=SESSION#{sessionId}`, `sk=CONFIG` (owner + prompt/model/tools).
 
-The S3 Vectors index is `conversation-memory`, **dim 1024, cosine, `text`
-non-filterable**, with filter metadata `{ userId, sessionId, role }`.
+Cross-session semantic memory is **not** in this table — it lives in AgentCore
+Memory (managed), written per turn via `createEvent` and retrieved by the
+`memoryManager`.
 
 ## SDK contract guardrail
 

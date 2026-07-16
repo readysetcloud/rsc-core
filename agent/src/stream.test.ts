@@ -33,8 +33,8 @@ describe('toStreamEventBodies', () => {
   });
 
   it('maps a tool-use start to a current_tool_use body', () => {
-    expect(toStreamEventBodies(toolEvent('recall_memory', 'tu-1'))).toEqual([
-      { current_tool_use: { name: 'recall_memory', tool_use_id: 'tu-1' } },
+    expect(toStreamEventBodies(toolEvent('search_memory', 'tu-1'))).toEqual([
+      { current_tool_use: { name: 'search_memory', tool_use_id: 'tu-1' } },
     ]);
   });
 
@@ -59,7 +59,7 @@ describe('streamTurn', () => {
 
     const events: StrandsStreamEvent[] = [
       textEvent('Hel'),
-      toolEvent('recall_memory', 'tu-9'),
+      toolEvent('search_memory', 'tu-9'),
       textEvent('lo'),
     ];
 
@@ -69,7 +69,7 @@ describe('streamTurn', () => {
     expect(sent).toEqual([
       { type: 'stream_event', event: { init_event_loop: true } },
       { type: 'stream_event', event: { data: 'Hel' } },
-      { type: 'stream_event', event: { current_tool_use: { name: 'recall_memory', tool_use_id: 'tu-9' } } },
+      { type: 'stream_event', event: { current_tool_use: { name: 'search_memory', tool_use_id: 'tu-9' } } },
       { type: 'stream_event', event: { data: 'lo' } },
       { type: 'stream_event', event: { complete: true } },
       { type: 'complete', session_id: 's-1' },

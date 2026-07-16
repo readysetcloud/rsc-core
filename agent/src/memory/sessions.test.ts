@@ -61,15 +61,15 @@ describe('createSession', () => {
     const config = await createSession({
       userId: 'user-1',
       sessionId: 'sess-2',
-      tools: ['recall_memory', 'get_current_time'],
+      tools: ['search_memory', 'get_current_time'],
       mcpServers,
       now: 1,
     });
 
-    expect(config.tools).toEqual(['recall_memory', 'get_current_time']);
+    expect(config.tools).toEqual(['search_memory', 'get_current_time']);
     expect(config.mcpServers).toEqual(mcpServers);
     expect(send.mock.calls[0][0].input.Item).toMatchObject({
-      tools: ['recall_memory', 'get_current_time'],
+      tools: ['search_memory', 'get_current_time'],
       mcpServers,
     });
   });

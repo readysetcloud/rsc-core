@@ -69,10 +69,9 @@ jobs:
           npm install -g esbuild
           npm ci
 
-          # The agent package must be built before `sam build`
-          # (functions/vectorize-turn.mjs bundles @readysetcloud/agent/memory),
-          # and the NODE_22 runtime artifact staged + uploaded before deploy
-          # (AgentCoreRuntime pulls it from the assets bucket).
+          # The agent package must be built before `sam build` (it is inlined
+          # into the runtime bundle), and the NODE_22 runtime artifact staged +
+          # uploaded before deploy (AgentCoreRuntime pulls it from the assets bucket).
           node scripts/package-agent.mjs
           ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
           # Version the artifact key by commit SHA so the AgentCoreRuntime

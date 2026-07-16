@@ -25,7 +25,10 @@ const RUNTIME_DEPS = {
   'bedrock-agentcore': '0.4.0',
   '@aws-sdk/client-dynamodb': '^3.0.0',
   '@aws-sdk/lib-dynamodb': '^3.0.0',
-  '@aws-sdk/client-s3vectors': '^3.0.0',
+  // AgentCore Memory data-plane client, used by bedrock-agentcore's Strands
+  // memory integration (createEvent / retrieveMemoryRecords). Listed explicitly
+  // because build.mjs marks @aws-sdk/* external, so it must ship in the artifact.
+  '@aws-sdk/client-bedrock-agentcore': '^3.0.0',
   '@aws-sdk/client-bedrock-runtime': '^3.0.0',
   // @readysetcloud/agent's root barrel re-exports requestSession (session
   // creation via EventBridge), which instantiates an EventBridgeClient at module
