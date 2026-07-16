@@ -806,7 +806,11 @@ Resources:
       # claim. AgentCore matches the token's `aud` against this list. If you ever
       # switch the UI to access tokens, use AllowedClients instead.
       AuthorizerConfiguration:
-        CustomJWTAuthorizerConfiguration:
+        # Property key is `CustomJWTAuthorizer` (NOT ...Configuration — that's the
+        # schema's definition name). AuthorizerConfiguration is additionalProperties:
+        # false, so the wrong key fails CloudFormation early validation
+        # (AWS::EarlyValidation::PropertyValidation) at changeset creation.
+        CustomJWTAuthorizer:
           DiscoveryUrl: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}/.well-known/openid-configuration'
           AllowedAudience:
             - !Ref CognitoUserPoolClient
