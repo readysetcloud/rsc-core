@@ -1,6 +1,6 @@
 {
   "name": "@readysetcloud/agent",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Portable, framework-agnostic Node agent core for Ready, Set, Cloud: a Strands-TS assistant with DynamoDB-backed conversation snapshots and pluggable cross-session memory.",
   "author": "allenheltondev",
   "license": "MIT",
