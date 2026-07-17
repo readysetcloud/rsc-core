@@ -50,6 +50,13 @@ export {
   type McpServerSpec,
 } from './memory/sessions.js';
 
+// MCP spec → connection config resolution (authHeader + connection-token forwarding).
+export {
+  resolveMcpServerConfigs,
+  type ResolveMcpOptions,
+  type ResolvedMcpServerConfig,
+} from './memory/mcp-config.js';
+
 // Event-driven session creation (a separate stack requests a session over the
 // default bus; the owning stack consumes it). See ./memory/session-events.
 export {

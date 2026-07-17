@@ -17,6 +17,11 @@ export {
   type McpServerSpec,
 } from './sessions.js';
 export {
+  resolveMcpServerConfigs,
+  type ResolveMcpOptions,
+  type ResolvedMcpServerConfig,
+} from './mcp-config.js';
+export {
   requestSession,
   createSessionFromEvent,
   SESSION_REQUEST_SOURCE,

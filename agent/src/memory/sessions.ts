@@ -59,6 +59,20 @@ export interface McpServerSpec {
     /** Opaque authority-minted token (e.g. `<base64url(payload)>.<sig>`). */
     value: string;
   };
+  /**
+   * When true, the runtime injects the **connecting user's live bearer token**
+   * (the Cognito token AgentCore Inbound Auth validated for this connection) as
+   * this server's `Authorization` header — a fresh, per-connection token rather
+   * than a value baked into this row (rsc-core #199). Use it for a gateway MCP
+   * server whose inbound JWT authorizer validates the *end user's* token and
+   * reads its `sub` (e.g. Booked's blog-search AgentCore Gateway), where a static
+   * `authHeader` would go stale when the token expires (~1h).
+   *
+   * Because this forwards a real user credential, the runtime only honors it for
+   * hosts on its MCP allowlist. It's an alternative to `authHeader` (a static
+   * authority token) — set one or the other.
+   */
+  forwardConnectionToken?: boolean;
   /** Explicit transport; auto-detected from the fields present when omitted. */
   transport?: 'stdio' | 'sse' | 'streamable-http';
   /** Command to spawn (stdio transport). */
