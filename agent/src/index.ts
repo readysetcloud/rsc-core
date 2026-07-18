@@ -18,6 +18,20 @@ export {
   type BuiltTaskAgent,
 } from './task.js';
 
+// Stateless one-shot server-side invocation — the bare primitive with structured
+// output, bounded tool loops, and trusted context injection (no session/snapshot).
+export {
+  runAgent,
+  type RunAgentOptions,
+  type RunAgentResult,
+} from './run.js';
+
+// The SDK's tool-definition helper, re-exported so hosts define tools (name,
+// description, input schema, handler) without importing the SDK directly. A tool
+// handler reads trusted per-run context from `context.invocationState` (see
+// runAgent) — the model supplies only the declared input schema, never that.
+export { tool } from '@strands-agents/sdk';
+
 // Wire protocol (shared with the UI client).
 export type {
   ServerMessage,

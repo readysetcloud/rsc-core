@@ -30,6 +30,8 @@ Strands SDK and `zod`.
 | `createSession({ userId, systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers?, sessionId?, tableName? })`, `getSessionConfig(sessionId, tableName?)` | Per-session config so a generic host loads prompt/model/tools by `sessionId` at connect (no redeploy to change behavior). `createSession` sets the owner; the host enforces it. `tools` selects first-party tools by name; `mcpServers` attaches external MCP tool sources (see [MCP servers](#mcp-servers-external-tools)). Also on the `./memory` subpath. |
 | `runAgentTask({ taskId, principal, request, buildAgent, … })` | Runs one autonomous (non-chat) task to completion in the host: warm-cache → idempotent claim → `buildAgent` → run → record row → emit result event. See [Autonomous tasks](#autonomous-tasks-non-chat-agents). |
 | `handleTask(agent, { request })` | Buffered sibling of `handleUserMessage`: invokes the agent, flushes memory, returns the final text — no streaming. The single-turn primitive `runAgentTask` wraps. |
+| `runAgent({ input, systemPrompt?, modelId?, tools?, outputSchema?, maxIterations?, invocationState?, … })` | Stateless one-shot server-side invocation — build-and-discard, no session/snapshot/table. Enforces a Zod `outputSchema` (returns the validated object), bounds tool loops with `maxIterations`, and injects trusted per-call context via `invocationState`. See [Server-side one-shot runs](#server-side-one-shot-runs-runagent). |
+| `tool({ name, description, inputSchema, callback })` | Re-export of the Strands tool-definition helper, so hosts define tools without importing the SDK directly. Handlers read trusted context from `context.invocationState`. |
 | `createTask` / `startTask` / `finishTask` / `getTask`, `requestAgentTask` / `emitTaskCompleted`, `TaskResultCache` | The autonomous-task data plane: durable task rows (idempotent lifecycle), the EventBridge trigger/result contract, and an in-memory result cache. All Strands-free (on `./memory`). |
 | `streamTurn(stream, { sessionId, send })`, `toStreamEventBodies(event)` | Streaming primitives / the SDK→wire normalizer (the one SDK coupling point). |
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
@@ -231,6 +233,99 @@ Pass it to run the agent in **your own** stack against **your own** table
 (library mode) instead of through a shared host. Note the boundary: a library-mode
 run does not go through the shared runtime's guarantees (Bedrock grant, MCP
 allowlist, memory isolation) — your stack owns them.
+
+## Server-side one-shot runs (`runAgent`)
+
+`runAgent` is the bare primitive: build a Strands `Agent`, run **one** turn to
+completion, return the answer. No session manager, no snapshots, no DynamoDB —
+nothing persists, so it needs no table and leaves no trace. Where
+`handleUserMessage` streams a chat turn to a browser and `runAgentTask` wraps a
+run in a durable, idempotent task record, `runAgent` is what a **server-side
+orchestrator** (e.g. a Lambda fanning one input across several independent
+analyses) reaches for when each analysis is an isolated call.
+
+```ts
+import { runAgent } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+// One-shot STRUCTURED analysis — no prose parsing, get a validated object.
+const grammar = await runAgent({
+  input: draft,
+  modelId: 'us.anthropic.claude-lite-...',   // pin a model per lens
+  systemPrompt: 'You are a grammar & spelling reviewer.',
+  outputSchema: z.object({
+    suggestions: z.array(z.object({ span: z.string(), fix: z.string() })),
+  }),
+});
+grammar.output.suggestions;   // typed, schema-validated — not a string
+```
+
+- **Structured output enforcement.** Pass `outputSchema` (a Zod schema) and the
+  SDK forces the model to emit against it; `output` is the validated object and
+  `structured` is `true`. If the model can't produce a conforming result even
+  after being forced, the SDK throws — a resolved call is a schema-valid one.
+  Omit the schema and `output` is the response text.
+- **Bounded tool loops.** Pass `tools` (first-party `tool()`s, an `McpClient`,
+  or a sub-agent) for a tool-using analysis — a fact lens over web
+  search/fetch — and cap the loop with `maxIterations` (mapped to the SDK's
+  per-invocation `limits.turns`) so it can't run away.
+- **Per-lens model selection.** `modelId` pins a Pro- vs Lite-tier model for
+  this call; different lenses pick different models.
+- **Trusted context injection.** `invocationState` is threaded to every tool's
+  execution context (`context.invocationState`) and returned on the result. It
+  is the injection point for values the model **must not supply or forge** — a
+  `tenantId`, the caller's verified `sub`. Because it is not a tool input
+  parameter, the model never sees or sets it; trusted code sets it, handlers
+  read it:
+
+  ```ts
+  import { runAgent, tool } from '@readysetcloud/agent';
+  import { z } from 'zod';
+
+  const searchBlog = tool({
+    name: 'search_blog',
+    description: "Search the tenant's own posts",
+    inputSchema: z.object({ query: z.string() }),   // model supplies only this
+    callback: async ({ query }, context) => {
+      const tenantId = context?.invocationState.tenantId as string;  // trusted, not model-supplied
+      return searchWithinTenant(tenantId, query);
+    },
+  });
+
+  const facts = await runAgent({
+    input: draft,
+    systemPrompt: 'Fact-check claims using the blog search tool.',
+    tools: [searchBlog],
+    maxIterations: 6,
+    invocationState: { tenantId, sub },   // injected by trusted code
+  });
+  ```
+
+**Multi-lens engine sketch.** Each lens is an independent `runAgent` call; the
+orchestrator fans them out and (optionally) synthesizes:
+
+```ts
+const [grammar, llm, facts] = await Promise.all([
+  runAgent({ input, systemPrompt: GRAMMAR, outputSchema: GrammarSchema }),
+  runAgent({ input, systemPrompt: LLM_DETECT, outputSchema: DetectSchema }),
+  runAgent({ input, systemPrompt: FACTS, tools: [searchBlog], maxIterations: 6,
+             invocationState: { tenantId, sub } }),
+]);
+
+const summary = await runAgent({
+  input: JSON.stringify({ grammar: grammar.output, llm: llm.output, facts: facts.output }),
+  systemPrompt: SUMMARY,
+  outputSchema: SummarySchema,
+});
+```
+
+To attach an **MCP** web-search/fetch gateway to a lens instead of first-party
+tools, connect it and pass the client in `tools` — see [MCP servers](#mcp-servers-external-tools)
+for how the runtime resolves specs and forwards verified identity via
+`authHeader`. For a **durable** orchestrator (idempotent under at-least-once
+delivery), run the outer call as a task (`runAgentTask`) and let its lenses call
+`runAgent`. Streaming a run's tokens is not covered here — `runAgent` buffers
+the final answer.
 
 ## MCP servers (external tools)
 
