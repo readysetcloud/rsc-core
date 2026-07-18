@@ -7,7 +7,7 @@ import {
   handleUserMessage,
   getSessionConfig,
   resolveTools,
-  type McpServerSpec,
+  resolveMcpServerConfigs,
   type ServerMessage,
   type ToolRegistry,
 } from '@readysetcloud/agent';
@@ -74,6 +74,30 @@ function getUserId(context: RequestContext): string | undefined {
   return key ? context.headers[key] : undefined;
 }
 
+/**
+ * The connecting user's live bearer token (no `Bearer ` prefix) — the Cognito
+ * token AgentCore Inbound Auth validated for this connection, forwarded as the
+ * Authorization header. Used to forward a fresh, per-connection token to a
+ * session's opted-in gateway MCP servers (rsc-core #199) instead of a value
+ * baked into the session config that would go stale at ~1h.
+ */
+function getBearerToken(context: RequestContext): string | undefined {
+  const authKey = Object.keys(context.headers).find(
+    (h) => h.toLowerCase() === 'authorization',
+  );
+  const raw = authKey ? context.headers[authKey] : undefined;
+  return raw ? raw.replace(/^Bearer\s+/i, '') : undefined;
+}
+
+// Hosts the runtime may forward the connecting user's live token to (#199).
+// Forwarding a real user credential to any other host is refused. Reuses the
+// same allowlist create-session enforces for a session's MCP hosts (#196); empty
+// forwards to nothing.
+const MCP_ALLOWED_HOSTS = (process.env.MCP_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean);
+
 // First-party tools this host offers for session selection. A session enables a
 // tool by adding its name to `tools` in the session config; unknown names are
 // skipped. Register your own tools here — SELECTING a tool per session is a data
@@ -88,33 +112,6 @@ const TOOL_REGISTRY: ToolRegistry = {
       callback: async () => new Date().toISOString(),
     }),
 };
-
-/**
- * Maps a session's declarative MCP specs to the Strands SDK's connection config,
- * folding each spec's authority-minted `authHeader` into the outbound HTTP
- * headers (rsc-core issue #197). The header carries the verified user's identity
- * to the MCP server: the authority (session creator) signs the identity/scope
- * server-side and stores the token on the spec; this runtime is a dumb courier
- * that forwards it verbatim and never interprets it.
- *
- * `authHeader` is applied AFTER the user-supplied `headers`, so a session's own
- * headers can't shadow the identity header. The token value is opaque (base64url
- * payload + signature) and contains no `${...}`, so the SDK's env interpolation
- * over header values leaves it untouched — it is passed through literally.
- */
-function toMcpServerConfigs(
-  specs: Record<string, McpServerSpec>,
-): Record<string, McpServerConfig> {
-  const configs: Record<string, McpServerConfig> = {};
-  for (const [name, spec] of Object.entries(specs)) {
-    const { authHeader, ...rest } = spec;
-    if (authHeader?.name) {
-      rest.headers = { ...rest.headers, [authHeader.name]: authHeader.value };
-    }
-    configs[name] = rest as McpServerConfig;
-  }
-  return configs;
-}
 
 // The AWS::BedrockAgentCore::Memory resource id (template.yaml). When unset
 // (local/test), the assistant runs without cross-session memory.
@@ -186,6 +183,7 @@ async function closeMcpClients(clients: McpClient[]): Promise<void> {
 async function buildAgentForSession(
   sessionId: string,
   userId: string | undefined,
+  connectionToken?: string,
 ): Promise<{ agent: Agent; mcpClients: McpClient[] } | null> {
   const config = await getSessionConfig(sessionId);
   if (config && config.userId !== userId) {
@@ -196,10 +194,17 @@ async function buildAgentForSession(
 
   // External tools: connect to any MCP servers the session declared. The specs
   // are validated + host-allowlisted at session-create time (create-session.mjs).
+  // resolveMcpServerConfigs folds in each server's identity mechanism: a static
+  // `authHeader` (#197), or — for a server that opts in — the connecting user's
+  // live bearer token, forwarded only to allowlisted hosts (#199).
   let mcpClients: McpClient[] = [];
   const mcpServers = config?.mcpServers;
   if (mcpServers && Object.keys(mcpServers).length > 0) {
-    mcpClients = await McpClient.loadServers(toMcpServerConfigs(mcpServers));
+    const configs = resolveMcpServerConfigs(mcpServers, {
+      connectionToken,
+      allowedHosts: MCP_ALLOWED_HOSTS,
+    }) as Record<string, McpServerConfig>;
+    mcpClients = await McpClient.loadServers(configs);
   }
 
   const agent = createAssistant({
@@ -231,7 +236,7 @@ const app = new BedrockAgentCoreApp({
       const sessionId = req.session_id ?? context.sessionId;
       // Verified JWT identity wins; req.user_id is only a local/debug fallback.
       const userId = getUserId(context) ?? req.user_id;
-      const built = await buildAgentForSession(sessionId, userId);
+      const built = await buildAgentForSession(sessionId, userId, getBearerToken(context));
       if (!built) {
         return {
           request: req.request,
@@ -254,6 +259,11 @@ const app = new BedrockAgentCoreApp({
   // conversation, recreating the agent when the client switches sessions.
   websocketHandler: async (socket: WebSocket, context: RequestContext) => {
     const userId = getUserId(context);
+    // Captured once at connect; a session's opted-in gateway MCP servers get this
+    // live token (#199). It's the browser's current Cognito token, so each new
+    // connection refreshes it — grounding survives past the token's ~1h life via
+    // reconnect (a single connection held longer re-grounds on its next connect).
+    const connectionToken = getBearerToken(context);
     let agent: Agent | null = null;
     let sessionId: string | null = null;
     let mcpClients: McpClient[] = [];
@@ -292,7 +302,7 @@ const app = new BedrockAgentCoreApp({
         // loading that session's stored config, tools, and MCP servers and
         // enforcing ownership. Disconnect the previous session's MCP clients.
         if (agent === null || msgSessionId !== sessionId) {
-          const built = await buildAgentForSession(msgSessionId, userId);
+          const built = await buildAgentForSession(msgSessionId, userId, connectionToken);
           if (!built) {
             send({ type: 'error', error: 'Session does not belong to this user' });
             return;

@@ -938,6 +938,10 @@ Resources:
         AGENT_MEMORY_ID: !GetAtt AgentMemory.MemoryId
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         BEDROCK_REGION: !Ref AWS::Region
+        # Hosts the runtime may forward the connecting user's live token to for a
+        # session's `forwardConnectionToken` MCP servers (#199) — same allowlist
+        # create-session enforces (#196). Empty forwards to nothing (fails closed).
+        MCP_ALLOWED_HOSTS: !Ref McpAllowedHosts
 
   AgentCoreRole:
     Type: AWS::IAM::Role
