@@ -22,6 +22,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       ui: ${{ steps.filter.outputs.ui }}
       agent: ${{ steps.filter.outputs.agent }}
+      links: ${{ steps.filter.outputs.links }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -44,6 +45,9 @@ jobs:
               - '.github/workflows/deploy.yaml'
             agent:
               - 'agent/**'
+              - '.github/workflows/deploy.yaml'
+            links:
+              - 'links/**'
               - '.github/workflows/deploy.yaml'
 
   predeploy-validations:
@@ -179,4 +183,42 @@ jobs:
           else
             npm publish
             echo "Published @readysetcloud/agent@$VERSION"
+          fi
+
+  publish-links:
+    name: Publish links package
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.links == 'true' }}
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Build and test
+        working-directory: links
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      # Auth is npm Trusted Publishing (OIDC via id-token: write) — no npm
+      # token secret. The trusted publisher on npmjs.com must point at this
+      # repo + deploy.yaml. Requires a recent npm CLI for OIDC support.
+      - name: Publish @readysetcloud/links to npm
+        working-directory: links
+        run: |
+          npm install -g npm@11
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@readysetcloud/links@$VERSION" version > /dev/null 2>&1; then
+            echo "@readysetcloud/links@$VERSION already on npm — skipping publish"
+          else
+            npm publish
+            echo "Published @readysetcloud/links@$VERSION"
           fi

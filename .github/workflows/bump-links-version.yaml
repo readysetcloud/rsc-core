@@ -1,0 +1,58 @@
+name: Bump Links Package Version
+
+# When a PR changes anything under links/, bump the package patch version once.
+# "Once" works by comparing versions against the base branch: if the PR's
+# version already differs from main's (auto-bumped earlier, or a deliberate
+# manual minor/major bump), nothing happens.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'links/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bump-links-${{ github.head_ref }}
+
+jobs:
+  bump:
+    name: Bump version once per PR
+    runs-on: ubuntu-latest
+    # same-repo PRs only (forks can't be pushed to), and let dependabot
+    # PRs manage themselves
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Bump patch version if the PR hasn't bumped yet
+        run: |
+          BASE_VERSION=$(git show origin/${{ github.base_ref }}:links/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version" 2>/dev/null || echo "none")
+          HEAD_VERSION=$(node -p "require('./links/package.json').version")
+
+          if [ "$BASE_VERSION" = "none" ]; then
+            echo "links/package.json doesn't exist on ${{ github.base_ref }} yet — keeping the PR's chosen version ($HEAD_VERSION)"
+            exit 0
+          fi
+
+          if [ "$BASE_VERSION" != "$HEAD_VERSION" ]; then
+            echo "Version already bumped this PR ($BASE_VERSION -> $HEAD_VERSION) — skipping"
+            exit 0
+          fi
+
+          cd links
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          cd ..
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump @readysetcloud/links to $NEW_VERSION"
+          git push
+          echo "Bumped @readysetcloud/links $BASE_VERSION -> $NEW_VERSION"

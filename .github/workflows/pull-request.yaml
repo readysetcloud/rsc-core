@@ -24,6 +24,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       ui: ${{ steps.filter.outputs.ui }}
       agent: ${{ steps.filter.outputs.agent }}
+      links: ${{ steps.filter.outputs.links }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -46,6 +47,9 @@ jobs:
               - '.github/workflows/pull-request.yaml'
             agent:
               - 'agent/**'
+              - '.github/workflows/pull-request.yaml'
+            links:
+              - 'links/**'
               - '.github/workflows/pull-request.yaml'
 
   predeploy-validations:
@@ -132,6 +136,24 @@ jobs:
           node-version: 22
       - name: Install, typecheck, test, build
         working-directory: agent
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+  validate-links:
+    name: Validate links package
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ github.actor != 'dependabot[bot]' && needs.changes.outputs.links == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install, typecheck, test, build
+        working-directory: links
         run: |
           npm ci
           npm run typecheck

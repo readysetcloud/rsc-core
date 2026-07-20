@@ -74,6 +74,20 @@ Parameters:
       grant allows any system id for that sub). Empty (default) rejects all
       system-scoped API requests — opt in explicitly, like McpAllowedHosts.
       First-party backends that emit "Run Agent Task" events are unaffected.
+  LinkRedirectDomain:
+    Type: String
+    Default: ''
+    Description: >
+      Optional custom domain for short-link redirects (e.g. rdyset.click). When
+      set (and HostedZoneId is provided) the redirect distribution is fronted by
+      this domain and short URLs are https://<domain>/<code>; otherwise they use
+      the generated CloudFront domain.
+  LinkRedirectFallbackUrl:
+    Type: String
+    Default: 'https://readysetcloud.io'
+    Description: >
+      Where the edge redirect sends visitors when a short code is missing,
+      expired, or malformed.
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -94,6 +108,9 @@ Metadata:
 Conditions:
   DeployCustomDomainSupport:
     !Not [!Equals [!Ref RootDomainName, '']]
+  HasLinkRedirectDomain: !And
+    - !Not [!Equals [!Ref LinkRedirectDomain, '']]
+    - !Not [!Equals [!Ref HostedZoneId, '']]
 
 Globals:
   Function:
@@ -1348,3 +1365,374 @@ Resources:
         RootDomainName: !Ref RootDomainName
         HostedZoneId: !Ref HostedZoneId
         S3BucketName: !Ref BucketName
+
+  # ----------------------------------------------------------------------------
+  # Link shortening — short links, redirects & campaigns
+  #
+  # A reusable, ecosystem-wide URL shortener. Any RSC app mints a 6-char code for
+  # a destination URL (service-to-service via @readysetcloud/links, IAM-signed),
+  # visitors hit https://<redirect-domain>/<code> and are 302'd at the CloudFront
+  # edge (no Lambda in the hot path), and every redirect is logged and rolled up
+  # into per-code and per-campaign click analytics. Expired codes are swept daily.
+  #
+  # Pieces: LinksTable (data) · LinkKeyValueStore + LinkRedirectFunction +
+  # LinkRedirectDistribution (public edge redirect) · LinksApi + ManageLinks
+  # (IAM-authed management, one mono-Lambda routed by Powertools) ·
+  # ProcessLinkClick (edge logs → analytics) · SweepExpiredLinks (daily TTL).
+  # ----------------------------------------------------------------------------
+  LinksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        # GSI1 — expiry sweep: LINK_EXPIRY / {expiresAt ISO}
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+        # GSI2 — campaign grouping: LINK_CAMPAIGN#{campaignId} / LINK#{createdAt}#{code}
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  LinkKeyValueStore:
+    Type: AWS::CloudFront::KeyValueStore
+    Properties:
+      Name: rsc-short-links
+      Comment: Maps short codes to short-link destinations for the edge redirect
+
+  LinkRedirectFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      AutoPublish: true
+      FunctionCode: !Sub |
+        import cf from 'cloudfront';
+
+        const kvsId = '${LinkKeyValueStore.Id}';
+        const kvsHandle = cf.kvs(kvsId);
+
+        async function handler(event) {
+          const req = event.request || {};
+          const qs = req.querystring || {};
+          const headers = req.headers || {};
+
+          const FALLBACK_URL = '${LinkRedirectFallbackUrl}';
+
+          function get(n){ return qs[n] && qs[n].value; }
+          const srcOverride = get('src');
+          const s = get('s') || null;
+          const ip = (event.viewer && event.viewer.ip) || null;
+
+          function redirect(to){
+            return {
+              statusCode: 302,
+              statusDescription: 'Found',
+              headers: {
+                location: { value: to },
+                'cache-control': { value: 'no-store' },
+                'referrer-policy': { value: 'no-referrer-when-downgrade' },
+                'x-content-type-options': { value: 'nosniff' }
+              }
+            };
+          }
+
+          function fallback(reason){
+            const q = '?reason=' + encodeURIComponent(reason);
+            const to = FALLBACK_URL + (FALLBACK_URL.indexOf('?') === -1 ? q : '&' + q.slice(1));
+            return redirect(to);
+          }
+
+          const pieces = (req.uri || '').split('/');
+          const code = pieces[pieces.length - 1];
+          if (!code || !/^[A-Za-z0-9]{4,12}$/.test(code)) return fallback('bad_code');
+
+          let entry;
+          try {
+            const raw = await kvsHandle.get(code);
+            entry = JSON.parse(raw);
+          } catch (err) {
+            return fallback('code_not_found');
+          }
+
+          const dest = entry && entry.u;
+          const src = srcOverride || (entry && entry.src) || 'web';
+
+          if (!dest || !/^https?:\/\//i.test(dest)) return fallback('bad_dest');
+
+          const hostHdr = (headers.host && headers.host[0] && headers.host[0].value) || '';
+          let destHost = '';
+          try { destHost = dest.split('/')[2].toLowerCase(); } catch(e) { return fallback('bad_url'); }
+          if (hostHdr && destHost === hostHdr.toLowerCase()) return fallback('loop_to_tracker');
+
+          if (dest.length > 2048) return fallback('url_too_long');
+
+          try { console.log(JSON.stringify({ code, u: dest, src, ip, s })); } catch(_) {}
+          return redirect(dest);
+        }
+      FunctionConfig:
+        KeyValueStoreAssociations:
+          - KeyValueStoreARN: !GetAtt LinkKeyValueStore.Arn
+        Runtime: cloudfront-js-2.0
+        Comment: Short-code edge redirect
+      Name: rsc-link-redirect
+
+  LinkRedirectLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 3
+      LogGroupName: /aws/cloudfront/function/rsc-link-redirect
+
+  LinkRedirectCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: HasLinkRedirectDomain
+    Properties:
+      DomainName: !Ref LinkRedirectDomain
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref LinkRedirectDomain
+          HostedZoneId: !Ref HostedZoneId
+
+  LinkRedirectDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          Compress: false
+          # Managed CachingDisabled — redirects must never be cached.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt LinkRedirectFunction.FunctionMetadata.FunctionARN
+          TargetOriginId: dummy.origin
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        PriceClass: PriceClass_100
+        Origins:
+          - DomainName: dummy.origin
+            Id: dummy.origin
+            CustomOriginConfig:
+              OriginProtocolPolicy: match-viewer
+        ViewerCertificate: !If
+          - HasLinkRedirectDomain
+          - AcmCertificateArn: !Ref LinkRedirectCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Aliases: !If
+          - HasLinkRedirectDomain
+          - [!Ref LinkRedirectDomain]
+          - !Ref 'AWS::NoValue'
+
+  LinkRedirectRecordSet:
+    Type: AWS::Route53::RecordSet
+    Condition: HasLinkRedirectDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref LinkRedirectDomain
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt LinkRedirectDistribution.DomainName
+
+  LinkRedirectRecordSetIPV6:
+    Type: AWS::Route53::RecordSet
+    Condition: HasLinkRedirectDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref LinkRedirectDomain
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt LinkRedirectDistribution.DomainName
+
+  # Management API — IAM-authed, service-to-service. The @readysetcloud/links
+  # client signs requests with SigV4; consuming apps grant execute-api:Invoke.
+  LinksApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+
+  ManageLinksFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - manage-links.mjs
+        # Self-bundle the SDK: the CloudFront KVS + SigV4a clients aren't
+        # guaranteed to be in the managed runtime like the common ones are.
+        External: []
+    Properties:
+      Handler: manage-links.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LinksTable
+          KVS_ARN: !GetAtt LinkKeyValueStore.Arn
+          SHORT_LINK_BASE: !If
+            - HasLinkRedirectDomain
+            - !Sub 'https://${LinkRedirectDomain}'
+            - !Sub 'https://${LinkRedirectDistribution.DomainName}'
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+                - dynamodb:BatchGetItem
+                - dynamodb:BatchWriteItem
+              Resource:
+                - !GetAtt LinksTable.Arn
+                - !Sub '${LinksTable.Arn}/index/GSI2'
+            - Effect: Allow
+              Action:
+                - cloudfront-keyvaluestore:DescribeKeyValueStore
+                - cloudfront-keyvaluestore:PutKey
+                - cloudfront-keyvaluestore:DeleteKey
+              Resource: !GetAtt LinkKeyValueStore.Arn
+      Events:
+        Manage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LinksApi
+            Path: /{proxy+}
+            Method: ANY
+
+  ProcessLinkClickFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - process-link-click.mjs
+        External: []
+    Properties:
+      Handler: process-link-click.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LinksTable
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt LinksTable.Arn
+
+  ProcessLinkClickLogPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ProcessLinkClickFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceArn: !GetAtt LinkRedirectLogGroup.Arn
+
+  LinkClickSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ProcessLinkClickLogPermission
+    Properties:
+      LogGroupName: !Ref LinkRedirectLogGroup
+      FilterPattern: '"code"'
+      DestinationArn: !GetAtt ProcessLinkClickFunction.Arn
+
+  SweepExpiredLinksFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - sweep-expired-links.mjs
+        External: []
+    Properties:
+      Handler: sweep-expired-links.handler
+      Timeout: 300
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LinksTable
+          KVS_ARN: !GetAtt LinkKeyValueStore.Arn
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:DeleteItem
+                - dynamodb:BatchWriteItem
+              Resource:
+                - !GetAtt LinksTable.Arn
+                - !Sub '${LinksTable.Arn}/index/GSI1'
+            - Effect: Allow
+              Action:
+                - cloudfront-keyvaluestore:DescribeKeyValueStore
+                - cloudfront-keyvaluestore:DeleteKey
+              Resource: !GetAtt LinkKeyValueStore.Arn
+      Events:
+        DailySweep:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(0 7 * * ? *)'
+
+  LinkShortBaseParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/links/short-link-base
+      Type: String
+      Value: !If
+        - HasLinkRedirectDomain
+        - !Sub 'https://${LinkRedirectDomain}'
+        - !Sub 'https://${LinkRedirectDistribution.DomainName}'
+      Description: Base URL for short links (append /{code})
+
+  LinksApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /readysetcloud/links/api-base-url
+      Type: String
+      Value: !Sub 'https://${LinksApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod'
+      Description: >
+        Base URL of the IAM-authed link management API. @readysetcloud/links
+        signs requests against this host.
