@@ -8,6 +8,7 @@ import {
   getSessionConfig,
   resolveTools,
   resolveMcpServerConfigs,
+  builtinTools,
   type ServerMessage,
   type ToolRegistry,
 } from '@readysetcloud/agent';
@@ -103,7 +104,12 @@ const MCP_ALLOWED_HOSTS = (process.env.MCP_ALLOWED_HOSTS ?? '')
 // skipped. Register your own tools here — SELECTING a tool per session is a data
 // operation (no redeploy); only AUTHORING a new one needs a code change. This
 // composes with external MCP tools, which are attached alongside these.
+//
+// `builtinTools` (from @readysetcloud/agent) contributes the shipped generic
+// tools — `http_request` (the web-search / external-API seam) and `notebook` —
+// so a session opts into web search by adding "http_request" to its `tools`.
 const TOOL_REGISTRY: ToolRegistry = {
+  ...builtinTools,
   get_current_time: () =>
     tool({
       name: 'get_current_time',

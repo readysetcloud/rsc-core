@@ -125,6 +125,16 @@ export {
   type AgentTool,
 } from './tools/registry.js';
 
+// Built-in first-party tools shipped with the package (http_request, notebook).
+// `builtinTools` is a ready-made registry a host spreads into its own; the raw
+// tool instances are re-exported for direct attachment to a `tools` list.
+export {
+  builtinTools,
+  BUILTIN_TOOL_NAMES,
+  httpRequest,
+  notebook,
+} from './tools/builtin.js';
+
 // Configuration constants.
 export {
   DEFAULT_MODEL_ID,

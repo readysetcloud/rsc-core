@@ -32,6 +32,7 @@ Strands SDK and `zod`.
 | `handleTask(agent, { request })` | Buffered sibling of `handleUserMessage`: invokes the agent, flushes memory, returns the final text — no streaming. The single-turn primitive `runAgentTask` wraps. |
 | `runAgent({ input, systemPrompt?, modelId?, tools?, outputSchema?, maxIterations?, invocationState?, … })` | Stateless one-shot server-side invocation — build-and-discard, no session/snapshot/table. Enforces a Zod `outputSchema` (returns the validated object), bounds tool loops with `maxIterations`, and injects trusted per-call context via `invocationState`. See [Server-side one-shot runs](#server-side-one-shot-runs-runagent). |
 | `tool({ name, description, inputSchema, callback })` | Re-export of the Strands tool-definition helper, so hosts define tools without importing the SDK directly. Handlers read trusted context from `context.invocationState`. |
+| `builtinTools`, `BUILTIN_TOOL_NAMES`, `httpRequest`, `notebook` | Shipped first-party tools. `builtinTools` is a ready-made registry (`http_request`, `notebook`) a host spreads into its own; the raw instances attach directly to a `tools` list. `http_request` is the web-search / external-API seam. See [Built-in tools](#built-in-tools). |
 | `createTask` / `startTask` / `finishTask` / `getTask`, `requestAgentTask` / `emitTaskCompleted`, `TaskResultCache` | The autonomous-task data plane: durable task rows (idempotent lifecycle), the EventBridge trigger/result contract, and an in-memory result cache. All Strands-free (on `./memory`). |
 | `streamTurn(stream, { sessionId, send })`, `toStreamEventBodies(event)` | Streaming primitives / the SDK→wire normalizer (the one SDK coupling point). |
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
@@ -326,6 +327,54 @@ for how the runtime resolves specs and forwards verified identity via
 delivery), run the outer call as a task (`runAgentTask`) and let its lenses call
 `runAgent`. Streaming a run's tokens is not covered here — `runAgent` buffers
 the final answer.
+
+## Built-in tools
+
+The package ships a small set of generic, first-party tools so every consumer
+gets common capabilities without re-authoring a wrapper. They're thin factories
+over the Strands SDK's own **vended tools**, so the implementations stay
+maintained and schema-validated upstream:
+
+| Name | What it does |
+| --- | --- |
+| `http_request` | Generic HTTP client (GET/POST/…). The **web-search** seam: point it at a search API and let the model read the JSON back. Also any public REST endpoint or webhook, without a bespoke tool per integration. |
+| `notebook` | An in-invocation scratchpad the model writes to and re-reads across steps of a run. State lives in the invocation, not on the host. |
+
+`builtinTools` is a `ToolRegistry` a host spreads into its own so a session opts
+in **by name**; the raw instances (`httpRequest`, `notebook`) attach directly to
+any `tools` list:
+
+```ts
+import { createAssistant, runAgent, builtinTools, httpRequest, tool } from '@readysetcloud/agent';
+
+// (a) Host registry: session enables it via `tools: ['http_request']` in its config.
+const TOOL_REGISTRY = { ...builtinTools, get_current_time: () => tool({ /* … */ }) };
+
+// (b) Direct attach — e.g. an agent in another repo that just needs web search:
+const res = await runAgent({
+  input: 'What shipped in the latest Strands TS release? Search the web.',
+  systemPrompt: 'Use http_request against https://api.tavily.com/search (Bearer $TAVILY_KEY) to search, then answer.',
+  tools: [httpRequest],
+  maxIterations: 6,
+});
+```
+
+**Web search, concretely.** There is no dedicated search tool in the SDK — the
+model drives `http_request`: it forms the request to a search API (the key rides
+in the URL/headers your prompt or host supplies) and reads the results back. This
+keeps the package provider-neutral; swap Tavily/Brave/Exa/etc. by changing the
+endpoint, no code change here.
+
+**Not exposed: `bash`, `file_editor`.** The SDK also vends these; this package
+deliberately omits them because it's meant to run in a shared, hosted runtime
+where shell exec is remote code execution and filesystem access reaches the
+host's disk. A host that wants them imports them from the SDK and registers them
+itself — an explicit, auditable choice.
+
+**`http_request` is an outbound-request (SSRF) surface** — the model chooses the
+URL. In rsc-core the runtime has no ambient outbound credentials and its network
+egress is the boundary; a host with tighter needs should front it with an
+allowlist or prefer a scoped MCP web-search gateway (below).
 
 ## MCP servers (external tools)
 
