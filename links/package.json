@@ -1,0 +1,45 @@
+{
+  "name": "@readysetcloud/links",
+  "version": "0.1.0",
+  "description": "Node client for the Ready, Set, Cloud link-shortening service: mint short links, manage them, and read click analytics over the IAM-authed core links API.",
+  "author": "allenheltondev",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/readysetcloud/rsc-core.git",
+    "directory": "links"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-ssm": "^3.1086.0",
+    "@aws-sdk/credential-providers": "^3.1086.0",
+    "@smithy/protocol-http": "^5.0.0",
+    "@smithy/signature-v4": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.2"
+  }
+}

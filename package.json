@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Core resources, components, and configuration for Ready, Set, Cloud",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "lint": "eslint ."
   },
   "repository": {
@@ -24,19 +24,25 @@
     "@aws-sdk/client-s3": "^3.1086.0",
     "@aws-sdk/client-ssm": "^3.1086.0",
     "@aws-sdk/credential-providers": "^3.1086.0",
+    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1086.0",
+    "@aws-sdk/signature-v4a": "^3.1086.0",
     "@aws-sdk/util-dynamodb": "^3.996.6",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.7.0",
     "eslint-config-google": "^0.14.0",
     "globals": "^17.7.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "vitest": "^4.1.2"
   },
   "dependencies": {
+    "@aws-lambda-powertools/event-handler": "^2.34.0",
     "@aws-lambda-powertools/parameters": "^2.34.0",
     "@gomomento/sdk": "^1.118.0",
     "@readysetcloud/agent": "file:agent",
+    "@readysetcloud/links": "file:links",
     "@sendgrid/mail": "^8.1.6",
     "octokit": "^5.0.5",
-    "openai": "^6.46.0"
+    "openai": "^6.46.0",
+    "ulid": "^2.3.0"
   }
 }

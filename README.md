@@ -126,6 +126,55 @@ surface — badges are its first routes, more will live here over time.
 | `GET /badges/catalog` | none | Every earnable badge + the level ladder |
 | `POST /badges/activity` | Cognito JWT | Record activity for the caller |
 
+## Link shortening — short links, redirects & campaigns
+
+A reusable, ecosystem-wide URL shortener. Any app mints a 6-char code for a
+destination URL, visitors hit `https://<base>/<code>` and are 302'd **at the
+CloudFront edge** (no Lambda in the hot path), codes can be grouped into
+campaigns, and every redirect rolls up into per-code and per-campaign click
+analytics. Expired codes are swept daily.
+
+> **Full guide:** [`functions/LINKS.md`](functions/LINKS.md) — data model,
+> routes, the edge redirect + click pipeline, and the SSM contract.
+> **Client:** [`@readysetcloud/links`](links/README.md).
+
+### How it works
+
+1. **Mint.** A backend calls `createShortLink({ url, campaignId })` from
+   `@readysetcloud/links` (or `POST /links` directly). Core stores the metadata
+   in `LinksTable` and writes the `code → url` mapping into a CloudFront Key
+   Value Store.
+2. **Redirect.** A visitor hits `https://<base>/<code>`. A CloudFront Function
+   looks the code up in the KVS and 302s to the destination, logging a compact
+   `{ code, u, src, ip, s }` line — all at the edge.
+3. **Count.** A CloudWatch Logs subscription fans those lines to
+   `ProcessLinkClick`, which records a click event and upserts the per-code
+   aggregate.
+4. **Read.** `GET /links/{code}/analytics` and
+   `GET /campaigns/{campaignId}/links/analytics` return totals, by-day, and
+   by-source breakdowns.
+
+### API (`LinksApi`, IAM-authed service-to-service)
+
+The management routes are served by a dedicated REST API whose default
+authorizer is **`AWS_IAM`** — a backend signs requests with SigV4 (the
+`@readysetcloud/links` client does this for you; grant its role
+`execute-api:Invoke`). The public redirect is a separate CloudFront
+distribution, not this API.
+
+| Method & path | Purpose |
+| --- | --- |
+| `POST /links` | Mint a code (`url`, optional `src`, `campaignId`, `expiresInDays`) |
+| `GET /links/{code}` | Fetch a link's metadata |
+| `PUT /links/{code}` | Repoint a code at a new URL |
+| `DELETE /links/{code}` | Remove the code (metadata, clicks, edge entry) |
+| `GET /links/{code}/analytics` | Per-code click aggregate |
+| `GET /campaigns/{campaignId}/links/analytics` | Every link in a campaign + its clicks |
+
+The base URLs are published to SSM: `/readysetcloud/links/short-link-base`
+(append `/{code}`) and `/readysetcloud/links/api-base-url` (what the client
+signs against).
+
 ## Agent service — streaming AI chat
 
 A Strands-TS assistant ([`@readysetcloud/agent`](agent/README.md)) hosted in
