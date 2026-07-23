@@ -179,12 +179,12 @@ import { AuthProvider, useAuth } from '@readysetcloud/ui/auth';</code></pre>
       <div class="demo">
         <div class="demo-header">
           <h3>Vanilla JS</h3>
-          <p>Three script-tag globals cover what CSS can't: auth, the shared navbar, and drawing helpers. Everything else — stat tiles, pills, segmented controls, heroes — is just the shipped classes.</p>
+          <p>Three script-tag globals cover what CSS can't: auth, the shared navbar, and drawing helpers. Everything else — stat tiles, pills, segmented controls, heroes — is just the shipped classes. Point the tags at the hosted assets bucket (the same S3/CDN host as the stylesheet above), never a local copy — that's how every surface stays on one version.</p>
         </div>
         <div class="demo-code">
-<pre data-lang="html"><code>&lt;script src=".../ui/latest/auth.global.js"&gt;&lt;/script&gt; &lt;!-- window.rscAuth --&gt;
-&lt;script src=".../ui/latest/nav.global.js"&gt;&lt;/script&gt;  &lt;!-- window.rscNav --&gt;
-&lt;script src=".../ui/latest/ui.global.js"&gt;&lt;/script&gt;   &lt;!-- window.rscUi --&gt;
+<pre data-lang="html"><code>&lt;script src="https://&lt;assets-host&gt;/ui/latest/auth.global.js"&gt;&lt;/script&gt; &lt;!-- window.rscAuth --&gt;
+&lt;script src="https://&lt;assets-host&gt;/ui/latest/nav.global.js"&gt;&lt;/script&gt;  &lt;!-- window.rscNav --&gt;
+&lt;script src="https://&lt;assets-host&gt;/ui/latest/ui.global.js"&gt;&lt;/script&gt;   &lt;!-- window.rscUi --&gt;
 &lt;script&gt;
   rscAuth.configureAuth({ region: 'us-east-1', clientId: '…' });
   rscNav.mountAppNav('#nav', { appName: 'Bootcamp' /* … */ });
