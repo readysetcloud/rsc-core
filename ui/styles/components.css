@@ -1139,6 +1139,357 @@
   text-align: center;
 }
 
+/* ---------- status badge ----------
+   Sentence-case icon + label pill for health/state readouts (bg 100 / text 800
+   / border 200 of a tone). The tone ramps auto-invert in dark mode, so these
+   single declarations render correctly in both themes. Distinct from .badge,
+   which is the uppercase mono tag. */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-full);
+  background: rgb(var(--muted));
+  color: rgb(var(--muted-foreground));
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.status-badge svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.status-badge-success {
+  background: rgb(var(--success-100));
+  color: rgb(var(--success-800));
+  border-color: rgb(var(--success-200));
+}
+
+.status-badge-warning {
+  background: rgb(var(--warning-100));
+  color: rgb(var(--warning-800));
+  border-color: rgb(var(--warning-200));
+}
+
+.status-badge-error {
+  background: rgb(var(--error-100));
+  color: rgb(var(--error-800));
+  border-color: rgb(var(--error-200));
+}
+
+.status-badge-primary {
+  background: rgb(var(--primary-100));
+  color: rgb(var(--primary-800));
+  border-color: rgb(var(--primary-200));
+}
+
+.status-badge-neutral {
+  background: rgb(var(--muted));
+  color: rgb(var(--muted-foreground));
+  border-color: rgb(var(--border));
+}
+
+/* ---------- trend pill ----------
+   Colored delta chip ("+6.3% ↗") next to a metric value. Positive = the
+   change is an improvement (which is NOT always "up" — pass the inverted
+   class for metrics where down is good, e.g. bounce rate). */
+
+.trend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.trend-pill svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.trend-pill-positive { background: rgb(var(--success-100)); color: rgb(var(--success-700)); }
+.trend-pill-negative { background: rgb(var(--error-100)); color: rgb(var(--error-700)); }
+.trend-pill-neutral { background: rgb(var(--muted)); color: rgb(var(--muted-foreground)); }
+
+/* ---------- segmented control ----------
+   Compact multi-option toggle: bordered muted track with aria-pressed
+   buttons; the active option pops onto the surface. */
+
+.segmented-control {
+  display: inline-flex;
+  padding: 0.125rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-lg);
+  background: rgb(var(--muted) / 0.3);
+}
+
+.segmented-control-option {
+  min-height: 1.75rem;
+  padding: 0.25rem 0.625rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.segmented-control-option:hover {
+  color: rgb(var(--foreground));
+}
+
+.segmented-control-option[aria-pressed='true'] {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  box-shadow: 0 1px 2px rgb(14 34 51 / 0.1);
+}
+
+.segmented-control-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.segmented-control-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--ring));
+}
+
+/* ---------- stat tile ----------
+   Dashboard metric tile: uppercase label, display-font value, optional
+   trend pill / status badge / caption / sparkline. Lifts on hover. */
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-xl);
+  background: rgb(var(--surface));
+  box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.stat-tile:hover {
+  border-color: rgb(var(--primary-200));
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-2px);
+}
+
+.stat-tile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.stat-tile-label {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(var(--muted-foreground));
+}
+
+.stat-tile-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-full);
+  background: rgb(var(--primary-50));
+  color: rgb(var(--primary-600));
+}
+
+.stat-tile-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.stat-tile-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
+}
+
+.stat-tile-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgb(var(--foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tile-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: rgb(var(--muted-foreground));
+}
+
+.stat-tile-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+/* ---------- sparkline ----------
+   Container for the decorative metric trend line (SVG line + soft area +
+   emphasized last point). The drawing inherits currentColor. */
+
+.sparkline {
+  position: relative;
+  height: 2rem;
+  color: rgb(var(--primary-500));
+}
+
+.sparkline svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.sparkline-dot {
+  position: absolute;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radius-full);
+  background: rgb(var(--primary-600));
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- page hero ----------
+   Gradient hero band that opens a page: surface-to-primary wash, soft accent
+   blob, display-font title, and pill meta chips. */
+
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    135deg,
+    rgb(var(--surface)),
+    rgb(var(--surface)) 55%,
+    rgb(var(--primary-50) / 0.7)
+  );
+  box-shadow: var(--shadow-soft);
+}
+
+.page-hero::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  top: -6rem;
+  right: -4rem;
+  width: 18rem;
+  height: 18rem;
+  border-radius: var(--radius-full);
+  background: rgb(var(--primary-500) / 0.1);
+  filter: blur(64px);
+}
+
+.page-hero-content {
+  position: relative;
+  padding: 1.5rem;
+}
+
+.page-hero-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 3vw, 1.875rem);
+  font-weight: 700;
+  color: rgb(var(--foreground));
+  overflow-wrap: break-word;
+}
+
+.page-hero-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: rgb(var(--muted-foreground));
+}
+
+.page-hero-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.page-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-full);
+  background: rgb(var(--surface) / 0.8);
+  color: rgb(var(--muted-foreground));
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.page-hero-chip svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+}
+
+.page-hero-chip-primary {
+  border-color: rgb(var(--primary-200));
+  background: rgb(var(--primary-50));
+  color: rgb(var(--primary-700));
+}
+
+.page-hero-chip-success {
+  border-color: rgb(var(--success-200));
+  background: rgb(var(--success-50));
+  color: rgb(var(--success-700));
+}
+
+.page-hero-chip-warning {
+  border-color: rgb(var(--warning-200));
+  background: rgb(var(--warning-50));
+  color: rgb(var(--warning-700));
+}
+
+.page-hero-chip-error {
+  border-color: rgb(var(--error-200));
+  background: rgb(var(--error-50));
+  color: rgb(var(--error-700));
+}
+
 /* ---------- badge chest (gamification) ---------- */
 
 .badge-chest {

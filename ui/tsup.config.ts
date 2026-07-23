@@ -38,5 +38,17 @@ export default defineConfig([
     sourcemap: true,
     target: 'es2020',
     platform: 'browser'
+  },
+  // framework-agnostic UI helpers for plain <script> consumers (window.rscUi) —
+  // the drawing pieces (sparklines) that plain CSS classes can't cover
+  {
+    entry: { ui: 'src/components/ui-browser.ts' },
+    outDir: 'dist/browser',
+    format: ['esm', 'iife'],
+    globalName: 'rscUi',
+    minify: true,
+    sourcemap: true,
+    target: 'es2020',
+    platform: 'browser'
   }
 ]);

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foundations · Ready, Set, Cloud Design System</title>
+  <meta name="description" content="Color, typography, shape, and elevation — the token layer of the Ready, Set, Cloud design system, rendered live from the shipped stylesheet.">
+  <link rel="icon" type="image/svg+xml" href="ui/assets/cloud-logo.svg">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="ui/styles/fonts.css">
+  <link rel="stylesheet" href="ui/styles/index.css">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="index.html">Overview</a>
+          <a class="app-nav-link app-nav-link-active" href="foundations.html">Foundations</a>
+          <a class="app-nav-link" href="components.html">Components</a>
+          <a class="app-nav-link" href="patterns.html">Patterns</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core" aria-label="rsc-core on GitHub">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme">
+            <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg>
+            <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Foundations</span>
+        <h1 class="page-hero-title">The token layer</h1>
+        <p class="page-hero-subtitle">
+          Every visual decision resolves to a CSS custom property in
+          <code>ui/styles/tokens.css</code>. The swatches and specimens on this page are read
+          live from that stylesheet — toggle the theme and watch the ramps invert.
+        </p>
+        <div class="page-hero-chips">
+          <span class="page-hero-chip page-hero-chip-primary">#219EFF azure</span>
+          <span class="page-hero-chip">RGB triplets for alpha</span>
+          <span class="page-hero-chip">50–950 ramps</span>
+        </div>
+      </div>
+    </header>
+
+    <ul class="ds-anchor-list">
+      <li><a href="#color">Color</a></li>
+      <li><a href="#typography">Typography</a></li>
+      <li><a href="#shape">Shape</a></li>
+      <li><a href="#elevation">Elevation</a></li>
+    </ul>
+
+    <section class="ds-section" id="color">
+      <span class="ds-kicker">Color</span>
+      <h2>Palette</h2>
+      <p class="ds-lede">
+        Colors are stored as RGB triplets so consumers can apply alpha:
+        <code>rgb(var(--primary-500))</code> or <code>rgb(var(--primary-500) / 0.16)</code>.
+        Each ramp runs 50–950 and <strong>auto-inverts in dark mode</strong> — 100 flips dark,
+        900 flips light — so a single token class is correct in both themes.
+        Click any swatch to copy its <code>rgb(var(…))</code> form.
+      </p>
+
+      <div class="ramp">
+        <h3>Ground</h3>
+        <p class="ramp-note">Azure-biased neutrals that everything sits on. <code>--surface</code> is the card plane, <code>--background</code> the page.</p>
+        <div class="ground-grid" data-ground-tokens></div>
+      </div>
+
+      <div class="ramp">
+        <h3>Primary — azure</h3>
+        <p class="ramp-note">Generated from the marketing azure <code>#219EFF</code>; 500 is the brand hex. Actions, focus, links, brand moments.</p>
+        <div class="ramp-row" data-ramp="primary"></div>
+      </div>
+
+      <div class="ramp">
+        <h3>Secondary — slate</h3>
+        <p class="ramp-note">Quiet structure: secondary buttons, dividers, de-emphasized text.</p>
+        <div class="ramp-row" data-ramp="secondary"></div>
+      </div>
+
+      <div class="ramp">
+        <h3>Success — teal</h3>
+        <p class="ramp-note">Positive outcomes, healthy states, improving trends.</p>
+        <div class="ramp-row" data-ramp="success"></div>
+      </div>
+
+      <div class="ramp">
+        <h3>Warning — orange</h3>
+        <p class="ramp-note">Caution, thresholds approached, degraded-but-working.</p>
+        <div class="ramp-row" data-ramp="warning"></div>
+      </div>
+
+      <div class="ramp">
+        <h3>Error — deep red</h3>
+        <p class="ramp-note">Failures and destructive actions. Deliberately darkened around <code>#C81E22</code> — a move off the old rose.</p>
+        <div class="ramp-row" data-ramp="error"></div>
+      </div>
+
+      <div class="ds-note">
+        Adding a color? New ramps must follow the convention: full 50–950 scale, plus the
+        dark-mode inversion, defined in <code>tokens.css</code> in the same change. See
+        <a href="patterns.html#dark-mode">the dark-mode pattern</a> for why.
+      </div>
+    </section>
+
+    <section class="ds-section" id="typography">
+      <span class="ds-kicker">Typography</span>
+      <h2>Three faces, one wordmark</h2>
+      <p class="ds-lede">Each face has one job. If text is a heading it's Sora; if it's data it's JetBrains Mono; everything else is Manrope.</p>
+      <div class="ds-grid ds-grid-wide">
+        <div class="type-card">
+          <p class="type-sample" style="font-family: var(--font-display); font-weight: 700;">Sora carries the headline.</p>
+          <p class="type-meta"><span>--font-display</span><span>headings · display values · card titles</span></p>
+        </div>
+        <div class="type-card">
+          <p class="type-sample" style="font-family: var(--font-sans); font-size: 1.125rem; line-height: 1.6;">Manrope carries the reading: body copy, labels, navigation, and everything conversational in the interface.</p>
+          <p class="type-meta"><span>--font-sans</span><span>body · UI text · labels</span></p>
+        </div>
+        <div class="type-card">
+          <p class="type-sample" style="font-family: var(--font-mono); font-size: 1.25rem;">1,024 sent · 98.7%</p>
+          <p class="type-meta"><span>--font-mono</span><span>data · code · badges</span></p>
+        </div>
+        <div class="type-card">
+          <p class="type-sample" style="font-family: var(--font-logo); font-weight: 800;">Ready, Set, Cloud</p>
+          <p class="type-meta"><span>--font-logo (Raleway)</span><span>wordmark lockups ONLY — never UI text</span></p>
+        </div>
+      </div>
+
+      <div class="type-scale">
+        <div class="type-scale-row"><span class="type-scale-label">display / 30</span><span style="font-family: var(--font-display); font-size: 1.875rem; font-weight: 700;">Page hero title</span></div>
+        <div class="type-scale-row"><span class="type-scale-label">display / 22</span><span style="font-family: var(--font-display); font-size: 1.375rem; font-weight: 700;">Section heading</span></div>
+        <div class="type-scale-row"><span class="type-scale-label">display / 16</span><span style="font-family: var(--font-display); font-size: 1rem; font-weight: 700;">Card title</span></div>
+        <div class="type-scale-row"><span class="type-scale-label">sans / 15</span><span style="font-size: 0.9375rem;">Primary body and nav labels</span></div>
+        <div class="type-scale-row"><span class="type-scale-label">sans / 13</span><span style="font-size: 0.8125rem; color: rgb(var(--muted-foreground));">Secondary copy, hints, captions</span></div>
+        <div class="type-scale-row"><span class="type-scale-label">sans / 11 caps</span><span class="stat-tile-label">Stat tile label</span></div>
+        <div class="type-scale-row"><span class="type-scale-label">mono / 11 caps</span><span class="badge badge-primary">Badge</span></div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="shape">
+      <span class="ds-kicker">Shape</span>
+      <h2>Radius</h2>
+      <p class="ds-lede">Sharper than the old app look, not fully square. Inputs and buttons sit at the 4px default; cards step up; pills go full.</p>
+      <div class="demo-preview demo-preview-plain" style="border: 0; padding: 0; margin-top: 1.25rem; gap: 1.5rem;">
+        <div><div class="radius-specimen" style="border-radius: var(--radius-sm);"></div><p class="specimen-label">--radius-sm · 2px</p></div>
+        <div><div class="radius-specimen" style="border-radius: var(--radius);"></div><p class="specimen-label">--radius · 4px</p></div>
+        <div><div class="radius-specimen" style="border-radius: var(--radius-lg);"></div><p class="specimen-label">--radius-lg · 6px</p></div>
+        <div><div class="radius-specimen" style="border-radius: var(--radius-xl);"></div><p class="specimen-label">--radius-xl · 8px</p></div>
+        <div><div class="radius-specimen" style="border-radius: var(--radius-full); width: 5rem;"></div><p class="specimen-label">--radius-full · pill</p></div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="elevation">
+      <span class="ds-kicker">Elevation</span>
+      <h2>Shadows</h2>
+      <p class="ds-lede">Three steps, all tinted with the ink color. Cards rest at soft, lift to medium on hover; modals float at large.</p>
+      <div class="demo-preview demo-preview-plain" style="border: 0; padding: 1rem 0; margin-top: 1.25rem; gap: 1.5rem;">
+        <div><div class="shadow-specimen" style="box-shadow: var(--shadow-soft);">--shadow-soft</div><p class="specimen-label">cards at rest</p></div>
+        <div><div class="shadow-specimen" style="box-shadow: var(--shadow-medium);">--shadow-medium</div><p class="specimen-label">hover · toasts</p></div>
+        <div><div class="shadow-specimen" style="box-shadow: var(--shadow-large);">--shadow-large</div><p class="specimen-label">modals</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Design System — generated from <a href="https://github.com/readysetcloud/rsc-core">rsc-core</a><code>/ui</code>.</span>
+    <span>Change the package, not the guide: this site re-renders from the shipped styles.</span>
+  </footer>
+
+  <script src="ui/dist/ui.global.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>
