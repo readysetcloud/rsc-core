@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patterns · Ready, Set, Cloud Design System</title>
+  <meta name="description" content="Dark mode and the token auto-inversion rule, the responsive contract, and how each Ready, Set, Cloud surface consumes the design system.">
+  <link rel="icon" type="image/svg+xml" href="ui/assets/cloud-logo.svg">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="ui/styles/fonts.css">
+  <link rel="stylesheet" href="ui/styles/index.css">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="index.html">Overview</a>
+          <a class="app-nav-link" href="foundations.html">Foundations</a>
+          <a class="app-nav-link" href="components.html">Components</a>
+          <a class="app-nav-link app-nav-link-active" href="patterns.html">Patterns</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core" aria-label="rsc-core on GitHub">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme">
+            <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg>
+            <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Patterns</span>
+        <h1 class="page-hero-title">Rules of the road</h1>
+        <p class="page-hero-subtitle">
+          The conventions that keep every surface converged — theming, responsiveness,
+          and the right way to consume the system from each stack.
+        </p>
+      </div>
+    </header>
+
+    <ul class="ds-anchor-list">
+      <li><a href="#dark-mode">Dark mode &amp; token inversion</a></li>
+      <li><a href="#tokens">Using tokens</a></li>
+      <li><a href="#responsive">Responsive contract</a></li>
+      <li><a href="#consuming">Consuming the system</a></li>
+      <li><a href="#contributing">Contributing</a></li>
+    </ul>
+
+    <section class="ds-section" id="dark-mode">
+      <span class="ds-kicker">Theming</span>
+      <h2>Dark mode &amp; the token auto-inversion rule</h2>
+      <p class="ds-lede">
+        Dark mode is system-preference by default, with an explicit
+        <code>&lt;html data-theme="dark|light"&gt;</code> override — never a separate theming
+        mechanism. The interesting part is how the palette gets there: <strong>the token ramps
+        invert themselves</strong>. In dark mode <code>--success-100</code> resolves to a deep
+        teal and <code>--success-800</code> to a pale one, so a light-mode recipe like
+        "100 background, 800 text" is automatically correct on a dark ground.
+      </p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>See it live</h3>
+          <p>These pills use <em>single</em> token classes — no <code>dark:</code> anything. Toggle the theme (top right): they stay legible because the ramp flips underneath them.</p>
+        </div>
+        <div class="demo-preview">
+          <span class="status-badge status-badge-success" role="status"><span aria-hidden="true">✓</span> bg-success-100 · text-success-800</span>
+          <span class="status-badge status-badge-warning" role="status"><span aria-hidden="true">⚠</span> bg-warning-100 · text-warning-800</span>
+          <span class="status-badge status-badge-error" role="status"><span aria-hidden="true">✕</span> bg-error-100 · text-error-800</span>
+        </div>
+      </div>
+
+      <p class="ds-lede" style="margin-top: 1.25rem;">
+        The corollary is the most common mistake in app code: <strong>stacking Tailwind
+        <code>dark:</code> variants on token colors double-inverts</strong>. The token already
+        flipped; the <code>dark:</code> override flips it back (or somewhere worse) and washes
+        out contrast. This bit two dashboard components before it became a rule.
+      </p>
+
+      <div class="do-dont">
+        <div class="do">
+          <span class="do-dont-label">Do</span>
+          <pre><code>&lt;span class="bg-success-100 text-success-800"&gt;
+  Stable
+&lt;/span&gt;</code></pre>
+          <p>One token recipe. The ramp inversion makes it correct in both themes.</p>
+        </div>
+        <div class="dont">
+          <span class="do-dont-label">Don't</span>
+          <pre><code>&lt;span class="bg-success-100 text-success-800
+      dark:bg-success-900 dark:text-success-200"&gt;
+  Stable
+&lt;/span&gt;</code></pre>
+          <p>Double inversion. In dark mode this renders pale-on-pale and loses all contrast.</p>
+        </div>
+      </div>
+
+      <div class="ds-note">
+        If a component looks wrong in dark mode, the fix is choosing better token steps —
+        never adding <code>dark:</code>. And when adding a new color, ship both halves:
+        the 50–950 ramp <em>and</em> its dark inversion, in the same change.
+      </div>
+    </section>
+
+    <section class="ds-section" id="tokens">
+      <span class="ds-kicker">Color plumbing</span>
+      <h2>Using tokens</h2>
+      <p class="ds-lede">Tokens are RGB triplets, which keeps alpha compositing in the consumer's hands.</p>
+      <div class="ds-code"><pre><code>/* plain CSS */
+color: rgb(var(--primary-600));
+background: rgb(var(--primary-500) / 0.16);   /* alpha over any ground */
+
+/* Tailwind (preset maps the scales onto tokens) */
+&lt;div class="bg-primary-600 text-primary-50"&gt;
+
+/* the preset also aliases legacy names during migration:
+   blue→primary · green/teal→success · red/rose→error
+   orange/amber/yellow→warning · gray/slate→secondary */</code></pre></div>
+      <div class="ds-note">
+        Never hardcode a brand hex in an app. If you're typing <code>#219EFF</code> anywhere
+        outside <code>tokens.css</code>, stop and use the token.
+      </div>
+    </section>
+
+    <section class="ds-section" id="responsive">
+      <span class="ds-kicker">Small screens</span>
+      <h2>The responsive contract</h2>
+      <p class="ds-lede">Components ship mobile-ready. Apps must not override these down.</p>
+      <div class="ds-grid">
+        <div class="ds-link-card"><h3>44px touch targets</h3><p>Every interactive element hits at least 44×44px on phones — buttons, nav links, icon buttons.</p></div>
+        <div class="ds-link-card"><h3>≥16px mobile inputs</h3><p>Form text never drops below 16px on mobile, which stops iOS focus-zoom.</p></div>
+        <div class="ds-link-card"><h3>Sheets, not floats</h3><p>Modals become full-width bottom sheets ≤640px; toasts span the viewport width.</p></div>
+        <div class="ds-link-card"><h3>Safe areas</h3><p>Fixed chrome pads with <code>env(safe-area-inset-*)</code> for notched devices.</p></div>
+        <div class="ds-link-card"><h3>Fluid type &amp; spacing</h3><p>Heroes and containers use <code>clamp()</code> so layouts scale instead of snapping.</p></div>
+        <div class="ds-link-card"><h3>Focus visibility</h3><p>Keyboard focus is always visible (azure ring); mouse focus stays quiet.</p></div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="consuming">
+      <span class="ds-kicker">Integration</span>
+      <h2>Consuming the system</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>React apps</h3>
+          <p>Install from npm, import the stylesheet once, adopt the Tailwind preset, and import components. Auth (<code>@readysetcloud/ui/auth</code>) and chat (<code>@readysetcloud/ui/chat</code>) live on subpaths so you only pull what you use.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="tsx"><code>import '@readysetcloud/ui/styles.css';
+import { AppNav, StatTile, SegmentedControl } from '@readysetcloud/ui';
+import { AuthProvider, useAuth } from '@readysetcloud/ui/auth';</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Hugo / static sites</h3>
+          <p>Link the hosted stylesheet — or <code>tokens.css</code> alone to adopt the palette while keeping your own components.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="html"><code>&lt;link rel="stylesheet" href="https://&lt;assets-host&gt;/ui/latest/styles/index.css"&gt;
+&lt;!-- or variables only: --&gt;
+&lt;link rel="stylesheet" href="https://&lt;assets-host&gt;/ui/latest/styles/tokens.css"&gt;</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Vanilla JS</h3>
+          <p>Three script-tag globals cover what CSS can't: auth, the shared navbar, and drawing helpers. Everything else — stat tiles, pills, segmented controls, heroes — is just the shipped classes.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="html"><code>&lt;script src=".../ui/latest/auth.global.js"&gt;&lt;/script&gt; &lt;!-- window.rscAuth --&gt;
+&lt;script src=".../ui/latest/nav.global.js"&gt;&lt;/script&gt;  &lt;!-- window.rscNav --&gt;
+&lt;script src=".../ui/latest/ui.global.js"&gt;&lt;/script&gt;   &lt;!-- window.rscUi --&gt;
+&lt;script&gt;
+  rscAuth.configureAuth({ region: 'us-east-1', clientId: '…' });
+  rscNav.mountAppNav('#nav', { appName: 'Bootcamp' /* … */ });
+  rscUi.renderSparkline(document.querySelector('#trend'), [38, 42, 45, 48]);
+&lt;/script&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="contributing">
+      <span class="ds-kicker">Process</span>
+      <h2>Contributing</h2>
+      <p class="ds-lede">
+        The system only works if it stays the single source of truth. If an app needs a variant
+        that doesn't exist, add it to <code>rsc-core/ui</code> first — never fork a component
+        into an app.
+      </p>
+      <div class="ds-table-wrap">
+        <table class="ds-table">
+          <thead><tr><th>Checklist for changes</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Keep class names stable</td><td>Apps (and Hugo partials) depend on them directly.</td></tr>
+            <tr><td>Both light <em>and</em> dark values for new tokens</td><td>The auto-inversion contract only holds if every ramp defines both halves.</td></tr>
+            <tr><td>Ship the CSS class with the React component</td><td>React/CSS parity is what keeps vanilla surfaces pixel-identical.</td></tr>
+            <tr><td>Mobile-first (44px targets, ≥16px inputs)</td><td>The responsive contract is part of the component API.</td></tr>
+            <tr><td>Bump <code>version</code> in <code>ui/package.json</code></td><td>Deploy publishes hosted assets under the version; CI publishes to npm when it's new.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ds-note">
+        This guide deploys from <code>design-system/</code> on every push to <code>main</code>
+        that touches it or the ui package — the workflow rebuilds the package and republishes,
+        so docs and package can't drift.
+      </div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Design System — generated from <a href="https://github.com/readysetcloud/rsc-core">rsc-core</a><code>/ui</code>.</span>
+    <span>Change the package, not the guide: this site re-renders from the shipped styles.</span>
+  </footer>
+
+  <script src="ui/dist/ui.global.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ready, Set, Cloud Design System</title>
+  <meta name="description" content="The shared design system behind every Ready, Set, Cloud surface — tokens, components, and patterns, rendered from the @readysetcloud/ui package itself.">
+  <link rel="icon" type="image/svg+xml" href="ui/assets/cloud-logo.svg">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="ui/styles/fonts.css">
+  <link rel="stylesheet" href="ui/styles/index.css">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link app-nav-link-active" href="index.html">Overview</a>
+          <a class="app-nav-link" href="foundations.html">Foundations</a>
+          <a class="app-nav-link" href="components.html">Components</a>
+          <a class="app-nav-link" href="patterns.html">Patterns</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core" aria-label="rsc-core on GitHub">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme">
+            <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1h0v3h0zM12 20h0v3h0zM1 12h3v0h0zM20 12h3v0h0z" stroke="currentColor" stroke-width="2"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg>
+            <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">@readysetcloud/ui</span>
+        <h1 class="page-hero-title">One brand. Every surface.</h1>
+        <p class="page-hero-subtitle">
+          The design system behind Ready, Set, Cloud — a single npm package of tokens,
+          components, and auth that keeps the newsletter dashboard, the bootcamp platform,
+          and readysetcloud.io looking and behaving like one product.
+        </p>
+        <div class="page-hero-chips">
+          <span class="page-hero-chip page-hero-chip-primary">Token-driven</span>
+          <span class="page-hero-chip page-hero-chip-success">Light + dark for free</span>
+          <span class="page-hero-chip">React <em>and</em> plain CSS</span>
+          <span class="page-hero-chip">WCAG-minded</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="ds-note">
+      This guide is rendered with the package's <em>own</em> stylesheets and browser bundles —
+      the swatches, specimens, and demos below read live values straight from
+      <code>ui/styles</code>, so the guide can never drift from the shipped system.
+    </div>
+
+    <section class="ds-section">
+      <span class="ds-kicker">Philosophy</span>
+      <h2>Principles</h2>
+      <p class="ds-lede">Six rules keep three very different codebases converged on one brand.</p>
+      <div class="ds-grid">
+        <div class="ds-link-card">
+          <h3>One source of truth</h3>
+          <p>Brand, components, and auth live in <code>rsc-core/ui</code> and nowhere else. Never fork or copy — change it here, version it, consume it.</p>
+        </div>
+        <div class="ds-link-card">
+          <h3>Tokens, not hex</h3>
+          <p>No app hardcodes a brand color. Everything goes through <code>rgb(var(--primary-600))</code>, the Tailwind preset scales, or the shipped classes.</p>
+        </div>
+        <div class="ds-link-card">
+          <h3>Both themes for free</h3>
+          <p>The token ramps auto-invert in dark mode. Use a single token class and both themes are correct — never stack <code>dark:</code> overrides on token colors.</p>
+        </div>
+        <div class="ds-link-card">
+          <h3>Framework-optional</h3>
+          <p>Every component ships twice: a typed React component and the plain CSS class it renders. Hugo pages and vanilla JS get pixel-identical UI.</p>
+        </div>
+        <div class="ds-link-card">
+          <h3>Accessible by default</h3>
+          <p>44px touch targets, ≥16px mobile inputs, visible keyboard focus, aria wiring baked into components. Don't override these down.</p>
+        </div>
+        <div class="ds-link-card">
+          <h3>Typography with intent</h3>
+          <p>Sora for headings, Manrope for body, JetBrains Mono for data. Raleway is the wordmark face <em>only</em> — never UI text.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <span class="ds-kicker">Reach</span>
+      <h2>The surfaces</h2>
+      <p class="ds-lede">Every Ready, Set, Cloud property consumes this package — each in the way that fits its stack.</p>
+      <div class="ds-table-wrap">
+        <table class="ds-table">
+          <thead>
+            <tr><th>Surface</th><th>Stack</th><th>Consumes via</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Newsletter dashboard (Outboxed)</td><td>React SPA</td><td><code>npm i @readysetcloud/ui</code></td></tr>
+            <tr><td>Concurrency bootcamp platform</td><td>React SPA</td><td><code>npm i @readysetcloud/ui</code></td></tr>
+            <tr><td>Bootcamp course pages</td><td>Vanilla JS</td><td>hosted <code>auth.global.js</code> / <code>nav.global.js</code> / <code>ui.global.js</code></td></tr>
+            <tr><td>readysetcloud.io</td><td>Hugo</td><td>hosted <code>styles/*.css</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <span class="ds-kicker">Quick start</span>
+      <h2>Get started</h2>
+      <p class="ds-lede">React apps install from npm; everything else links the hosted assets published on every rsc-core deploy.</p>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>React apps</h3>
+          <p>Import the stylesheet once before app styles, and adopt the Tailwind preset so utility classes resolve to tokens.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="shell"><code>npm install @readysetcloud/ui</code></pre>
+<pre data-lang="tsx"><code>// main.tsx — ALWAYS import the stylesheet once, before app styles
+import '@readysetcloud/ui/styles.css';
+import '@readysetcloud/ui/fonts.css'; // if the app doesn't load brand fonts itself
+
+// tailwind.config.js
+module.exports = {
+  presets: [require('@readysetcloud/ui/tailwind-preset')],
+  content: [
+    './index.html',
+    './src/**/*.{ts,tsx}',
+    './node_modules/@readysetcloud/ui/dist/**/*.js' // REQUIRED
+  ]
+};</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Everything else</h3>
+          <p>Link the hosted assets. <code>ui/&lt;version&gt;/</code> paths are immutable; <code>ui/latest/</code> is a five-minute pointer.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="html"><code>&lt;link rel="stylesheet" href="https://&lt;assets-host&gt;/ui/latest/styles/index.css"&gt;
+&lt;script src="https://&lt;assets-host&gt;/ui/latest/auth.global.js"&gt;&lt;/script&gt;  &lt;!-- window.rscAuth --&gt;
+&lt;script src="https://&lt;assets-host&gt;/ui/latest/nav.global.js"&gt;&lt;/script&gt;   &lt;!-- window.rscNav --&gt;
+&lt;script src="https://&lt;assets-host&gt;/ui/latest/ui.global.js"&gt;&lt;/script&gt;    &lt;!-- window.rscUi --&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <span class="ds-kicker">Dive in</span>
+      <h2>Explore the system</h2>
+      <div class="ds-grid ds-grid-wide">
+        <a class="ds-link-card" href="foundations.html">
+          <h3>Foundations</h3>
+          <p>The azure palette and its ramps, the three-face type system, shape, and elevation — read live from the tokens.</p>
+          <span class="ds-card-arrow">Colors, type, shape →</span>
+        </a>
+        <a class="ds-link-card" href="components.html">
+          <h3>Components</h3>
+          <p>Live, theme-aware demos of every shipped component with side-by-side React and plain-HTML usage.</p>
+          <span class="ds-card-arrow">Buttons to stat tiles →</span>
+        </a>
+        <a class="ds-link-card" href="patterns.html">
+          <h3>Patterns</h3>
+          <p>Dark mode and the token auto-inversion rule, the responsive contract, and how each surface consumes the system.</p>
+          <span class="ds-card-arrow">Rules of the road →</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Design System — generated from <a href="https://github.com/readysetcloud/rsc-core">rsc-core</a><code>/ui</code>.</span>
+    <span>Change the package, not the guide: this site re-renders from the shipped styles.</span>
+  </footer>
+
+  <script src="ui/dist/ui.global.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

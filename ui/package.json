@@ -1,6 +1,6 @@
 {
   "name": "@readysetcloud/ui",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "Shared design tokens, UI components, and Cognito auth for Ready, Set, Cloud apps",
   "license": "MIT",
   "type": "module",
