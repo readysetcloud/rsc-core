@@ -1154,6 +1154,22 @@ Resources:
       TTL: 300
       Type: CNAME
 
+  # design.${RootDomainName} → the GitHub Pages design-system guide (built and
+  # deployed by .github/workflows/design-system-pages.yaml). Points at the org
+  # Pages apex; GitHub disambiguates by the custom domain set once in the
+  # repo's Pages settings (Settings → Pages → Custom domain =
+  # design.${RootDomainName}), which also provisions the HTTPS certificate.
+  DesignSiteDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: DeployCustomDomainSupport
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub design.${RootDomainName}
+      ResourceRecords:
+        - readysetcloud.github.io
+      TTL: 300
+      Type: CNAME
+
   # The api.${RootDomainName} custom domain already exists in API Gateway
   # (owned by another stack, along with its ACM cert and Route53 record), so we
   # do not create the domain, certificate, or DNS here. Instead we attach the
