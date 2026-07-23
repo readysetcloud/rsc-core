@@ -16,6 +16,15 @@ regenerate by hand.
 `site.css` / `site.js` style and wire the guide chrome only — never put brand
 values in them.
 
+## LLM version (`/llms.txt`)
+
+The build also publishes `ui/AGENTS.md` verbatim at `/llms.txt` and
+`/AGENTS.md` (plus a preface pointing at `ui/styles/tokens.css` and the
+gallery pages), so AI agents can be pointed at
+`https://design.readysetcloud.io/llms.txt` instead of the repo. There is no
+separate doc to maintain — keep `ui/AGENTS.md` current and the published copy
+follows on the next deploy.
+
 ## Local preview
 
 ```bash
