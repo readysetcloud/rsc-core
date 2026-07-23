@@ -93,6 +93,9 @@ out
 .nuxt
 dist
 
+# Assembled design-system guide (GitHub Pages artifact)
+dist-design-site
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
