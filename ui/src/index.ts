@@ -71,6 +71,30 @@ export {
   type RscServiceAccess,
   type RscServiceRegistry
 } from './services/registry';
+export { StatusBadge, type StatusBadgeProps, type StatusBadgeTone } from './components/StatusBadge';
+export { TrendPill, type TrendPillProps } from './components/TrendPill';
+export { TrendSparkline, type TrendSparklineProps } from './components/TrendSparkline';
+export {
+  sparklineGeometry,
+  renderSparkline,
+  type SparklineGeometry,
+  type SparklinePoint
+} from './components/sparkline';
+export {
+  SegmentedControl,
+  type SegmentedControlOption,
+  type SegmentedControlProps
+} from './components/SegmentedControl';
+export { StatTile, type StatTileProps, type StatTileStatus } from './components/StatTile';
+export {
+  PageHero,
+  PageHeroChip,
+  PageHeroChips,
+  PageHeroSubtitle,
+  PageHeroTitle,
+  type PageHeroChipProps,
+  type PageHeroChipTone
+} from './components/PageHero';
 export { BadgeChest, type BadgeChestProps } from './components/BadgeChest';
 export { createBadgeClient, type BadgeClient, type BadgeClientOptions } from './badges/client';
 export type {

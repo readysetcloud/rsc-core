@@ -23,6 +23,7 @@ Source lives in `rsc-core/ui`. **Never fork or copy this code into an app — ch
 4. **Respect the responsive contract.** Components ship with 44px touch targets, ≥16px mobile inputs, fluid type, and safe-area handling. Don't override these down.
 5. **Don't change the `rsc:auth` session contract** (`{idToken, refreshToken, expiresAt}` in localStorage under key `rsc:auth`). The vanilla course pages and the platform share sessions through it. Change it only deliberately, on both sides, in this package.
 6. **Dark mode** is system-preference by default with `<html data-theme="dark|light">` override. Never implement a separate theming mechanism.
+7. **Never stack `dark:` variants on token colors.** The token scales AUTO-INVERT in dark mode (`--success-100` flips dark, `--success-900` flips light), so a single token class (`bg-success-100 text-success-800`) is already correct in both themes. Adding a Tailwind `dark:` override on top double-inverts and washes out contrast. If a component looks wrong in dark mode, fix the token usage — don't add `dark:`.
 
 ## Install (React apps)
 
@@ -65,6 +66,12 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `Field` | `label`, `error`, `hint`, `children: (props) => ReactNode` | Render-prop for wiring custom controls. |
 | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardBody`, `CardFooter` | div props | Compound card. |
 | `Badge` | `variant: 'primary'\|'success'\|'warning'\|'error'\|'neutral'` | Status pill (uppercase mono). |
+| `StatusBadge` | `tone: 'success'\|'warning'\|'error'\|'primary'\|'neutral'`, `icon?` | Sentence-case health/state pill (icon + label, tone-100 bg / tone-800 text). Use for health readouts and threshold flags; use `Badge` for uppercase mono tags. |
+| `TrendPill` | `delta`, `invert?`, `precision?`, `suffix?` | Colored delta chip (`+6.3% ↗`). Color = is the change an improvement; pass `invert` when down is good (bounce, unsubscribes). Zero delta = neutral, no arrow. |
+| `TrendSparkline` | `values: number[]` | Decorative aria-hidden trend line with the last point emphasized. Renders null with <2 points. Vanilla: `renderSparkline(el, values)` (also on `window.rscUi`). |
+| `SegmentedControl` | `options: {value,label,disabled?}[]`, `value`, `onChange`, `aria-label` (required) | Compact multi-option toggle (`aria-pressed` buttons on a muted track). For comparison baselines, view switches, filter tabs. |
+| `StatTile` | `label`, `value`, `delta?`, `invertDelta?`, `status?: {tone,label}`, `meta?`, `icon?`, `sparkline?` | Dashboard metric tile: uppercase label, display-font value, delta `TrendPill`, threshold `StatusBadge`, caption, and footer sparkline. |
+| `PageHero` (+`PageHeroTitle`, `PageHeroSubtitle`, `PageHeroChips`, `PageHeroChip`) | chip: `tone: 'neutral'\|'primary'\|'success'\|'warning'\|'error'`, `icon?` | Gradient hero band that opens a page (surface→primary wash + blurred accent blob, drawn in CSS) with pill meta chips. |
 | `Alert` | `variant: 'error'\|'success'\|'info'` | `role="alert"` for errors. |
 | `Modal` | `open`, `onClose`, `aria-label` | Native `<dialog>`: Esc/backdrop close, focus trap free. Bottom sheet on ≤640px. |
 | `ToastProvider` / `useToast()` | `toast(message, { variant?, duration? })` | Mount provider once at app root. Errors default to 8s, others 5s. |
@@ -284,6 +291,7 @@ Published to the assets bucket on every rsc-core deploy:
 - `ui/<version>/` is immutable (1y cache); `ui/latest/` is a 5-minute pointer
 - `styles/tokens.css` alone = variables only (for a site keeping its own components but adopting the palette)
 - `auth.global.js` exposes the full core as `window.rscAuth` — same `rsc:auth` contract, so it shares sessions with npm-consuming SPAs on the same origin
+- `ui.global.js` exposes drawing helpers as `window.rscUi` (`renderSparkline(el, values)`); everything else in the analytics kit (stat tiles, trend pills, segmented controls, page heroes, status badges) is pure CSS — just use the shipped classes
 
 ## Migration playbooks
 

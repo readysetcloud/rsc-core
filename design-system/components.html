@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Components · Ready, Set, Cloud Design System</title>
+  <meta name="description" content="Live, theme-aware demos of every @readysetcloud/ui component with side-by-side React and plain-HTML usage.">
+  <link rel="icon" type="image/svg+xml" href="ui/assets/cloud-logo.svg">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="ui/styles/fonts.css">
+  <link rel="stylesheet" href="ui/styles/index.css">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="index.html">Overview</a>
+          <a class="app-nav-link" href="foundations.html">Foundations</a>
+          <a class="app-nav-link app-nav-link-active" href="components.html">Components</a>
+          <a class="app-nav-link" href="patterns.html">Patterns</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core" aria-label="rsc-core on GitHub">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme">
+            <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg>
+            <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Components</span>
+        <h1 class="page-hero-title">Built once, rendered everywhere</h1>
+        <p class="page-hero-subtitle">
+          Every component ships as a typed React export <em>and</em> the plain CSS class it
+          renders — so a Hugo partial and a React page produce pixel-identical UI.
+          Demos below are live and theme-aware; flip the theme toggle to check dark mode.
+        </p>
+        <div class="page-hero-chips">
+          <span class="page-hero-chip page-hero-chip-primary">React + CSS parity</span>
+          <span class="page-hero-chip">Stable class names</span>
+        </div>
+      </div>
+    </header>
+
+    <ul class="ds-anchor-list">
+      <li><a href="#buttons">Buttons</a></li>
+      <li><a href="#badges">Badges</a></li>
+      <li><a href="#analytics">Analytics kit</a></li>
+      <li><a href="#hero">Page hero</a></li>
+      <li><a href="#cards">Cards</a></li>
+      <li><a href="#forms">Forms</a></li>
+      <li><a href="#feedback">Feedback</a></li>
+      <li><a href="#loading">Loading</a></li>
+      <li><a href="#navigation">Navigation</a></li>
+    </ul>
+
+    <section class="ds-section" id="buttons">
+      <span class="ds-kicker">Actions</span>
+      <h2>Buttons</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Variants &amp; sizes</h3>
+          <p>One primary action per view. <code>ghost</code> for tertiary actions, semantic variants for their outcomes.</p>
+        </div>
+        <div class="demo-preview">
+          <button class="btn btn-primary" type="button">Primary</button>
+          <button class="btn btn-secondary" type="button">Secondary</button>
+          <button class="btn btn-success" type="button">Success</button>
+          <button class="btn btn-warning" type="button">Warning</button>
+          <button class="btn btn-error" type="button">Error</button>
+          <button class="btn btn-ghost" type="button">Ghost</button>
+          <button class="btn btn-primary btn-sm" type="button">Small</button>
+          <button class="btn btn-primary btn-lg" type="button">Large</button>
+          <button class="btn btn-primary" type="button" disabled>Disabled</button>
+          <button class="btn btn-primary" type="button" disabled><span class="spinner"></span> Saving…</button>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { Button } from '@readysetcloud/ui';
+
+&lt;Button variant="primary"&gt;Primary&lt;/Button&gt;
+&lt;Button variant="ghost" size="sm"&gt;Ghost&lt;/Button&gt;
+&lt;Button loading loadingLabel="Saving…"&gt;Save&lt;/Button&gt;</code></pre>
+<pre data-lang="html"><code>&lt;button class="btn btn-primary"&gt;Primary&lt;/button&gt;
+&lt;button class="btn btn-ghost btn-sm"&gt;Ghost&lt;/button&gt;
+&lt;button class="btn btn-primary" disabled&gt;
+  &lt;span class="spinner"&gt;&lt;/span&gt; Saving…
+&lt;/button&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="badges">
+      <span class="ds-kicker">Status</span>
+      <h2>Badges &amp; status</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Badge</h3>
+          <p>The uppercase mono tag — for categorical labels like tiers, environments, and content types.</p>
+        </div>
+        <div class="demo-preview">
+          <span class="badge badge-primary">Primary</span>
+          <span class="badge badge-success">Success</span>
+          <span class="badge badge-warning">Warning</span>
+          <span class="badge badge-error">Error</span>
+          <span class="badge badge-neutral">Neutral</span>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { Badge } from '@readysetcloud/ui';
+
+&lt;Badge variant="success"&gt;Success&lt;/Badge&gt;</code></pre>
+<pre data-lang="html"><code>&lt;span class="badge badge-success"&gt;Success&lt;/span&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>StatusBadge</h3>
+          <p>The sentence-case health pill — for state readouts and threshold flags. One tone class is correct in both themes; the ramps invert for you.</p>
+        </div>
+        <div class="demo-preview">
+          <span class="status-badge status-badge-success" role="status"><span aria-hidden="true">✓</span> Stable</span>
+          <span class="status-badge status-badge-warning" role="status"><span aria-hidden="true">⚠</span> High</span>
+          <span class="status-badge status-badge-error" role="status"><span aria-hidden="true">✕</span> Critical</span>
+          <span class="status-badge status-badge-primary" role="status">Scheduled</span>
+          <span class="status-badge status-badge-neutral" role="status">Draft</span>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { StatusBadge } from '@readysetcloud/ui';
+
+&lt;StatusBadge tone="success" icon="✓"&gt;Stable&lt;/StatusBadge&gt;
+&lt;StatusBadge tone="warning" icon="⚠"&gt;High&lt;/StatusBadge&gt;</code></pre>
+<pre data-lang="html"><code>&lt;span class="status-badge status-badge-success" role="status"&gt;
+  &lt;span aria-hidden="true"&gt;✓&lt;/span&gt; Stable
+&lt;/span&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="analytics">
+      <span class="ds-kicker">Data display</span>
+      <h2>Analytics kit</h2>
+      <p class="ds-lede">
+        The shared language of the dashboards: metric tiles with delta pills, threshold badges,
+        and trend sparklines, plus the segmented control that switches their baseline.
+      </p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>TrendPill</h3>
+          <p>Color encodes <em>improvement</em>, not direction — pass <code>invert</code> for metrics where down is good (bounce, unsubscribes). Zero deltas render neutral with no arrow.</p>
+        </div>
+        <div class="demo-preview">
+          <span class="trend-pill trend-pill-positive"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10.5 8 5.5 13 10.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>+6.3%</span>
+          <span class="trend-pill trend-pill-negative"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5.5 8 10.5 13 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>-2.1%</span>
+          <span class="trend-pill trend-pill-positive"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5.5 8 10.5 13 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>-0.4% <span style="opacity:.7">(bounce ↓ = good)</span></span>
+          <span class="trend-pill trend-pill-neutral">No change</span>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { TrendPill } from '@readysetcloud/ui';
+
+&lt;TrendPill delta={6.3} /&gt;            // improvement → success colors
+&lt;TrendPill delta={-2.1} /&gt;           // decline → error colors
+&lt;TrendPill delta={-0.4} invert /&gt;    // bounce rate fell → improvement
+&lt;TrendPill delta={0} /&gt;              // neutral, no arrow</code></pre>
+<pre data-lang="html"><code>&lt;span class="trend-pill trend-pill-positive"&gt;
+  &lt;svg viewBox="0 0 16 16" aria-hidden="true"&gt;
+    &lt;path d="M3 10.5 8 5.5 13 10.5" fill="none"
+          stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/&gt;
+  &lt;/svg&gt;
+  +6.3%
+&lt;/span&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>SegmentedControl</h3>
+          <p>Compact multi-option toggle for comparison baselines, view switches, and filter tabs. State is exposed via <code>aria-pressed</code>. Try it — this one is live.</p>
+        </div>
+        <div class="demo-preview">
+          <span style="font-size: 0.75rem; color: rgb(var(--muted-foreground));">Compare to</span>
+          <div class="segmented-control" role="group" aria-label="Comparison baseline">
+            <button class="segmented-control-option" type="button" aria-pressed="true">Average</button>
+            <button class="segmented-control-option" type="button" aria-pressed="false">Last issue</button>
+            <button class="segmented-control-option" type="button" aria-pressed="false">Best issue</button>
+          </div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { SegmentedControl } from '@readysetcloud/ui';
+
+&lt;SegmentedControl
+  aria-label="Comparison baseline"
+  options={[
+    { value: 'average', label: 'Average' },
+    { value: 'last', label: 'Last issue' },
+    { value: 'best', label: 'Best issue' }
+  ]}
+  value={mode}
+  onChange={setMode}
+/&gt;</code></pre>
+<pre data-lang="html"><code>&lt;div class="segmented-control" role="group" aria-label="Comparison baseline"&gt;
+  &lt;button class="segmented-control-option" aria-pressed="true"&gt;Average&lt;/button&gt;
+  &lt;button class="segmented-control-option" aria-pressed="false"&gt;Last issue&lt;/button&gt;
+  &lt;button class="segmented-control-option" aria-pressed="false"&gt;Best issue&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>StatTile + TrendSparkline</h3>
+          <p>The dashboard metric tile: uppercase label, display-font value, delta pill, threshold badge, caption, and a decorative sparkline with the latest point emphasized. Sparklines are aria-hidden — the numbers carry the meaning.</p>
+        </div>
+        <div class="demo-preview demo-preview-plain" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); align-items: stretch;">
+          <div class="stat-tile">
+            <div class="stat-tile-header">
+              <div>
+                <div class="stat-tile-label">Open Rate</div>
+                <div class="stat-tile-row">
+                  <span class="stat-tile-value">48.0%</span>
+                  <span class="trend-pill trend-pill-positive"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10.5 8 5.5 13 10.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>+6.3%</span>
+                </div>
+              </div>
+            </div>
+            <div class="stat-tile-meta">1,234 opens · vs. avg</div>
+            <div class="stat-tile-footer"><div data-sparkline="[38, 42, 40, 45, 43, 48]"></div></div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile-header">
+              <div>
+                <div class="stat-tile-label">Bounce Rate</div>
+                <div class="stat-tile-row">
+                  <span class="stat-tile-value">6.2%</span>
+                  <span class="status-badge status-badge-warning" role="status"><span aria-hidden="true">⚠</span> High</span>
+                </div>
+              </div>
+            </div>
+            <div class="stat-tile-meta">67 bounced · vs. avg</div>
+            <div class="stat-tile-footer"><div data-sparkline="[3.1, 3.4, 4.2, 4.0, 5.1, 6.2]"></div></div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile-header">
+              <div>
+                <div class="stat-tile-label">Subscribers</div>
+                <div class="stat-tile-row"><span class="stat-tile-value">2,568</span></div>
+              </div>
+              <span class="stat-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            </div>
+            <div class="stat-tile-meta">+41 this week</div>
+            <div class="stat-tile-footer"><div data-sparkline="[2381, 2402, 2445, 2489, 2527, 2568]"></div></div>
+          </div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { StatTile } from '@readysetcloud/ui';
+
+&lt;StatTile
+  label="Open Rate"
+  value="48.0%"
+  delta={6.3}
+  meta="1,234 opens · vs. avg"
+  sparkline={[38, 42, 40, 45, 43, 48]}
+/&gt;
+
+&lt;StatTile
+  label="Bounce Rate"
+  value="6.2%"
+  delta={-0.4}
+  invertDelta               // falling bounce = improvement
+  status={{ tone: 'warning', label: 'High' }}
+  meta="67 bounced · vs. avg"
+  sparkline={[3.1, 3.4, 4.2, 4.0, 5.1, 6.2]}
+/&gt;</code></pre>
+<pre data-lang="html"><code>&lt;div class="stat-tile"&gt;
+  &lt;div class="stat-tile-header"&gt;
+    &lt;div&gt;
+      &lt;div class="stat-tile-label"&gt;Open Rate&lt;/div&gt;
+      &lt;div class="stat-tile-row"&gt;
+        &lt;span class="stat-tile-value"&gt;48.0%&lt;/span&gt;
+        &lt;span class="trend-pill trend-pill-positive"&gt;+6.3%&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="stat-tile-meta"&gt;1,234 opens · vs. avg&lt;/div&gt;
+  &lt;div class="stat-tile-footer"&gt;&lt;div id="opens-trend"&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;script&gt;
+  // window.rscUi from ui.global.js
+  rscUi.renderSparkline(
+    document.getElementById('opens-trend'),
+    [38, 42, 40, 45, 43, 48]
+  );
+&lt;/script&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="hero">
+      <span class="ds-kicker">Layout</span>
+      <h2>Page hero</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>PageHero</h3>
+          <p>The gradient band that opens a page: surface-to-primary wash, blurred accent blob (drawn in CSS — no extra markup), display-font title, and pill meta chips.</p>
+        </div>
+        <div class="demo-preview demo-preview-stack demo-preview-plain">
+          <header class="page-hero">
+            <div class="page-hero-content">
+              <h1 class="page-hero-title" style="font-size: 1.5rem;">Serverless Picks of the Week #204</h1>
+              <p class="page-hero-subtitle">Sent to your loyal readers, tracked end to end.</p>
+              <div class="page-hero-chips">
+                <span class="page-hero-chip">Issue #204</span>
+                <span class="page-hero-chip">Created Jul 18</span>
+                <span class="page-hero-chip page-hero-chip-success">Sent Jul 21</span>
+                <span class="page-hero-chip">2,568 recipients</span>
+              </div>
+            </div>
+          </header>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import {
+  PageHero, PageHeroTitle, PageHeroSubtitle, PageHeroChips, PageHeroChip
+} from '@readysetcloud/ui';
+
+&lt;PageHero&gt;
+  &lt;PageHeroTitle&gt;Serverless Picks of the Week #204&lt;/PageHeroTitle&gt;
+  &lt;PageHeroSubtitle&gt;Sent to your loyal readers, tracked end to end.&lt;/PageHeroSubtitle&gt;
+  &lt;PageHeroChips&gt;
+    &lt;PageHeroChip&gt;Issue #204&lt;/PageHeroChip&gt;
+    &lt;PageHeroChip tone="success"&gt;Sent Jul 21&lt;/PageHeroChip&gt;
+  &lt;/PageHeroChips&gt;
+&lt;/PageHero&gt;</code></pre>
+<pre data-lang="html"><code>&lt;header class="page-hero"&gt;
+  &lt;div class="page-hero-content"&gt;
+    &lt;h1 class="page-hero-title"&gt;Serverless Picks of the Week #204&lt;/h1&gt;
+    &lt;p class="page-hero-subtitle"&gt;Sent to your loyal readers.&lt;/p&gt;
+    &lt;div class="page-hero-chips"&gt;
+      &lt;span class="page-hero-chip"&gt;Issue #204&lt;/span&gt;
+      &lt;span class="page-hero-chip page-hero-chip-success"&gt;Sent Jul 21&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/header&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="cards">
+      <span class="ds-kicker">Layout</span>
+      <h2>Cards</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Card</h3>
+          <p>The compound container behind most content: header, title, description, body, footer.</p>
+        </div>
+        <div class="demo-preview demo-preview-stack demo-preview-plain">
+          <div class="card" style="max-width: 26rem;">
+            <div class="card-header">
+              <h3 class="card-title">Sending health</h3>
+              <p class="card-description">Deliverability signals for the last 10 issues.</p>
+            </div>
+            <div class="card-body">Bounce, complaint, and unsubscribe rates are all inside their thresholds.</div>
+            <div class="card-footer"><button class="btn btn-ghost btn-sm" type="button">View details</button></div>
+          </div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { Card, CardHeader, CardTitle, CardDescription, CardBody, CardFooter } from '@readysetcloud/ui';
+
+&lt;Card&gt;
+  &lt;CardHeader&gt;
+    &lt;CardTitle&gt;Sending health&lt;/CardTitle&gt;
+    &lt;CardDescription&gt;Deliverability signals.&lt;/CardDescription&gt;
+  &lt;/CardHeader&gt;
+  &lt;CardBody&gt;…&lt;/CardBody&gt;
+  &lt;CardFooter&gt;…&lt;/CardFooter&gt;
+&lt;/Card&gt;</code></pre>
+<pre data-lang="html"><code>&lt;div class="card"&gt;
+  &lt;div class="card-header"&gt;
+    &lt;h3 class="card-title"&gt;Sending health&lt;/h3&gt;
+    &lt;p class="card-description"&gt;Deliverability signals.&lt;/p&gt;
+  &lt;/div&gt;
+  &lt;div class="card-body"&gt;…&lt;/div&gt;
+  &lt;div class="card-footer"&gt;…&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="forms">
+      <span class="ds-kicker">Input</span>
+      <h2>Forms</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Fields</h3>
+          <p>Label/aria wiring is automatic in React. Inputs hold ≥16px text on mobile (no iOS zoom) and show the azure focus ring.</p>
+        </div>
+        <div class="demo-preview demo-preview-plain" style="align-items: flex-start;">
+          <div class="field" style="min-width: 16rem;">
+            <label class="field-label" for="ds-email">Email address</label>
+            <input class="input" id="ds-email" type="email" placeholder="you@readysetcloud.io">
+            <span class="field-hint">We'll never share it.</span>
+          </div>
+          <div class="field" style="min-width: 16rem;">
+            <label class="field-label" for="ds-name">Newsletter name</label>
+            <input class="input input-error" id="ds-name" value="">
+            <span class="field-error" role="alert">A name is required.</span>
+          </div>
+          <div class="field" style="min-width: 12rem;">
+            <label class="field-label" for="ds-tier">Tier</label>
+            <select class="input" id="ds-tier"><option>Free</option><option>Creator</option><option>Pro</option></select>
+          </div>
+          <div class="field" style="min-width: 10rem;">
+            <label class="field-label" for="ds-code">Verification code</label>
+            <input class="input input-code" id="ds-code" inputmode="numeric" maxlength="6" placeholder="••••••">
+          </div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { Input, Select, CodeInput } from '@readysetcloud/ui';
+
+&lt;Input label="Email address" type="email" hint="We'll never share it." /&gt;
+&lt;Input label="Newsletter name" error="A name is required." /&gt;
+&lt;Select label="Tier"&gt;&lt;option&gt;Free&lt;/option&gt;&lt;/Select&gt;
+&lt;CodeInput label="Verification code" /&gt;</code></pre>
+<pre data-lang="html"><code>&lt;div class="field"&gt;
+  &lt;label class="field-label" for="email"&gt;Email address&lt;/label&gt;
+  &lt;input class="input" id="email" type="email"&gt;
+  &lt;span class="field-hint"&gt;We'll never share it.&lt;/span&gt;
+&lt;/div&gt;
+
+&lt;input class="input input-error"&gt;
+&lt;span class="field-error" role="alert"&gt;A name is required.&lt;/span&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="feedback">
+      <span class="ds-kicker">Feedback</span>
+      <h2>Alerts, toasts &amp; modals</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Alert</h3>
+          <p>Inline outcome messaging. Error alerts get <code>role="alert"</code>.</p>
+        </div>
+        <div class="demo-preview demo-preview-stack demo-preview-plain">
+          <div class="alert alert-success">Issue #204 scheduled for Monday 9:00 AM.</div>
+          <div class="alert alert-info">Your sender domain is pending DNS verification.</div>
+          <div class="alert alert-error" role="alert">We couldn't reach SendGrid. Try again in a minute.</div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { Alert } from '@readysetcloud/ui';
+
+&lt;Alert variant="success"&gt;Issue #204 scheduled.&lt;/Alert&gt;
+&lt;Alert variant="error"&gt;We couldn't reach SendGrid.&lt;/Alert&gt;</code></pre>
+<pre data-lang="html"><code>&lt;div class="alert alert-success"&gt;Issue #204 scheduled.&lt;/div&gt;
+&lt;div class="alert alert-error" role="alert"&gt;We couldn't reach SendGrid.&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Toast</h3>
+          <p>Transient confirmations, bottom-right (full-width on phones). Mount <code>ToastProvider</code> once; errors linger 8s, others 5s.</p>
+        </div>
+        <div class="demo-preview demo-preview-plain" style="align-items: flex-start;">
+          <div class="toast toast-success" style="position: static;">Subscriber imported.</div>
+          <div class="toast toast-error" style="position: static;">Import failed — bad CSV header.</div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { ToastProvider, useToast } from '@readysetcloud/ui';
+
+const { toast } = useToast();
+toast('Subscriber imported.', { variant: 'success' });</code></pre>
+<pre data-lang="html"><code>&lt;div class="toast-viewport"&gt;
+  &lt;div class="toast toast-success"&gt;Subscriber imported.&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Modal</h3>
+          <p>Native <code>&lt;dialog&gt;</code> — Esc/backdrop close and focus trapping for free. Becomes a bottom sheet on small screens.</p>
+        </div>
+        <div class="demo-preview">
+          <button class="btn btn-primary" type="button" data-open-modal="ds-demo-modal">Open modal</button>
+          <dialog class="modal" id="ds-demo-modal" aria-label="Delete issue">
+            <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+              <h3 class="card-title">Delete issue #204?</h3>
+              <p style="margin: 0; font-size: 0.875rem; color: rgb(var(--muted-foreground));">This can't be undone. Subscribers who already received it are unaffected.</p>
+              <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <form method="dialog"><button class="btn btn-secondary" type="submit">Cancel</button></form>
+                <form method="dialog"><button class="btn btn-error" type="submit">Delete</button></form>
+              </div>
+            </div>
+          </dialog>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { Modal } from '@readysetcloud/ui';
+
+&lt;Modal open={open} onClose={() =&gt; setOpen(false)} aria-label="Delete issue"&gt;
+  …
+&lt;/Modal&gt;</code></pre>
+<pre data-lang="html"><code>&lt;dialog class="modal" id="confirm" aria-label="Delete issue"&gt;…&lt;/dialog&gt;
+&lt;script&gt;document.getElementById('confirm').showModal();&lt;/script&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="loading">
+      <span class="ds-kicker">Waiting</span>
+      <h2>Loading &amp; empty states</h2>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Spinner, skeleton, progress</h3>
+          <p>Use the composed loading states from the package instead of app-local loaders.</p>
+        </div>
+        <div class="demo-preview demo-preview-plain" style="align-items: flex-start; gap: 2rem;">
+          <div class="inline-loading"><span class="spinner"></span> <span class="loading-state-text">Sending…</span></div>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 12rem;">
+            <div class="skeleton" style="width: 100%; height: 1rem;"></div>
+            <div class="skeleton" style="width: 75%; height: 1rem;"></div>
+            <div class="skeleton" style="width: 50%; height: 1rem;"></div>
+          </div>
+          <div class="progress-indicator">
+            <div class="progress-step" data-status="completed"><span class="progress-step-icon"></span><span class="progress-step-copy"><span class="progress-step-label">Domain added</span></span></div>
+            <div class="progress-step" data-status="in-progress"><span class="progress-step-icon"></span><span class="progress-step-copy"><span class="progress-step-label">DNS propagating</span></span></div>
+            <div class="progress-step" data-status="pending"><span class="progress-step-icon"></span><span class="progress-step-copy"><span class="progress-step-label">Send test email</span></span></div>
+          </div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { InlineLoading, Skeleton, ProgressIndicator } from '@readysetcloud/ui';
+
+&lt;InlineLoading isLoading loadingText="Sending…" /&gt;
+&lt;Skeleton width="75%" /&gt;
+&lt;ProgressIndicator steps={[
+  { id: 'domain', label: 'Domain added', status: 'completed' },
+  { id: 'dns', label: 'DNS propagating', status: 'in-progress' },
+  { id: 'test', label: 'Send test email', status: 'pending' }
+]} /&gt;</code></pre>
+<pre data-lang="html"><code>&lt;span class="spinner"&gt;&lt;/span&gt;
+&lt;div class="skeleton" style="width: 75%; height: 1rem;"&gt;&lt;/div&gt;
+&lt;div class="progress-step" data-status="completed"&gt;…&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>EmptyState</h3>
+        </div>
+        <div class="demo-preview demo-preview-stack demo-preview-plain">
+          <div class="card">
+            <div class="empty-state">
+              <span style="font-size: 2rem;" aria-hidden="true">📭</span>
+              <span class="empty-state-title">No issues yet</span>
+              <span>Write your first issue and it will show up here.</span>
+              <button class="btn btn-primary btn-sm" type="button">New issue</button>
+            </div>
+          </div>
+        </div>
+        <div class="demo-code">
+<pre data-lang="react"><code>import { EmptyState, Button } from '@readysetcloud/ui';
+
+&lt;EmptyState
+  title="No issues yet"
+  description="Write your first issue and it will show up here."
+  icon="📭"
+  action={&lt;Button size="sm"&gt;New issue&lt;/Button&gt;}
+/&gt;</code></pre>
+<pre data-lang="html"><code>&lt;div class="empty-state"&gt;
+  &lt;span class="empty-state-title"&gt;No issues yet&lt;/span&gt;
+  &lt;span&gt;Write your first issue and it will show up here.&lt;/span&gt;
+&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="navigation">
+      <span class="ds-kicker">Chrome</span>
+      <h2>App navigation</h2>
+      <p class="ds-lede">
+        The navbar at the top of this page <em>is</em> the shared <code>AppNav</code> markup —
+        branded cloud mark, Raleway app name, theme toggle. React apps get the typed component
+        (with the 9-box launcher, auth controls, and a <code>layout="side"</code> rail);
+        vanilla pages mount the same thing via <code>window.rscNav</code>. The
+        <code>BadgeChest</code> gamification chest ships here too. See
+        <a href="https://github.com/readysetcloud/rsc-core/blob/main/ui/AGENTS.md">AGENTS.md</a>
+        for the full navbar and badge API.
+      </p>
+      <div class="demo">
+        <div class="demo-code">
+<pre data-lang="react"><code>import { AppNav, readySetCloudServices } from '@readysetcloud/ui';
+
+&lt;AppNav
+  appName="Outboxed"
+  currentServiceId="outboxed"
+  authState={signedIn ? 'authenticated' : 'anonymous'}
+  navItems={[{ id: 'dashboard', label: 'Dashboard', href: '/dashboard', active: true }]}
+  services={readySetCloudServices}
+/&gt;</code></pre>
+<pre data-lang="html"><code>&lt;script src="https://&lt;assets-host&gt;/ui/latest/nav.global.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  rscNav.mountAppNav(document.getElementById('nav'), { appName: 'Bootcamp', … });
+&lt;/script&gt;</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Design System — generated from <a href="https://github.com/readysetcloud/rsc-core">rsc-core</a><code>/ui</code>.</span>
+    <span>Change the package, not the guide: this site re-renders from the shipped styles.</span>
+  </footer>
+
+  <script src="ui/dist/ui.global.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

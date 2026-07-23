@@ -1,6 +1,16 @@
 import pluginJs from "@eslint/js";
+import globals from "globals";
 
 export default [
+  {
+    // Design-system guide scripts run in the browser
+    files: ['design-system/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: globals.browser
+    }
+  },
   {
     files: ['**/*.mjs'],
     languageOptions: {

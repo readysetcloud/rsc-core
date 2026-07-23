@@ -46,6 +46,16 @@ The configured deployment parameters above will be accessible by using the follo
 * Cognito User Pool Client ID - `{{resolve:ssm:/readysetcloud/auth/user-pool-client-id}}`
 * Core API URL - `{{resolve:ssm:/readysetcloud/api-url}}` (prod: `https://api.readysetcloud.io/core`)
 
+## Design system — `ui/`
+
+The shared Ready, Set, Cloud design system (`@readysetcloud/ui`) lives in
+[`ui/`](ui/): tokens, React components, framework-agnostic CSS classes, and
+hosted browser bundles. The full guide — palette, typography, live component
+demos, and theming rules — is published to GitHub Pages from
+[`design-system/`](design-system/) on every push to `main` that touches it or
+`ui/`, so the guide always reflects the shipped package. API details for
+consumers are in [`ui/AGENTS.md`](ui/AGENTS.md).
+
 ## Badge Chest — cross-app gamification
 
 The badge chest is a single, ecosystem-wide trophy case. Because every app
