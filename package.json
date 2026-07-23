@@ -17,13 +17,13 @@
   },
   "homepage": "https://github.com/readysetcloud/rsc-core#readme",
   "devDependencies": {
-    "@aws-sdk/client-amplify": "^3.1091.0",
+    "@aws-sdk/client-amplify": "^3.1094.0",
     "@aws-sdk/client-dynamodb": "^3.1086.0",
     "@aws-sdk/client-eventbridge": "^3.1086.0",
-    "@aws-sdk/client-lambda": "^3.1091.0",
-    "@aws-sdk/client-s3": "^3.1091.0",
-    "@aws-sdk/client-ssm": "^3.1091.0",
-    "@aws-sdk/credential-providers": "^3.1091.0",
+    "@aws-sdk/client-lambda": "^3.1094.0",
+    "@aws-sdk/client-s3": "^3.1094.0",
+    "@aws-sdk/client-ssm": "^3.1094.0",
+    "@aws-sdk/credential-providers": "^3.1094.0",
     "@aws-sdk/util-dynamodb": "^3.996.7",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.7.0",
@@ -37,6 +37,6 @@
     "@readysetcloud/agent": "file:agent",
     "@sendgrid/mail": "^8.1.6",
     "octokit": "^5.0.5",
-    "openai": "^6.48.0"
+    "openai": "^6.49.0"
   }
 }
