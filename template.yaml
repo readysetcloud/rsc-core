@@ -381,6 +381,94 @@ Resources:
                 - Send Email
 
   # ----------------------------------------------------------------------------
+  # Deferred events — "publish this event later" as a bus primitive.
+  #
+  # An app emits "Schedule Event" with a when and the event it wants fired, and
+  # ScheduleEventFunction creates a one-time, self-deleting EventBridge Scheduler
+  # schedule that publishes it at that moment. Callers need only events:PutEvents
+  # — no Scheduler client, no IAM role of their own, no time-zone math. See the
+  # handler and the README for the contract.
+  # ----------------------------------------------------------------------------
+
+  # Schedules live in their own group so the pending set is one console/CLI
+  # listing, separate from any schedule another stack creates.
+  DeferredEventScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+
+  # Assumed by Scheduler when a schedule fires. Scoped to the single action every
+  # deferred event performs, so a schedule can never do more than the PutEvents
+  # its requester could already have done directly.
+  DeferredEventSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: PublishDeferredEvent
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+
+  ScheduleEventFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - schedule-event.mjs
+    Properties:
+      Handler: schedule-event.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          SCHEDULE_GROUP: !Ref DeferredEventScheduleGroup
+          SCHEDULER_ROLE_ARN: !GetAtt DeferredEventSchedulerRole.Arn
+          EVENT_BUS_ARN: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - scheduler:CreateSchedule
+                - scheduler:UpdateSchedule
+                - scheduler:DeleteSchedule
+              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${DeferredEventScheduleGroup}/*
+            # Handing the role above to Scheduler is what lets the schedule
+            # publish; the condition keeps it usable for nothing else.
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt DeferredEventSchedulerRole.Arn
+              Condition:
+                StringEquals:
+                  iam:PassedToService: scheduler.amazonaws.com
+            # The whenPast=send path publishes directly instead of scheduling a
+            # moment that has already gone by.
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        ScheduleRequest:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Schedule Event
+                - Cancel Scheduled Event
+
+  # ----------------------------------------------------------------------------
   # Badge Chest — cross-app gamification (badges, points, levels)
   #
   # Apps emit "Track Activity" events to the default bus (or POST them to the

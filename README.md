@@ -56,6 +56,61 @@ demos, and theming rules — is published to GitHub Pages from
 `ui/`, so the guide always reflects the shipped package. API details for
 consumers are in [`ui/AGENTS.md`](ui/AGENTS.md).
 
+## Deferred events — publish an event later
+
+Anything that can `events:PutEvents` on the default bus can also schedule an
+event for a future moment. Emit a `Schedule Event` request and
+`ScheduleEventFunction` creates a one-time, self-deleting EventBridge Scheduler
+schedule that publishes your event at that time. Callers need no Scheduler
+client, no IAM role of their own, and no time-zone math — a GitHub workflow, a
+Lambda, or a CLI one-liner all use the same PutEvents they already have.
+
+```json
+{
+  "Source": "<your-app>",
+  "DetailType": "Schedule Event",
+  "Detail": {
+    "at": "2026-07-27T09:00:00",       // when — ISO instant, or wall time + timezone
+    "timezone": "America/Chicago",     // optional, default UTC (ignored if `at` has an offset)
+    "delay": "15m",                    // alternative to `at` — 90s, 15m, 2h, 3d, 1h30m
+    "name": "newsletter-rebuild-220",  // optional idempotency key
+    "whenPast": "send",                // send (default) | skip | error
+    "event": {                         // what to publish when the moment arrives
+      "source": "<defaults to this request's source>",
+      "detailType": "Trigger Site Rebuild",
+      "detail": { "issueNumber": 220 }
+    }
+  }
+}
+```
+
+* **`at` vs `delay`** — one is required. `at` takes an absolute instant
+  (`2026-07-27T14:00:00Z`, or with a `±HH:MM` offset), a wall-clock time
+  interpreted in `timezone`, or a bare date, which means the start of that day
+  in `timezone`. DST is handled from the zone's rules for the target date.
+* **`name`** — re-emitting with the same name *moves* the pending schedule
+  instead of failing, so a re-run of your workflow is safe. Without one, every
+  request is its own schedule. Names are sanitized to Scheduler's
+  `[0-9a-zA-Z-_.]`, 64 characters.
+* **`whenPast`** — a moment that has already gone by defaults to publishing
+  immediately (the point is usually that the work happens, not that it waits).
+  `skip` drops it quietly; `error` logs and drops it.
+* **Cancel** — emit `Cancel Scheduled Event` with `{ "name": "..." }` to remove
+  a pending schedule. Cancelling one that already fired is a no-op.
+
+Malformed requests are logged and dropped rather than retried for 24 hours, so
+check the function's logs if a schedule you expected never appeared. Pending
+schedules are listed under the stack's `DeferredEventScheduleGroup`:
+
+```bash
+aws scheduler list-schedules --group-name <group-name>
+```
+
+Scheduling grants no authority beyond a delay — the schedule performs the same
+`PutEvents` on the same account-internal bus that the requester had to reach to
+get here, and the role Scheduler assumes can do nothing else. Scheduling a
+`Schedule Event` is rejected, since that only ever produces a loop.
+
 ## Badge Chest — cross-app gamification
 
 The badge chest is a single, ecosystem-wide trophy case. Because every app
