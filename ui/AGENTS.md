@@ -74,6 +74,7 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `PageHero` (+`PageHeroTitle`, `PageHeroSubtitle`, `PageHeroChips`, `PageHeroChip`) | chip: `tone: 'neutral'\|'primary'\|'success'\|'warning'\|'error'`, `icon?` | Gradient hero band that opens a page (surface→primary wash + blurred accent blob, drawn in CSS) with pill meta chips. |
 | `Alert` | `variant: 'error'\|'success'\|'info'` | `role="alert"` for errors. |
 | `Modal` | `open`, `onClose`, `aria-label` | Native `<dialog>`: Esc/backdrop close, focus trap free. Bottom sheet on ≤640px. |
+| `Drawer` | `tabLabel` (required), `side: 'left'\|'right'\|'top'\|'bottom'`, `align: 'start'\|'center'\|'end'`, `tabTone: 'primary'\|'neutral'`, `tabIcon`, `size`, `open`/`defaultOpen`/`onOpenChange`, `modal`, `title`, `hideTab` | Edge panel with an always-visible tab that rides with it. Uncontrolled unless `open` is passed. Esc closes (page-wide when `modal`, which also dims and locks scroll); focus moves into the panel on open and back to the tab on close. Children render in a scrollable body. |
 | `ToastProvider` / `useToast()` | `toast(message, { variant?, duration? })` | Mount provider once at app root. Errors default to 8s, others 5s. |
 | `Spinner` | span props | Inherits `currentColor`. |
 | `Skeleton` | `width`, `height` | Shimmer placeholder. |
@@ -140,6 +141,39 @@ Default `readySetCloudServices` manifest:
 | `outboxed` | Outboxed | `https://newsletter.readysetcloud.io` |
 | `bootcamp` | Bootcamp | `https://bootcamp.readysetcloud.io` |
 | `olivias-garden-foundation` | Olivia's Garden Foundation | `https://oliviasgarden.org` |
+
+## Drawer
+
+Edge-docked panel for secondary surfaces an app wants within reach but not in
+the way — filters, activity feeds, help, debug tools. The tab is part of the
+component: it stays on screen when the panel is parked, and the two slide
+together.
+
+```tsx
+import { Drawer } from '@readysetcloud/ui';
+
+<Drawer side="right" tabLabel="Filters" tabIcon="⚙" title="Filters">
+  <FilterForm />
+</Drawer>
+```
+
+- **Side and placement.** `side` docks it to any edge; `align` (`start`,
+  `center`, `end`) slides the tab along that edge so several drawers can share
+  one side without colliding. `size` is the panel's width (left/right) or
+  height (top/bottom) — it clamps to the viewport so the tab is never pushed
+  off screen.
+- **State.** Uncontrolled by default (`defaultOpen`). Pass `open` +
+  `onOpenChange` to drive it from app state — e.g. to close it on route
+  change, or to open it from a toolbar button with `hideTab`.
+- **`modal`.** Adds a scrim, locks body scroll, keeps Tab inside the drawer,
+  and lets Esc close from anywhere. Without it the drawer is a peer of the
+  page: Tab walks out normally and Esc only closes while focus is inside, so
+  it can't swallow an app's own Esc handling.
+- **Contents.** Children render inside `.drawer-body` (padded, scrollable).
+  `title` adds the header and close button; skip it for a bare panel.
+- **Plain HTML.** Same classes, no React: `.drawer[data-side][data-align]` with
+  `.drawer-tab` + `.drawer-panel` inside; toggle `data-state="open|closed"` and
+  the tab's `aria-expanded`.
 
 ## Badges / gamification — `import { BadgeChest, createBadgeClient } from '@readysetcloud/ui'`
 

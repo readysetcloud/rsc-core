@@ -166,6 +166,30 @@
   background: rgb(var(--background));
 }
 
+/* The real drawer is fixed to the viewport; the demo pins it to a bounded
+   stage instead so it can't cover the guide. Containment only — no brand
+   values live here. */
+.ds-drawer-stage {
+  position: relative;
+  overflow: hidden;
+  height: 16rem;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgb(var(--border));
+  border-radius: var(--radius-lg);
+  background: rgb(var(--surface));
+}
+
+.ds-drawer-stage .drawer {
+  position: absolute;
+}
+
+.ds-drawer-stage-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: rgb(var(--muted-foreground));
+}
+
 /* ---------- code ---------- */
 
 .demo-code {

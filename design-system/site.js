@@ -135,6 +135,29 @@ for (const opener of document.querySelectorAll('[data-open-modal]')) {
   });
 }
 
+// Drawer demo: the tab toggles the panel, the segmented control re-docks it.
+// The React component does exactly this — data-state plus aria-expanded.
+for (const stage of document.querySelectorAll('.ds-drawer-stage')) {
+  const drawer = stage.querySelector('.drawer');
+  const tab = drawer?.querySelector('.drawer-tab');
+  const panel = drawer?.querySelector('.drawer-panel');
+  if (!drawer || !tab || !panel) continue;
+
+  const setOpen = open => {
+    drawer.dataset.state = open ? 'open' : 'closed';
+    tab.setAttribute('aria-expanded', String(open));
+    panel.toggleAttribute('inert', !open);
+  };
+
+  tab.addEventListener('click', () => setOpen(drawer.dataset.state !== 'open'));
+  drawer.querySelector('.drawer-close')?.addEventListener('click', () => setOpen(false));
+
+  stage.closest('.demo-preview')?.querySelector('[data-drawer-sides]')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-side]');
+    if (btn) drawer.dataset.side = btn.dataset.side;
+  });
+}
+
 /* ---------- code tabs + copy ---------- */
 
 for (const block of document.querySelectorAll('.demo-code')) {
