@@ -21,6 +21,24 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
   'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Ref-counted so two modal drawers can't strand the page: whoever locks last
+// would otherwise "restore" the hidden value the first one set.
+let scrollLocks = 0;
+let overflowBeforeLock = '';
+
+function lockBodyScroll() {
+  if (scrollLocks === 0) {
+    overflowBeforeLock = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  scrollLocks += 1;
+
+  return () => {
+    scrollLocks -= 1;
+    if (scrollLocks === 0) document.body.style.overflow = overflowBeforeLock;
+  };
+}
+
 export interface DrawerProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title' | 'children'> {
   /** Drawer contents. Rendered inside the scrollable body. */
   children: ReactNode;
@@ -101,6 +119,14 @@ export function Drawer({
     [isControlled, onOpenChange]
   );
 
+  // Set inert imperatively rather than as a prop: React 19 wants inert={true}
+  // but React 18 (still in peerDependencies) silently drops a boolean on a
+  // non-boolean attribute, which would leave a closed panel in the tab order.
+  // Must run before the focus effect below — focus can't enter an inert tree.
+  useEffect(() => {
+    panelRef.current?.toggleAttribute('inert', !isOpen);
+  }, [isOpen]);
+
   // Move focus into the panel when it opens, and hand it back to the tab when
   // it closes — but only if focus was still inside, so a programmatic close
   // never yanks the caret out of whatever the user is typing in.
@@ -132,11 +158,7 @@ export function Drawer({
 
   useEffect(() => {
     if (!modal || !isOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
+    return lockBodyScroll();
   }, [modal, isOpen]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -173,10 +195,6 @@ export function Drawer({
       }
     }
   };
-
-  // Spread rather than pass `inert={false}` — React 18 renders the attribute
-  // for any value, and `inert="false"` still disables the subtree.
-  const inertWhenClosed = isOpen ? {} : { inert: true };
 
   const content = (
     <>
@@ -229,7 +247,6 @@ export function Drawer({
           aria-hidden={!isOpen || undefined}
           aria-label={ariaLabel ?? (typeof title === 'string' ? title : undefined)}
           tabIndex={-1}
-          {...inertWhenClosed}
         >
           {title !== undefined && (
             <div className="drawer-header">

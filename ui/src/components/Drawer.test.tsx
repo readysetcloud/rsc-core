@@ -104,6 +104,34 @@ describe('Drawer', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
+  it('keeps the scroll lock ref-counted across two modal drawers', () => {
+    function Two() {
+      const [a, setA] = useState(false);
+      const [b, setB] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setA(!a)}>toggle A</button>
+          <button type="button" onClick={() => setB(!b)}>toggle B</button>
+          <Drawer tabLabel="A" modal open={a} onOpenChange={setA}>A body</Drawer>
+          <Drawer tabLabel="B" modal open={b} onOpenChange={setB}>B body</Drawer>
+        </>
+      );
+    }
+    render(<Two />);
+
+    fireEvent.click(screen.getByText('toggle A'));
+    fireEvent.click(screen.getByText('toggle B'));
+    expect(document.body.style.overflow).toBe('hidden');
+
+    // one closing must not unlock the page while the other is still open...
+    fireEvent.click(screen.getByText('toggle A'));
+    expect(document.body.style.overflow).toBe('hidden');
+
+    // ...and the last one out restores the page, not the locked value
+    fireEvent.click(screen.getByText('toggle B'));
+    expect(document.body.style.overflow).toBe('');
+  });
+
   it('closes a modal drawer on Escape from anywhere on the page', () => {
     function Harness() {
       const [open, setOpen] = useState(true);
