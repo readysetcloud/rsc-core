@@ -25,6 +25,19 @@ export { Badge, type BadgeProps, type BadgeVariant } from './components/Badge';
 export { Alert, type AlertProps, type AlertVariant } from './components/Alert';
 export { Modal, type ModalProps } from './components/Modal';
 export {
+  Drawer,
+  type DrawerAlign,
+  type DrawerProps,
+  type DrawerSide,
+  type DrawerTabTone,
+  type DrawerTitleTag
+} from './components/Drawer';
+export {
+  enhanceDrawer,
+  enhanceDrawers,
+  type DrawerController
+} from './components/drawer-dom';
+export {
   AppNav,
   type AppNavAction,
   type AppNavAuthState,

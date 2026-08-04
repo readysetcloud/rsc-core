@@ -135,6 +135,20 @@ for (const opener of document.querySelectorAll('[data-open-modal]')) {
   });
 }
 
+// Drawer demo: behavior comes from the shipped helper (window.rscUi), same as
+// any vanilla consumer gets — the guide only wires the side switcher.
+window.rscUi?.enhanceDrawers();
+
+for (const stage of document.querySelectorAll('.ds-drawer-stage')) {
+  const drawer = stage.querySelector('.drawer');
+  if (!drawer) continue;
+
+  stage.closest('.demo-preview')?.querySelector('[data-drawer-sides]')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-side]');
+    if (btn) drawer.dataset.side = btn.dataset.side;
+  });
+}
+
 /* ---------- code tabs + copy ---------- */
 
 for (const block of document.querySelectorAll('.demo-code')) {

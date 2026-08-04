@@ -131,7 +131,7 @@ public read comes from the `PublicReadUiAssets` bucket policy statement.
 import {
   Button, Input, PasswordInput, CodeInput, TextArea, Select,
   Card, CardHeader, CardTitle, CardBody, CardFooter,
-  Badge, Alert, Modal, AppNav, ToastProvider, useToast,
+  Badge, Alert, Modal, Drawer, AppNav, ToastProvider, useToast,
   Spinner, Skeleton, EmptyState, Container
 } from '@readysetcloud/ui';
 ```

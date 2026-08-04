@@ -338,6 +338,339 @@
 .toast-warning { border-left: 3px solid rgb(var(--warning-500)); }
 .toast-info { border-left: 3px solid rgb(var(--primary-500)); }
 
+/* ---------- drawer ----------
+   Tab + panel slide as one unit: the wrapper is translated by the panel's
+   extent, which parks the panel off-screen and leaves the tab peeking out.
+   `data-side` picks the edge, `data-align` the tab's spot along it, and
+   `data-state` opens/closes. Sizing flows through --rsc-drawer-size.
+
+   Every root rule is qualified with [data-side]: `.drawer` is a name other
+   libraries take too (DaisyUI ships one), and the attribute both keeps our
+   styles off their elements and outranks a bare `.drawer` rule on ours. */
+
+.drawer[data-side] {
+  --rsc-drawer-size: 22rem;
+  --rsc-drawer-offset: 1.5rem;
+  position: fixed;
+  z-index: 89;
+  display: flex;
+  /* The wrapper is a transparent shell — the tab and panel do the painting.
+     Stated explicitly so a foreign `.drawer` rule can't paint or pad it. */
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  /* The wrapper spans the whole edge; only the tab and panel take clicks. */
+  pointer-events: none;
+}
+
+.drawer[data-side] > * {
+  pointer-events: auto;
+}
+
+/* No global border-box reset ships in base.css — the panel's own parts opt in
+   so the 1px border can't push the panel past its extent (and leave a sliver
+   on screen when closed). */
+.drawer-panel,
+.drawer-tab,
+.drawer-header,
+.drawer-body,
+.drawer-close {
+  box-sizing: border-box;
+}
+
+.drawer[data-align='start'] { align-items: flex-start; }
+.drawer[data-align='center'] { align-items: center; }
+.drawer[data-align='end'] { align-items: flex-end; }
+
+/* Extent = requested size, clamped so the tab always stays reachable. */
+.drawer[data-side='left'],
+.drawer[data-side='right'] {
+  --rsc-drawer-extent: min(var(--rsc-drawer-size), calc(100vw - 4rem));
+}
+
+.drawer[data-side='top'],
+.drawer[data-side='bottom'] {
+  --rsc-drawer-extent: min(var(--rsc-drawer-size), calc(100dvh - 4rem));
+}
+
+/* Tab comes first in the DOM (keyboard hits the toggle before the contents);
+   the row/column direction puts it on the outward side of the panel. */
+.drawer[data-side='left'] { inset: 0 auto 0 0; flex-direction: row-reverse; }
+.drawer[data-side='right'] { inset: 0 0 0 auto; flex-direction: row; }
+.drawer[data-side='top'] { inset: 0 0 auto 0; flex-direction: column-reverse; }
+.drawer[data-side='bottom'] { inset: auto 0 0 0; flex-direction: column; }
+
+.drawer[data-state='closed'][data-side='left'] { transform: translateX(calc(-1 * var(--rsc-drawer-extent))); }
+.drawer[data-state='closed'][data-side='right'] { transform: translateX(var(--rsc-drawer-extent)); }
+.drawer[data-state='closed'][data-side='top'] { transform: translateY(calc(-1 * var(--rsc-drawer-extent))); }
+.drawer[data-state='closed'][data-side='bottom'] { transform: translateY(var(--rsc-drawer-extent)); }
+
+/* The scrim sits between a modal drawer and everything else — including any
+   other drawer, whose tab would otherwise stay live over the dimmed page. */
+.drawer-modal {
+  z-index: 91;
+}
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgb(2 6 23 / 0.55);
+  backdrop-filter: blur(2px);
+  animation: rsc-drawer-scrim-in 0.18s ease-out;
+}
+
+@keyframes rsc-drawer-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drawer-panel {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 0 solid rgb(var(--border));
+  background: rgb(var(--surface));
+  color: rgb(var(--foreground));
+  box-shadow: var(--shadow-large);
+  transition: box-shadow 0.24s ease;
+}
+
+/* Parked off-screen, the panel's shadow would still smear along the edge. */
+.drawer[data-state='closed'] .drawer-panel {
+  box-shadow: none;
+}
+
+.drawer-panel:focus-visible {
+  outline: none;
+}
+
+.drawer[data-side='left'] .drawer-panel,
+.drawer[data-side='right'] .drawer-panel {
+  width: var(--rsc-drawer-extent);
+}
+
+.drawer[data-side='top'] .drawer-panel,
+.drawer[data-side='bottom'] .drawer-panel {
+  height: var(--rsc-drawer-extent);
+}
+
+/* Only the inward-facing edge is on screen — border and radius live there. */
+.drawer[data-side='left'] .drawer-panel {
+  border-right-width: 1px;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+
+.drawer[data-side='right'] .drawer-panel {
+  border-left-width: 1px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.drawer[data-side='top'] .drawer-panel {
+  border-bottom-width: 1px;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.drawer[data-side='bottom'] .drawer-panel {
+  border-top-width: 1px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.drawer-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid rgb(var(--border));
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-medium);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.drawer-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--ring));
+}
+
+.drawer-tab-primary {
+  background: rgb(var(--primary-600));
+  border-color: rgb(var(--primary-600));
+  color: #fff;
+}
+
+.drawer-tab-primary:hover {
+  background: rgb(var(--primary-700));
+  border-color: rgb(var(--primary-700));
+}
+
+.drawer-tab-neutral {
+  background: rgb(var(--surface));
+  color: rgb(var(--foreground));
+}
+
+.drawer-tab-neutral:hover {
+  background: rgb(var(--muted));
+}
+
+/* Tab rounds its outward corners and drops the seam against the panel. */
+.drawer[data-side='left'] .drawer-tab {
+  border-left: 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+
+.drawer[data-side='right'] .drawer-tab {
+  border-right: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.drawer[data-side='top'] .drawer-tab {
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.drawer[data-side='bottom'] .drawer-tab {
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* Side tabs read like a bookmark: top-to-bottom on the right edge,
+   bottom-to-top on the left. */
+.drawer[data-side='left'] .drawer-tab,
+.drawer[data-side='right'] .drawer-tab {
+  flex-direction: column;
+  padding: 0.875rem 0.625rem;
+}
+
+.drawer[data-side='left'] .drawer-tab-label,
+.drawer[data-side='right'] .drawer-tab-label {
+  writing-mode: vertical-rl;
+}
+
+.drawer[data-side='left'] .drawer-tab-label {
+  transform: rotate(180deg);
+}
+
+.drawer[data-side='left'][data-align='start'] .drawer-tab,
+.drawer[data-side='right'][data-align='start'] .drawer-tab { margin-top: var(--rsc-drawer-offset); }
+
+.drawer[data-side='left'][data-align='end'] .drawer-tab,
+.drawer[data-side='right'][data-align='end'] .drawer-tab { margin-bottom: var(--rsc-drawer-offset); }
+
+.drawer[data-side='top'][data-align='start'] .drawer-tab,
+.drawer[data-side='bottom'][data-align='start'] .drawer-tab { margin-left: var(--rsc-drawer-offset); }
+
+.drawer[data-side='top'][data-align='end'] .drawer-tab,
+.drawer[data-side='bottom'][data-align='end'] .drawer-tab { margin-right: var(--rsc-drawer-offset); }
+
+.drawer-tab-icon {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+/* Chevron points the way the panel will travel on the next click. */
+.drawer-tab-chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  opacity: 0.85;
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.drawer[data-side='left'] .drawer-tab-chevron,
+.drawer[data-side='right'][data-state='open'] .drawer-tab-chevron { transform: rotate(180deg); }
+
+.drawer[data-side='left'][data-state='open'] .drawer-tab-chevron,
+.drawer[data-side='right'] .drawer-tab-chevron { transform: none; }
+
+.drawer[data-side='top'] .drawer-tab-chevron,
+.drawer[data-side='bottom'][data-state='open'] .drawer-tab-chevron { transform: rotate(-90deg); }
+
+.drawer[data-side='top'][data-state='open'] .drawer-tab-chevron,
+.drawer[data-side='bottom'] .drawer-tab-chevron { transform: rotate(90deg); }
+
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgb(var(--border));
+}
+
+.drawer-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgb(var(--foreground));
+}
+
+.drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  margin: -0.25rem -0.375rem -0.25rem 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.drawer-close:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+
+.drawer-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--ring));
+}
+
+.drawer-close svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem;
+  font-size: 0.875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer-tab-chevron {
+    transition: none;
+  }
+
+  .drawer-scrim {
+    animation: none;
+  }
+}
+
 /* ---------- empty state ---------- */
 
 .empty-state {
