@@ -200,6 +200,33 @@ describe('Drawer', () => {
     expect(root().dataset.state).toBe('closed');
   });
 
+  it('names an icon-only tab from the panel label', () => {
+    render(
+      <Drawer tabIcon="⚙" title="Filters">
+        Panel contents
+      </Drawer>
+    );
+
+    expect(screen.getByRole('button', { name: 'Filters' })).toBeDefined();
+    expect(document.querySelector('.drawer-tab-label')).toBeNull();
+  });
+
+  it('falls back to a generic tab name when there is nothing to borrow', () => {
+    render(<Drawer tabIcon="⚙">Panel contents</Drawer>);
+    expect(screen.getByRole('button', { name: /toggle drawer/i })).toBeDefined();
+  });
+
+  it('takes a heading level for the title and a class for the body', () => {
+    render(
+      <Drawer tabLabel="Filters" title="Filters" titleAs="h4" bodyClassName="p-0" defaultOpen>
+        Panel contents
+      </Drawer>
+    );
+
+    expect(screen.getByRole('heading', { level: 4, name: 'Filters' })).toBeDefined();
+    expect(document.querySelector('.drawer-body')?.className).toBe('drawer-body p-0');
+  });
+
   it('can hide the tab for app-driven drawers', () => {
     render(
       <Drawer tabLabel="Filters" hideTab open>

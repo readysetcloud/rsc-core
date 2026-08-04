@@ -542,7 +542,7 @@ toast('Subscriber imported.', { variant: 'success' });</code></pre>
               </button>
               <div class="drawer-panel" id="ds-demo-drawer" role="dialog" aria-label="Filters" tabindex="-1" inert>
                 <div class="drawer-header">
-                  <h2 class="drawer-title">Filters</h2>
+                  <h4 class="drawer-title">Filters</h4>
                   <button class="drawer-close" type="button" aria-label="Close drawer">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                   </button>
@@ -568,11 +568,15 @@ toast('Subscriber imported.', { variant: 'success' });</code></pre>
   &lt;button class="drawer-tab drawer-tab-primary" aria-expanded="false" aria-controls="filters"&gt;
     &lt;span class="drawer-tab-label"&gt;Filters&lt;/span&gt;
   &lt;/button&gt;
-  &lt;div class="drawer-panel" id="filters" role="dialog" aria-label="Filters" inert&gt;
+  &lt;div class="drawer-panel" id="filters" role="dialog" aria-label="Filters" tabindex="-1"&gt;
     &lt;div class="drawer-body"&gt;…&lt;/div&gt;
   &lt;/div&gt;
 &lt;/div&gt;
-&lt;script&gt;/* toggle data-state + aria-expanded on tab click */&lt;/script&gt;</code></pre>
+&lt;script&gt;
+  // window.rscUi from ui.global.js — toggle, Esc, scrim, scroll lock, inert.
+  // Add data-modal to the .drawer to dim the page behind it.
+  rscUi.enhanceDrawers();
+&lt;/script&gt;</code></pre>
         </div>
       </div>
     </section>

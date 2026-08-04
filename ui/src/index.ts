@@ -29,8 +29,14 @@ export {
   type DrawerAlign,
   type DrawerProps,
   type DrawerSide,
-  type DrawerTabTone
+  type DrawerTabTone,
+  type DrawerTitleTag
 } from './components/Drawer';
+export {
+  enhanceDrawer,
+  enhanceDrawers,
+  type DrawerController
+} from './components/drawer-dom';
 export {
   AppNav,
   type AppNavAction,

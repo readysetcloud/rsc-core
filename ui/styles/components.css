@@ -342,20 +342,30 @@
    Tab + panel slide as one unit: the wrapper is translated by the panel's
    extent, which parks the panel off-screen and leaves the tab peeking out.
    `data-side` picks the edge, `data-align` the tab's spot along it, and
-   `data-state` opens/closes. Sizing flows through --rsc-drawer-size. */
+   `data-state` opens/closes. Sizing flows through --rsc-drawer-size.
 
-.drawer {
+   Every root rule is qualified with [data-side]: `.drawer` is a name other
+   libraries take too (DaisyUI ships one), and the attribute both keeps our
+   styles off their elements and outranks a bare `.drawer` rule on ours. */
+
+.drawer[data-side] {
   --rsc-drawer-size: 22rem;
   --rsc-drawer-offset: 1.5rem;
   position: fixed;
   z-index: 89;
   display: flex;
+  /* The wrapper is a transparent shell — the tab and panel do the painting.
+     Stated explicitly so a foreign `.drawer` rule can't paint or pad it. */
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
   transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
   /* The wrapper spans the whole edge; only the tab and panel take clicks. */
   pointer-events: none;
 }
 
-.drawer > * {
+.drawer[data-side] > * {
   pointer-events: auto;
 }
 

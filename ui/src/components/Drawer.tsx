@@ -11,33 +11,13 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { cx } from './cx';
+import { lockBodyScroll, setDrawerPanelInert, trapDrawerTab } from './drawer-core';
 
 export type DrawerSide = 'left' | 'right' | 'top' | 'bottom';
 /** Where the tab sits along the edge it is docked to. */
 export type DrawerAlign = 'start' | 'center' | 'end';
 export type DrawerTabTone = 'primary' | 'neutral';
-
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
-  'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-// Ref-counted so two modal drawers can't strand the page: whoever locks last
-// would otherwise "restore" the hidden value the first one set.
-let scrollLocks = 0;
-let overflowBeforeLock = '';
-
-function lockBodyScroll() {
-  if (scrollLocks === 0) {
-    overflowBeforeLock = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-  }
-  scrollLocks += 1;
-
-  return () => {
-    scrollLocks -= 1;
-    if (scrollLocks === 0) document.body.style.overflow = overflowBeforeLock;
-  };
-}
+export type DrawerTitleTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
 export interface DrawerProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title' | 'children'> {
   /** Drawer contents. Rendered inside the scrollable body. */
@@ -46,8 +26,12 @@ export interface DrawerProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title
   side?: DrawerSide;
   /** Tab position along that edge (default `center`). */
   align?: DrawerAlign;
-  /** Tab text. Reads bottom-to-top on the left edge, top-to-bottom on the right. */
-  tabLabel: ReactNode;
+  /**
+   * Tab text. Reads bottom-to-top on the left edge, top-to-bottom on the
+   * right. Optional: omit it for an icon-only tab (which then takes its
+   * accessible name from `aria-label` or a string `title`), or with `hideTab`.
+   */
+  tabLabel?: ReactNode;
   /** Optional glyph rendered before the tab label. */
   tabIcon?: ReactNode;
   tabTone?: DrawerTabTone;
@@ -64,8 +48,15 @@ export interface DrawerProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title
   modal?: boolean;
   /** Renders a header with the title and a close button. */
   title?: ReactNode;
+  /** Heading level for `title` — match the page's outline (default `h2`). */
+  titleAs?: DrawerTitleTag;
   /** Class for the sliding panel (the root gets `className`). */
   panelClassName?: string;
+  /**
+   * Class for the scrollable body. Use it to drop the default padding, or to
+   * set `overflow: visible` when the contents host a popover and don't scroll.
+   */
+  bodyClassName?: string;
   tabClassName?: string;
   /** Accessible name for the panel. Falls back to a string `title`. */
   'aria-label'?: string;
@@ -93,8 +84,10 @@ export function Drawer({
   onOpenChange,
   modal = false,
   title,
+  titleAs: TitleTag = 'h2',
   className,
   panelClassName,
+  bodyClassName,
   tabClassName,
   'aria-label': ariaLabel,
   onKeyDown,
@@ -119,12 +112,9 @@ export function Drawer({
     [isControlled, onOpenChange]
   );
 
-  // Set inert imperatively rather than as a prop: React 19 wants inert={true}
-  // but React 18 (still in peerDependencies) silently drops a boolean on a
-  // non-boolean attribute, which would leave a closed panel in the tab order.
   // Must run before the focus effect below — focus can't enter an inert tree.
   useEffect(() => {
-    panelRef.current?.toggleAttribute('inert', !isOpen);
+    setDrawerPanelInert(panelRef.current, !isOpen);
   }, [isOpen]);
 
   // Move focus into the panel when it opens, and hand it back to the tab when
@@ -175,26 +165,11 @@ export function Drawer({
     // button counts — it's how you close). Non-modal drawers are part of the
     // page and let Tab walk straight out.
     if (event.key === 'Tab' && modal && isOpen) {
-      const stops = [...(rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [])];
-      if (!stops.length) {
-        event.preventDefault();
-        panelRef.current?.focus();
-        return;
-      }
-      const first = stops[0];
-      const last = stops.at(-1);
-      if (!first || !last) return;
-
-      const active = document.activeElement;
-      if (event.shiftKey && (active === first || active === panelRef.current)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      trapDrawerTab(rootRef.current, panelRef.current, event);
     }
   };
+
+  const panelLabel = ariaLabel ?? (typeof title === 'string' ? title : undefined);
 
   const content = (
     <>
@@ -218,6 +193,8 @@ export function Drawer({
             className={cx('drawer-tab', `drawer-tab-${tabTone}`, tabClassName)}
             aria-expanded={isOpen}
             aria-controls={panelId}
+            // An icon-only tab has no text to name it — borrow the panel's.
+            aria-label={tabLabel === undefined ? panelLabel ?? 'Toggle drawer' : undefined}
             onClick={() => setOpen(!isOpen)}
           >
             {tabIcon && (
@@ -225,7 +202,7 @@ export function Drawer({
                 {tabIcon}
               </span>
             )}
-            <span className="drawer-tab-label">{tabLabel}</span>
+            {tabLabel !== undefined && <span className="drawer-tab-label">{tabLabel}</span>}
             <svg className="drawer-tab-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path
                 d="M15 5l-7 7 7 7"
@@ -245,12 +222,12 @@ export function Drawer({
           role="dialog"
           aria-modal={modal || undefined}
           aria-hidden={!isOpen || undefined}
-          aria-label={ariaLabel ?? (typeof title === 'string' ? title : undefined)}
+          aria-label={panelLabel}
           tabIndex={-1}
         >
           {title !== undefined && (
             <div className="drawer-header">
-              <h2 className="drawer-title">{title}</h2>
+              <TitleTag className="drawer-title">{title}</TitleTag>
               <button
                 type="button"
                 className="drawer-close"
@@ -269,7 +246,7 @@ export function Drawer({
               </button>
             </div>
           )}
-          <div className="drawer-body">{children}</div>
+          <div className={cx('drawer-body', bodyClassName)}>{children}</div>
         </div>
       </div>
     </>

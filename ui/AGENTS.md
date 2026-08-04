@@ -74,7 +74,7 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `PageHero` (+`PageHeroTitle`, `PageHeroSubtitle`, `PageHeroChips`, `PageHeroChip`) | chip: `tone: 'neutral'\|'primary'\|'success'\|'warning'\|'error'`, `icon?` | Gradient hero band that opens a page (surface→primary wash + blurred accent blob, drawn in CSS) with pill meta chips. |
 | `Alert` | `variant: 'error'\|'success'\|'info'` | `role="alert"` for errors. |
 | `Modal` | `open`, `onClose`, `aria-label` | Native `<dialog>`: Esc/backdrop close, focus trap free. Bottom sheet on ≤640px. |
-| `Drawer` | `tabLabel` (required), `side: 'left'\|'right'\|'top'\|'bottom'`, `align: 'start'\|'center'\|'end'`, `tabTone: 'primary'\|'neutral'`, `tabIcon`, `size`, `open`/`defaultOpen`/`onOpenChange`, `modal`, `title`, `hideTab` | Edge panel with an always-visible tab that rides with it. Uncontrolled unless `open` is passed. Esc closes (page-wide when `modal`, which also dims and locks scroll); focus moves into the panel on open and back to the tab on close. Children render in a scrollable body. |
+| `Drawer` | `side: 'left'\|'right'\|'top'\|'bottom'`, `align: 'start'\|'center'\|'end'`, `tabLabel`, `tabIcon`, `tabTone: 'primary'\|'neutral'`, `size`, `open`/`defaultOpen`/`onOpenChange`, `modal`, `title`, `titleAs`, `hideTab`, `panelClassName`/`bodyClassName`/`tabClassName` | Edge panel with an always-visible tab that rides with it. Uncontrolled unless `open` is passed. Esc closes (page-wide when `modal`, which also dims, locks scroll, and keeps Tab inside); focus moves into the panel on open and back to the tab on close. Children render in a scrollable body. Vanilla equivalent: `enhanceDrawers()`. |
 | `ToastProvider` / `useToast()` | `toast(message, { variant?, duration? })` | Mount provider once at app root. Errors default to 8s, others 5s. |
 | `Spinner` | span props | Inherits `currentColor`. |
 | `Skeleton` | `width`, `height` | Shimmer placeholder. |
@@ -169,11 +169,38 @@ import { Drawer } from '@readysetcloud/ui';
   and lets Esc close from anywhere. Without it the drawer is a peer of the
   page: Tab walks out normally and Esc only closes while focus is inside, so
   it can't swallow an app's own Esc handling.
-- **Contents.** Children render inside `.drawer-body` (padded, scrollable).
-  `title` adds the header and close button; skip it for a bare panel.
-- **Plain HTML.** Same classes, no React: `.drawer[data-side][data-align]` with
-  `.drawer-tab` + `.drawer-panel` inside; toggle `data-state="open|closed"` and
-  the tab's `aria-expanded`.
+- **Contents.** Children render inside `.drawer-body`, which is padded and
+  scrollable. Because it scrolls, a popover or dropdown rendered in it gets
+  clipped — portal those to the body, or pass `bodyClassName` to drop the
+  padding / set `overflow: visible` when the contents don't scroll.
+- **Tab and title.** `tabLabel` is optional: omit it with `tabIcon` for an
+  icon-only tab (it takes its name from `aria-label` or a string `title`), or
+  with `hideTab` when a toolbar button drives `open`. `title` adds the header
+  and close button; `titleAs` sets its heading level to match the page outline
+  (default `h2`).
+- **Plain HTML.** Same classes, no React — write the markup and call the
+  shipped helper for the behavior:
+
+  ```html
+  <div class="drawer" data-side="right" data-align="center" data-state="closed">
+    <button class="drawer-tab drawer-tab-primary" aria-expanded="false" aria-controls="filters">
+      <span class="drawer-tab-label">Filters</span>
+    </button>
+    <div class="drawer-panel" id="filters" role="dialog" aria-label="Filters" tabindex="-1">
+      <div class="drawer-body">…</div>
+    </div>
+  </div>
+  <script>rscUi.enhanceDrawers();</script>   <!-- ui.global.js -->
+  ```
+
+  `enhanceDrawers(root?)` wires every `.drawer[data-side]` under `root` and
+  returns controllers (`open`, `close`, `toggle`, `isOpen`, `destroy`); it's
+  idempotent, so call it again after injecting markup. Add `data-modal` for
+  the scrim, scroll lock, and Tab containment. The same export is available
+  to React apps that server-render drawer markup.
+- **Class-name collision.** Every root rule is qualified as
+  `.drawer[data-side]`, because `.drawer` is a name other CSS (DaisyUI) also
+  claims. Keep the data attributes on the element or none of the styles apply.
 
 ## Badges / gamification — `import { BadgeChest, createBadgeClient } from '@readysetcloud/ui'`
 
@@ -325,7 +352,7 @@ Published to the assets bucket on every rsc-core deploy:
 - `ui/<version>/` is immutable (1y cache); `ui/latest/` is a 5-minute pointer
 - `styles/tokens.css` alone = variables only (for a site keeping its own components but adopting the palette)
 - `auth.global.js` exposes the full core as `window.rscAuth` — same `rsc:auth` contract, so it shares sessions with npm-consuming SPAs on the same origin
-- `ui.global.js` exposes drawing helpers as `window.rscUi` (`renderSparkline(el, values)`); everything else in the analytics kit (stat tiles, trend pills, segmented controls, page heroes, status badges) is pure CSS — just use the shipped classes
+- `ui.global.js` exposes the helpers that need JS as `window.rscUi` — `renderSparkline(el, values)` for trend lines and `enhanceDrawers(root?)` to wire drawer markup; everything else in the analytics kit (stat tiles, trend pills, segmented controls, page heroes, status badges) is pure CSS — just use the shipped classes
 
 ## Migration playbooks
 
