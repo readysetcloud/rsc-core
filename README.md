@@ -111,6 +111,27 @@ Scheduling grants no authority beyond a delay — the schedule performs the same
 get here, and the role Scheduler assumes can do nothing else. Scheduling a
 `Schedule Event` is rejected, since that only ever produces a loop.
 
+## Log retention sweep
+
+Log groups created outside this template — a console experiment, a service that
+makes its own group on first write, a stack that has since been deleted —
+default to *never expire*, and that is where most of a CloudWatch bill hides.
+`SweepLogRetentionFunction` runs every Sunday at midnight UTC and puts **every**
+log group in the account/region on `LogRetentionInDays` (default `3`).
+
+It only ever sets retention, so groups already at the target are skipped and a
+re-run is free. That also means a retention you set by hand is overwritten the
+following Sunday — if a group must keep its logs longer, add its name prefix to
+`LogRetentionExcludedPrefixes` (comma-separated, empty by default):
+
+```bash
+sam deploy --parameter-overrides LogRetentionExcludedPrefixes=/aws/cloudtrail/,/audit/
+```
+
+A sweep that could not set retention on a group fails the invocation so the
+problem shows up in metrics rather than only in a log; Scheduler retries twice,
+and whatever is still unset gets picked up the next Sunday.
+
 ## Badge Chest — cross-app gamification
 
 The badge chest is a single, ecosystem-wide trophy case. Because every app
