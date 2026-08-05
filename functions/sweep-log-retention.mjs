@@ -15,7 +15,8 @@ import {
 // instead of retrying into the same wall. The limiter is shared across both
 // operations on this one client, which matches the shared server-side limit.
 // Ten attempts is roughly a minute of backoff on a fully throttled call.
-const logs = new CloudWatchLogsClient({ retryMode: 'adaptive', maxAttempts: 10 });
+const MAX_ATTEMPTS = 10;
+const logs = new CloudWatchLogsClient({ retryMode: 'adaptive', maxAttempts: MAX_ATTEMPTS });
 
 const RETENTION_IN_DAYS = Number(process.env.RETENTION_IN_DAYS ?? 3);
 const EXCLUDED_PREFIXES = (process.env.EXCLUDED_PREFIXES ?? '')
@@ -44,8 +45,9 @@ const TIME_RESERVE_MS = 15000;
  * retention will be overwritten on the next Sunday, by design.
  */
 export const handler = async (event, context) => {
-  const summary = { scanned: 0, updated: 0, skipped: 0, failed: 0 };
+  const summary = { scanned: 0, updated: 0, skipped: 0, failed: 0, throttled: 0 };
   let outOfTime = false;
+  let throttled = false;
 
   let nextToken;
   do {
@@ -99,11 +101,23 @@ export const handler = async (event, context) => {
           continue;
         }
 
+        // Ten attempts and about a minute of backoff already went into this one
+        // call. If adaptive retries could not land it, the next group will not
+        // do better in the same minute — so end the sweep instead of feeding
+        // the same wall one group at a time until the clock runs out. Whatever
+        // is left is picked up by the retry, or next Sunday.
+        if (isThrottled(err)) {
+          summary.throttled++;
+          throttled = true;
+          console.error(`Still throttled on '${group.logGroupName}' after ${MAX_ATTEMPTS} attempts; ending this sweep early`, summary);
+          break;
+        }
+
         summary.failed++;
         console.error(`Failed to set retention on '${group.logGroupName}'`, err);
       }
     }
-  } while (nextToken && !outOfTime);
+  } while (nextToken && !outOfTime && !throttled);
 
   console.log(`Log retention sweep (${RETENTION_IN_DAYS} days)`, summary);
 
@@ -111,9 +125,16 @@ export const handler = async (event, context) => {
     console.error('Ran out of time before finishing the sweep; the remaining groups are picked up next run', summary);
   }
 
-  // Surfaced as an invocation error so a persistent permission or throttling
-  // problem shows up in metrics instead of only in a log nobody reads. The
-  // async retry is safe: updated groups are skipped on the way back through.
+  // Surfaced as invocation errors so a persistent problem shows up in metrics
+  // instead of only in a log nobody reads. Both retries are safe: groups
+  // already updated are skipped on the way back through. Throttling is called
+  // out separately because it is the one failure that clears on its own — a
+  // Scheduler retry a minute later is a real fix for it, and is not for the
+  // permission error it would otherwise be lumped in with.
+  if (throttled) {
+    throw new Error(`Throttled by CloudWatch Logs after setting retention on ${summary.updated} log group(s)`);
+  }
+
   if (summary.failed > 0) {
     throw new Error(`Failed to set retention on ${summary.failed} log group(s)`);
   }
@@ -122,3 +143,8 @@ export const handler = async (event, context) => {
 };
 
 const isExcluded = (logGroupName) => EXCLUDED_PREFIXES.some(prefix => logGroupName?.startsWith(prefix));
+
+// Only reached once the SDK's own retries are spent, so this is "still
+// throttled", not "throttled". CloudWatch Logs answers a rate limit with
+// ThrottlingException; the status check catches the generic 429 shape.
+const isThrottled = (err) => err.name === 'ThrottlingException' || err.$metadata?.httpStatusCode === 429;
