@@ -4,10 +4,17 @@ import {
   PutRetentionPolicyCommand
 } from '@aws-sdk/client-cloudwatch-logs';
 
-// PutRetentionPolicy is a low-TPS control-plane call and this sweep makes one
-// per unset log group, so throttling is expected rather than exceptional.
-// Adaptive retries let the SDK back off into the account's rate instead of
-// burning the Lambda's clock on failures.
+// Both halves of this sweep hit low-TPS control-plane APIs — DescribeLogGroups
+// while paging and PutRetentionPolicy once per unset group — against an
+// account-wide limit shared with everything else in the account. Throttling is
+// expected here, not exceptional.
+//
+// Adaptive mode is the reason for the config: on top of exponential backoff it
+// runs a client-side rate limiter that throttle responses train downward, so
+// the sweep settles into whatever rate the account will actually give it
+// instead of retrying into the same wall. The limiter is shared across both
+// operations on this one client, which matches the shared server-side limit.
+// Ten attempts is roughly a minute of backoff on a fully throttled call.
 const logs = new CloudWatchLogsClient({ retryMode: 'adaptive', maxAttempts: 10 });
 
 const RETENTION_IN_DAYS = Number(process.env.RETENTION_IN_DAYS ?? 3);
@@ -42,7 +49,27 @@ export const handler = async (event, context) => {
 
   let nextToken;
   do {
-    const response = await logs.send(new DescribeLogGroupsCommand({ limit: 50, nextToken }));
+    // A page walk under throttling can spend a minute inside one call once the
+    // SDK's backoff stretches out, so the clock is checked before asking for a
+    // page as well as before each write.
+    if (context.getRemainingTimeInMillis() < TIME_RESERVE_MS) {
+      outOfTime = true;
+      break;
+    }
+
+    let response;
+    try {
+      // 50 is the most DescribeLogGroups will return, so this is the fewest
+      // list calls the sweep can make — the cheapest throttling defense there is.
+      response = await logs.send(new DescribeLogGroupsCommand({ limit: 50, nextToken }));
+    } catch (err) {
+      // Retries are exhausted by the time this lands. Everything already set is
+      // durable, so report what got done before handing the error up — a bare
+      // stack trace makes a throttled sweep look like a sweep that did nothing.
+      console.error(`Log retention sweep (${RETENTION_IN_DAYS} days) stopped while listing log groups`, summary);
+      throw err;
+    }
+
     nextToken = response.nextToken;
 
     for (const group of response.logGroups ?? []) {
