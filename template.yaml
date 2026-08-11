@@ -65,6 +65,20 @@ Parameters:
       allowlist enforced by create-session). Empty (default) rejects any
       mcpServers — opt in explicitly. Add Booked's MCP host here once its
       server has a stable URL (issue #196).
+  LogRetentionInDays:
+    Type: Number
+    Default: 3
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653]
+    Description: >
+      Retention the weekly sweep applies to every CloudWatch log group in this
+      account/region. Only the values CloudWatch Logs accepts are allowed.
+  LogRetentionExcludedPrefixes:
+    Type: String
+    Default: ''
+    Description: >
+      Comma-separated log group name prefixes the weekly retention sweep leaves
+      alone (e.g. an audit trail that must outlive LogRetentionInDays). Empty
+      (default) means every log group is swept.
   SystemTaskPrincipals:
     Type: String
     Default: ''
@@ -467,6 +481,57 @@ Resources:
               detail-type:
                 - Schedule Event
                 - Cancel Scheduled Event
+
+  # Log groups made outside this template — console experiments, services that
+  # create their own on first write, stacks that have since been deleted —
+  # default to "never expire", and that is where the CloudWatch bill hides. The
+  # sweep below puts the whole account/region on LogRetentionInDays every Sunday
+  # so no producer has to remember. Anything that must keep logs longer goes in
+  # LogRetentionExcludedPrefixes.
+  SweepLogRetentionFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - sweep-log-retention.mjs
+    Properties:
+      Handler: sweep-log-retention.handler
+      # Walks every log group and writes one low-TPS control-plane call per
+      # unset group, so it needs real wall clock — but almost no memory.
+      Timeout: 900
+      MemorySize: 512
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            # DescribeLogGroups is a list operation: it has no resource to scope
+            # to, and the point of the sweep is to see log groups it does not
+            # already know about.
+            - Effect: Allow
+              Action: logs:DescribeLogGroups
+              Resource: '*'
+            - Effect: Allow
+              Action: logs:PutRetentionPolicy
+              Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+      Environment:
+        Variables:
+          RETENTION_IN_DAYS: !Ref LogRetentionInDays
+          EXCLUDED_PREFIXES: !Ref LogRetentionExcludedPrefixes
+      Events:
+        WeeklySweep:
+          Type: ScheduleV2
+          Properties:
+            # Sundays at midnight. Timezone is explicit so "midnight" does not
+            # silently mean something else after a region or DST change.
+            ScheduleExpression: cron(0 0 ? * SUN *)
+            ScheduleExpressionTimezone: UTC
+            Description: Set CloudWatch log group retention account-wide
+            # A failed sweep is worth one more try, not Scheduler's default 185
+            # over the next 24 hours — the next Sunday picks up whatever is left.
+            RetryPolicy:
+              MaximumRetryAttempts: 2
 
   # ----------------------------------------------------------------------------
   # Badge Chest — cross-app gamification (badges, points, levels)
