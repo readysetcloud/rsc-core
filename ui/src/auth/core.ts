@@ -166,18 +166,42 @@ function readSharedCookieValue(): string | null {
   );
 }
 
-function writeSharedCookie(session: Session): void {
-  const config = sharedCookieConfig();
-  if (!config) return;
-  const value = encodeURIComponent(toBase64Url(JSON.stringify(session)));
+function setSharedCookie(
+  config: { name: string; domain: string },
+  value: string,
+  maxAgeSeconds: number
+): void {
   document.cookie = [
     `${encodeURIComponent(config.name)}=${value}`,
     `Domain=${config.domain}`,
     'Path=/',
-    `Max-Age=${config.maxAgeSeconds}`,
+    `Max-Age=${maxAgeSeconds}`,
     'SameSite=Lax',
     'Secure'
   ].join('; ');
+}
+
+function writeSharedCookie(session: Session): void {
+  const config = sharedCookieConfig();
+  if (!config) return;
+  const value = encodeURIComponent(toBase64Url(JSON.stringify(session)));
+  setSharedCookie(config, value, config.maxAgeSeconds);
+  if (readSharedCookieValue() === value) return;
+
+  // The write was dropped. Browsers cap a cookie at roughly 4KB and say
+  // nothing when one goes over, and a Cognito id token plus a refresh token
+  // base64 out close enough to that line to cross it on accounts carrying a
+  // few custom claims.
+  //
+  // Whatever is still in the jar now describes a session that no longer
+  // exists, and if it is the signed-out sentinel it is actively destructive:
+  // readSession() treats the sentinel as authoritative and deletes the local
+  // session, so the sign-in that just succeeded gets erased the next time
+  // anything reads it — the user lands back on the login form with nothing
+  // to explain it. Drop the cookie instead and let localStorage carry the
+  // session for this origin; losing the cross-subdomain bridge is a far
+  // smaller failure than losing the session.
+  setSharedCookie(config, '', 0);
 }
 
 function isSharedCookieSignedOut(): boolean {
@@ -187,14 +211,7 @@ function isSharedCookieSignedOut(): boolean {
 function markSharedCookieSignedOut(): void {
   const config = sharedCookieConfig();
   if (!config) return;
-  document.cookie = [
-    `${encodeURIComponent(config.name)}=${SHARED_COOKIE_SIGNED_OUT}`,
-    `Domain=${config.domain}`,
-    'Path=/',
-    `Max-Age=${config.maxAgeSeconds}`,
-    'SameSite=Lax',
-    'Secure'
-  ].join('; ');
+  setSharedCookie(config, SHARED_COOKIE_SIGNED_OUT, config.maxAgeSeconds);
 }
 
 function toBase64Url(value: string): string {
@@ -278,6 +295,22 @@ function saveAuthResult(result: CognitoAuthResult | undefined): void {
   notify();
 }
 
+/**
+ * A Cognito call that succeeds is not a sign-in that succeeded if the browser
+ * refused to keep the tokens. Safari's private mode and "block all cookies"
+ * both turn both session stores into silent no-ops, so without this the caller
+ * is handed `{ kind: 'success' }` for a session that is already gone: the login
+ * form re-renders untouched, with no error and no navigation, and the only
+ * symptom anyone can describe is "the button does nothing".
+ */
+function assertSessionPersisted(): void {
+  if (readSession()) return;
+  throw new AuthError(
+    "This browser isn't keeping you signed in. Check that cookies and site data are allowed for this site, then try again.",
+    'SessionNotPersisted'
+  );
+}
+
 function clearSession(): void {
   clearLocalSession();
   markSharedCookieSignedOut();
@@ -339,6 +372,7 @@ export async function signIn(email: string, password: string): Promise<SignInRes
       return { kind: 'newPasswordRequired', session: out.Session ?? '' };
     }
     saveAuthResult(out.AuthenticationResult);
+    assertSessionPersisted();
     return { kind: 'success' };
   } catch (e) {
     if (isAuthError(e) && e.code === 'UserNotConfirmedException') {
@@ -422,6 +456,7 @@ export async function respondNewPassword(
     ChallengeResponses: { USERNAME: email, NEW_PASSWORD: newPassword }
   });
   saveAuthResult(out.AuthenticationResult);
+  assertSessionPersisted();
 }
 
 /** Valid id token, refreshing behind the scenes when it's near expiry.
