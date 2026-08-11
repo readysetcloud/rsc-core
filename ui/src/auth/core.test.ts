@@ -159,6 +159,42 @@ describe('session document', () => {
     expect(readSession()).toBeNull();
     expect(localStorage.getItem(AUTH_KEY)).toBeNull();
   });
+
+  it('drops the signed-out sentinel when the session cookie is too big to store', async () => {
+    // A cookie over the browser's ~4KB budget is dropped without an error, and
+    // a big enough id token gets there. Leaving `signed_out` behind would make
+    // readSession() delete the session that just signed in.
+    configureAuth(SHARED_CONFIG);
+    await signOut();
+    expect(document.cookie).toContain('rsc_auth_test=signed_out');
+
+    const cookieDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie')!;
+    vi.spyOn(document, 'cookie', 'set').mockImplementation(function (this: Document, value: string) {
+      // jsdom has no size limit of its own, so stand in for the browser's.
+      if (value.length > 4096) return;
+      cookieDescriptor.set?.call(this, value);
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          AuthenticationResult: {
+            IdToken: fakeJwt({ email: 'a@b.co', bloat: 'x'.repeat(4096) }),
+            RefreshToken: 'rt',
+            ExpiresIn: 3600
+          }
+        })
+      })
+    );
+
+    await expect(signIn('a@b.co', 'Password1')).resolves.toEqual({ kind: 'success' });
+    expect(document.cookie).not.toContain('signed_out');
+    // The bridge is gone for this origin, but the session itself survives.
+    expect(isSignedIn()).toBe(true);
+    expect(readSession()?.refreshToken).toBe('rt');
+  });
 });
 
 describe('signIn', () => {
@@ -199,6 +235,28 @@ describe('signIn', () => {
       })
     );
     await expect(signIn('a@b.co', 'wrong')).rejects.toThrow('Incorrect email or password.');
+  });
+
+  it('fails loudly when the browser refuses to keep the session', async () => {
+    // Safari private mode / blocked site data: the write is a silent no-op, so
+    // reporting success would leave the caller re-rendering an untouched form.
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError');
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          AuthenticationResult: { IdToken: fakeJwt({ email: 'a@b.co' }), RefreshToken: 'rt', ExpiresIn: 3600 }
+        })
+      })
+    );
+
+    await expect(signIn('a@b.co', 'Password1')).rejects.toMatchObject({
+      code: 'SessionNotPersisted'
+    });
+    expect(isSignedIn()).toBe(false);
   });
 });
 
