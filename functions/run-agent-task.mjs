@@ -95,8 +95,8 @@ export const handler = async (event) => {
     const tools = config?.tools ?? detail.tools;
     const namedTools = resolveTools(tools, TOOL_REGISTRY, { sessionId: effectiveSessionId, userId: principal.id });
 
-    // External tools. For a session, specs were host-allowlisted at create time;
-    // for an inline event, the first-party emitter is trusted (account bus).
+    // External MCP tools come through @readysetcloud/agent so this Lambda bundle
+    // does not depend on npm hoisting @strands-agents/sdk into the repository root.
     let mcpClients = [];
     const mcpServers = config?.mcpServers ?? detail.mcpServers;
     if (mcpServers && Object.keys(mcpServers).length > 0) {
