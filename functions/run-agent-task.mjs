@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { McpClient, tool } from '@strands-agents/sdk';
 import {
+  McpClient,
+  tool,
   createAssistant,
   resolveTools,
   getSessionConfig,
