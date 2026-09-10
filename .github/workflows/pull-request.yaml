@@ -19,7 +19,6 @@ jobs:
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' }}
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       ui: ${{ steps.filter.outputs.ui }}
@@ -46,7 +45,8 @@ jobs:
               - '.github/workflows/pull-request.yaml'
             agent:
               - 'agent/**'
-              - '.github/workflows/pull-request.yaml'
+              - 'agent-runtime/**'
+              - 'scripts/package-agent.mjs'
 
   predeploy-validations:
     name: Pre-deploy validations
@@ -71,16 +71,26 @@ jobs:
           npm install -g esbuild
           npm ci
 
-          # Build the agent package (inlined into the runtime bundle) and stage +
-          # upload the NODE_22 runtime artifact before deploy (AgentCoreRuntime
-          # pulls it from the bucket).
-          node scripts/package-agent.mjs
-          ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          # Version the artifact key by commit SHA so the AgentCoreRuntime
-          # resource's Prefix changes each deploy (a static key means CloudFormation
-          # never rolls the runtime, leaving it on the old bundle).
-          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
-          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          # AgentCore creates a new runtime version whenever AgentArtifactKey
+          # changes. Only roll it when the agent inputs actually changed;
+          # unrelated backend/dependency deploys reuse the currently deployed
+          # artifact key so they do not consume AgentCore versions.
+          if [[ "${{ needs.changes.outputs.agent }}" == "true" ]]; then
+            node scripts/package-agent.mjs
+            ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
+            AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+            aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          else
+            AGENT_ARTIFACT_KEY="$(aws cloudformation describe-stacks \
+              --stack-name rsc-core \
+              --query "Stacks[0].Parameters[?ParameterKey=='AgentArtifactKey'].ParameterValue | [0]" \
+              --output text)"
+            if [[ -z "${AGENT_ARTIFACT_KEY}" || "${AGENT_ARTIFACT_KEY}" == "None" ]]; then
+              echo "Could not resolve the currently deployed AgentArtifactKey" >&2
+              exit 1
+            fi
+            echo "Reusing deployed AgentCore artifact: ${AGENT_ARTIFACT_KEY}"
+          fi
 
           sam --info
           sam build --parallel
@@ -140,6 +150,7 @@ jobs:
 
   deploy-dependabot:
     name: Deploy Dependabot Updates
+    needs: changes
     if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
@@ -159,16 +170,25 @@ jobs:
           npm install -g esbuild
           npm ci
 
-          # Build the agent package (inlined into the runtime bundle) and stage +
-          # upload the NODE_22 runtime artifact before deploy (AgentCoreRuntime
-          # pulls it from the bucket).
-          node scripts/package-agent.mjs
-          ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          # Version the artifact key by commit SHA so the AgentCoreRuntime
-          # resource's Prefix changes each deploy (a static key means CloudFormation
-          # never rolls the runtime, leaving it on the old bundle).
-          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
-          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          # AgentCore creates a new runtime version whenever AgentArtifactKey
+          # changes. Only roll it when the agent inputs actually changed;
+          # unrelated dependency deploys reuse the currently deployed artifact.
+          if [[ "${{ needs.changes.outputs.agent }}" == "true" ]]; then
+            node scripts/package-agent.mjs
+            ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
+            AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+            aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          else
+            AGENT_ARTIFACT_KEY="$(aws cloudformation describe-stacks \
+              --stack-name rsc-core \
+              --query "Stacks[0].Parameters[?ParameterKey=='AgentArtifactKey'].ParameterValue | [0]" \
+              --output text)"
+            if [[ -z "${AGENT_ARTIFACT_KEY}" || "${AGENT_ARTIFACT_KEY}" == "None" ]]; then
+              echo "Could not resolve the currently deployed AgentArtifactKey" >&2
+              exit 1
+            fi
+            echo "Reusing deployed AgentCore artifact: ${AGENT_ARTIFACT_KEY}"
+          fi
 
           sam --info
           sam build --parallel
