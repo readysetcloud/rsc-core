@@ -71,6 +71,12 @@ jobs:
           npm install -g esbuild
           npm ci
 
+          # Lambda functions import the local file:agent package, so its dist
+          # must exist before SAM/esbuild runs even when AgentCore itself does
+          # not need a new runtime version.
+          npm --prefix agent ci
+          npm --prefix agent run build
+
           # AgentCore creates a new runtime version whenever AgentArtifactKey
           # changes. Only roll it when the agent inputs actually changed;
           # unrelated backend/dependency deploys reuse the currently deployed
@@ -169,6 +175,12 @@ jobs:
         run: |
           npm install -g esbuild
           npm ci
+
+          # Lambda functions import the local file:agent package, so its dist
+          # must exist before SAM/esbuild runs even when AgentCore itself does
+          # not need a new runtime version.
+          npm --prefix agent ci
+          npm --prefix agent run build
 
           # AgentCore creates a new runtime version whenever AgentArtifactKey
           # changes. Only roll it when the agent inputs actually changed;
