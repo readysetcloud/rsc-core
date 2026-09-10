@@ -19,7 +19,6 @@ jobs:
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' }}
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       ui: ${{ steps.filter.outputs.ui }}
@@ -46,7 +45,8 @@ jobs:
               - '.github/workflows/pull-request.yaml'
             agent:
               - 'agent/**'
-              - '.github/workflows/pull-request.yaml'
+              - 'agent-runtime/**'
+              - 'scripts/package-agent.mjs'
 
   predeploy-validations:
     name: Pre-deploy validations
@@ -66,21 +66,64 @@ jobs:
           aws-access-key-id: ${{ secrets.STAGE_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.STAGE_SECRET_KEY }}
 
+      - name: Recover known AgentCore rollback failure
+        if: ${{ needs.changes.outputs.agent != 'true' }}
+        run: |
+          STACK_STATUS="$(aws cloudformation describe-stacks \
+            --stack-name rsc-core \
+            --query 'Stacks[0].StackStatus' \
+            --output text)"
+
+          if [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_FAILED" ]]; then
+            FAILURE_REASON="$(aws cloudformation describe-stack-events \
+              --stack-name rsc-core \
+              --query "StackEvents[?LogicalResourceId=='AgentCoreRuntime' && ResourceStatus=='UPDATE_FAILED'].ResourceStatusReason | [0]" \
+              --output text)"
+
+            if [[ "${FAILURE_REASON}" != *"maxAgentVersions limit exceeded"* ]]; then
+              echo "Stack is UPDATE_ROLLBACK_FAILED for an unexpected reason; refusing automatic recovery." >&2
+              echo "AgentCoreRuntime failure: ${FAILURE_REASON}" >&2
+              exit 1
+            fi
+
+            echo "Continuing rollback while skipping the AgentCoreRuntime update that hit the version quota."
+            aws cloudformation continue-update-rollback \
+              --stack-name rsc-core \
+              --resources-to-skip AgentCoreRuntime
+            aws cloudformation wait stack-rollback-complete --stack-name rsc-core
+          fi
+
       - name: SAM Build and Deploy
         run: |
           npm install -g esbuild
           npm ci
 
-          # Build the agent package (inlined into the runtime bundle) and stage +
-          # upload the NODE_22 runtime artifact before deploy (AgentCoreRuntime
-          # pulls it from the bucket).
-          node scripts/package-agent.mjs
-          ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          # Version the artifact key by commit SHA so the AgentCoreRuntime
-          # resource's Prefix changes each deploy (a static key means CloudFormation
-          # never rolls the runtime, leaving it on the old bundle).
-          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
-          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          # Lambda functions import the local file:agent package, so its dist
+          # must exist before SAM/esbuild runs even when AgentCore itself does
+          # not need a new runtime version.
+          npm --prefix agent ci
+          npm --prefix agent run build
+
+          # AgentCore creates a new runtime version whenever AgentArtifactKey
+          # changes. Only roll it when the agent inputs actually changed;
+          # unrelated backend/dependency deploys reuse the currently deployed
+          # artifact key so they do not consume AgentCore versions.
+          if [[ "${{ needs.changes.outputs.agent }}" == "true" ]]; then
+            node scripts/package-agent.mjs
+            ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
+            AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+            aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          else
+            AGENT_ARTIFACT_KEY="$(aws cloudformation describe-stacks \
+              --stack-name rsc-core \
+              --query "Stacks[0].Parameters[?ParameterKey=='AgentArtifactKey'].ParameterValue | [0]" \
+              --output text)"
+            if [[ -z "${AGENT_ARTIFACT_KEY}" || "${AGENT_ARTIFACT_KEY}" == "None" ]]; then
+              echo "Could not resolve the currently deployed AgentArtifactKey" >&2
+              exit 1
+            fi
+            echo "Reusing deployed AgentCore artifact: ${AGENT_ARTIFACT_KEY}"
+          fi
 
           sam --info
           sam build --parallel
@@ -140,6 +183,7 @@ jobs:
 
   deploy-dependabot:
     name: Deploy Dependabot Updates
+    needs: changes
     if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
@@ -154,21 +198,63 @@ jobs:
           aws-access-key-id: ${{ secrets.DEPENDABOT_STAGE_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.DEPENDABOT_STAGE_SECRET_KEY }}
 
+      - name: Recover known AgentCore rollback failure
+        if: ${{ needs.changes.outputs.agent != 'true' }}
+        run: |
+          STACK_STATUS="$(aws cloudformation describe-stacks \
+            --stack-name rsc-core \
+            --query 'Stacks[0].StackStatus' \
+            --output text)"
+
+          if [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_FAILED" ]]; then
+            FAILURE_REASON="$(aws cloudformation describe-stack-events \
+              --stack-name rsc-core \
+              --query "StackEvents[?LogicalResourceId=='AgentCoreRuntime' && ResourceStatus=='UPDATE_FAILED'].ResourceStatusReason | [0]" \
+              --output text)"
+
+            if [[ "${FAILURE_REASON}" != *"maxAgentVersions limit exceeded"* ]]; then
+              echo "Stack is UPDATE_ROLLBACK_FAILED for an unexpected reason; refusing automatic recovery." >&2
+              echo "AgentCoreRuntime failure: ${FAILURE_REASON}" >&2
+              exit 1
+            fi
+
+            echo "Continuing rollback while skipping the AgentCoreRuntime update that hit the version quota."
+            aws cloudformation continue-update-rollback \
+              --stack-name rsc-core \
+              --resources-to-skip AgentCoreRuntime
+            aws cloudformation wait stack-rollback-complete --stack-name rsc-core
+          fi
+
       - name: SAM Build and Deploy
         run: |
           npm install -g esbuild
           npm ci
 
-          # Build the agent package (inlined into the runtime bundle) and stage +
-          # upload the NODE_22 runtime artifact before deploy (AgentCoreRuntime
-          # pulls it from the bucket).
-          node scripts/package-agent.mjs
-          ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
-          # Version the artifact key by commit SHA so the AgentCoreRuntime
-          # resource's Prefix changes each deploy (a static key means CloudFormation
-          # never rolls the runtime, leaving it on the old bundle).
-          AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
-          aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          # Lambda functions import the local file:agent package, so its dist
+          # must exist before SAM/esbuild runs even when AgentCore itself does
+          # not need a new runtime version.
+          npm --prefix agent ci
+          npm --prefix agent run build
+
+          # AgentCore creates a new runtime version whenever AgentArtifactKey
+          # changes. Only roll it when the agent inputs actually changed;
+          # unrelated dependency deploys reuse the currently deployed artifact.
+          if [[ "${{ needs.changes.outputs.agent }}" == "true" ]]; then
+            node scripts/package-agent.mjs
+            ( cd agent-runtime/.artifact && zip -qr ../agent.zip . )
+            AGENT_ARTIFACT_KEY="agent/agent-${GITHUB_SHA}.zip"
+            aws s3 cp agent-runtime/agent.zip "s3://readysetcloud-stage/${AGENT_ARTIFACT_KEY}"
+          else
+            AGENT_ARTIFACT_KEY="$(aws cloudformation describe-stacks \
+              --stack-name rsc-core \
+              --query "Stacks[0].Parameters[?ParameterKey=='AgentArtifactKey'].ParameterValue | [0]" \
+              --output text)"
+            if [[ -z "${AGENT_ARTIFACT_KEY}" || "${AGENT_ARTIFACT_KEY}" == "None" ]]; then
+              echo "Could not resolve the currently deployed AgentArtifactKey" >&2
+              exit 1
+            fi
+            echo "Reusing deployed AgentCore artifact: ${AGENT_ARTIFACT_KEY}"
+          fi
 
           sam --info
           sam build --parallel
