@@ -66,6 +66,33 @@ jobs:
           aws-access-key-id: ${{ secrets.STAGE_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.STAGE_SECRET_KEY }}
 
+      - name: Recover known AgentCore rollback failure
+        if: ${{ needs.changes.outputs.agent != 'true' }}
+        run: |
+          STACK_STATUS="$(aws cloudformation describe-stacks \
+            --stack-name rsc-core \
+            --query 'Stacks[0].StackStatus' \
+            --output text)"
+
+          if [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_FAILED" ]]; then
+            FAILURE_REASON="$(aws cloudformation describe-stack-events \
+              --stack-name rsc-core \
+              --query "StackEvents[?LogicalResourceId=='AgentCoreRuntime' && ResourceStatus=='UPDATE_FAILED'].ResourceStatusReason | [0]" \
+              --output text)"
+
+            if [[ "${FAILURE_REASON}" != *"maxAgentVersions limit exceeded"* ]]; then
+              echo "Stack is UPDATE_ROLLBACK_FAILED for an unexpected reason; refusing automatic recovery." >&2
+              echo "AgentCoreRuntime failure: ${FAILURE_REASON}" >&2
+              exit 1
+            fi
+
+            echo "Continuing rollback while skipping the AgentCoreRuntime update that hit the version quota."
+            aws cloudformation continue-update-rollback \
+              --stack-name rsc-core \
+              --resources-to-skip AgentCoreRuntime
+            aws cloudformation wait stack-rollback-complete --stack-name rsc-core
+          fi
+
       - name: SAM Build and Deploy
         run: |
           npm install -g esbuild
@@ -170,6 +197,33 @@ jobs:
           aws-region: us-east-1
           aws-access-key-id: ${{ secrets.DEPENDABOT_STAGE_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.DEPENDABOT_STAGE_SECRET_KEY }}
+
+      - name: Recover known AgentCore rollback failure
+        if: ${{ needs.changes.outputs.agent != 'true' }}
+        run: |
+          STACK_STATUS="$(aws cloudformation describe-stacks \
+            --stack-name rsc-core \
+            --query 'Stacks[0].StackStatus' \
+            --output text)"
+
+          if [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_FAILED" ]]; then
+            FAILURE_REASON="$(aws cloudformation describe-stack-events \
+              --stack-name rsc-core \
+              --query "StackEvents[?LogicalResourceId=='AgentCoreRuntime' && ResourceStatus=='UPDATE_FAILED'].ResourceStatusReason | [0]" \
+              --output text)"
+
+            if [[ "${FAILURE_REASON}" != *"maxAgentVersions limit exceeded"* ]]; then
+              echo "Stack is UPDATE_ROLLBACK_FAILED for an unexpected reason; refusing automatic recovery." >&2
+              echo "AgentCoreRuntime failure: ${FAILURE_REASON}" >&2
+              exit 1
+            fi
+
+            echo "Continuing rollback while skipping the AgentCoreRuntime update that hit the version quota."
+            aws cloudformation continue-update-rollback \
+              --stack-name rsc-core \
+              --resources-to-skip AgentCoreRuntime
+            aws cloudformation wait stack-rollback-complete --stack-name rsc-core
+          fi
 
       - name: SAM Build and Deploy
         run: |
