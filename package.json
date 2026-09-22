@@ -39,6 +39,6 @@
     "@readysetcloud/agent": "file:agent",
     "@sendgrid/mail": "^8.1.6",
     "octokit": "^5.0.5",
-    "openai": "^7.19.0"
+    "openai": "^7.20.0"
   }
 }
