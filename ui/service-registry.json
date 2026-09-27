@@ -49,6 +49,16 @@
       "category": "Nonprofit",
       "external": true,
       "active": true
+    },
+    {
+      "id": "fantasy",
+      "name": "Fantasy",
+      "href": "https://fantasy.readysetcloud.io",
+      "description": "Fantasy football league where friends compete against configurable AI agents.",
+      "shortName": "FF",
+      "category": "Games",
+      "external": true,
+      "active": false
     }
   ]
 }

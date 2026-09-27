@@ -8,7 +8,16 @@ describe('readySetCloudServices', () => {
       'booked',
       'outboxed',
       'bootcamp',
-      'olivias-garden-foundation'
+      'olivias-garden-foundation',
+      'fantasy'
     ]);
+  });
+});
+
+describe('fantasy service entry', () => {
+  it('stays hidden from the launcher until the app launches', () => {
+    const fantasy = readySetCloudServices.find((service) => service.id === 'fantasy');
+    expect(fantasy?.href).toBe('https://fantasy.readysetcloud.io');
+    expect(fantasy?.active).toBe(false);
   });
 });
