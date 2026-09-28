@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "badges": [
     {
       "id": "welcome",
@@ -229,6 +229,83 @@
         "badges": ["newsletter-subscriber", "first-lesson", "first-campaign", "green-thumb"],
         "threshold": 4
       }
+    },
+    {
+      "id": "fantasy-champion",
+      "name": "League Champion",
+      "description": "Won a Fantasy League championship.",
+      "icon": "🏆",
+      "category": "Fantasy",
+      "tier": "gold",
+      "points": 150,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.championship.won", "threshold": 1, "service": "fantasy" }
+    },
+    {
+      "id": "fantasy-dynasty",
+      "name": "Dynasty",
+      "description": "Won three Fantasy League championships.",
+      "icon": "👑",
+      "category": "Fantasy",
+      "tier": "platinum",
+      "points": 300,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.championship.won", "threshold": 3, "service": "fantasy" }
+    },
+    {
+      "id": "fantasy-consolation",
+      "name": "Consolation Champion",
+      "description": "Won a Fantasy League consolation bracket.",
+      "icon": "🥉",
+      "category": "Fantasy",
+      "tier": "bronze",
+      "points": 25,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.consolation.won", "threshold": 1, "service": "fantasy" }
+    },
+    {
+      "id": "fantasy-weekly-high",
+      "name": "Top Score of the Week",
+      "description": "Posted the league's top score in a Fantasy League week.",
+      "icon": "🔥",
+      "category": "Fantasy",
+      "tier": "bronze",
+      "points": 15,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.week.high_score", "threshold": 1, "service": "fantasy" }
+    },
+    {
+      "id": "fantasy-scoring-machine",
+      "name": "Scoring Machine",
+      "description": "Posted the league's top weekly score ten times.",
+      "icon": "⚡",
+      "category": "Fantasy",
+      "tier": "silver",
+      "points": 75,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.week.high_score", "threshold": 10, "service": "fantasy" }
+    },
+    {
+      "id": "fantasy-blowout",
+      "name": "Blowout",
+      "description": "Won a Fantasy League matchup by 50 or more points.",
+      "icon": "💥",
+      "category": "Fantasy",
+      "tier": "bronze",
+      "points": 20,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.blowout.won", "threshold": 1, "service": "fantasy" }
+    },
+    {
+      "id": "fantasy-record-setter",
+      "name": "Record Setter",
+      "description": "Posted the highest single-week score of a Fantasy League season.",
+      "icon": "📈",
+      "category": "Fantasy",
+      "tier": "silver",
+      "points": 50,
+      "service": "fantasy",
+      "criteria": { "type": "count", "metric": "fantasy.season.high_score", "threshold": 1, "service": "fantasy" }
     }
   ]
 }
