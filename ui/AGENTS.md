@@ -83,7 +83,8 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `ProgressIndicator` | `steps: { id, label, status, description? }[]` | Step status list for setup/verification flows. Status: `pending`, `in-progress`, `completed`, `failed`. |
 | `ErrorState` | `heading?`, `message`, `action?` | Standard retryable error block built on `Alert`. |
 | `Container` | div props | max 72rem, fluid padding. |
-| `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. |
+| `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. `navItemsVariant="subtle"` quiets the top bar's links for apps whose main navigation is a `SideNav`. |
+| `SideNav`, `SideNavLayout` | `items: { id, label, href?, icon?, badge?, badgeLabel?, badgeTone?, active?, section?, items? }[]`, `header`, `footer`, `linkComponent`, `collapsible`/`collapsed`/`defaultCollapsed`/`onCollapsedChange`, `mobileOpen`/`onMobileOpenChange`, `mobileTriggerLabel`, `hideMobileTrigger`, `aria-label` | In-app section nav beside the page, under an `AppNav` top bar: icons, badges, nested groups, active state. Sticky rail on desktop that folds to icons; modal drawer from a menu button at ≤768px. `SideNavLayout nav={…}` puts it beside the page. |
 | `BadgeChest` | `points`, `level`, `levelName`, `levelMinPoints`, `nextLevel`, `badges`, `inProgress`, `loading`, `showInProgress`, `emptyState` | Cross-app trophy case: level + points header with progress bar, earned badge grid, and in-progress tiles. Presentational — fetch with `createBadgeClient` and pass the data in. |
 | `cx(...parts)` | | Classname join helper (replaces clsx for simple cases). |
 
@@ -120,6 +121,10 @@ Navbar rules:
   the vanilla build) and `section` (heading — consecutive same-section items are
   grouped; ungrouped items stay in place). Sections are ignored in `top`. The
   rail collapses to the shared hamburger drawer on mobile.
+- `navItemsVariant="subtle"` (top layout only) makes the bar's links smaller,
+  lighter, muted, and right-aligned beside the actions, with an underline for
+  the active one. Use it when a `SideNav` carries the app's real navigation and
+  the top bar only holds app-wide links. Same option in the vanilla build.
 - `linkComponent` (React only) routes in-app links (brand, nav items, primary
   action, auth actions) through your router's link for client-side navigation —
   `({ href, ...props }) => <Link to={href} {...props} />`. External items always
@@ -141,6 +146,65 @@ Default `readySetCloudServices` manifest:
 | `outboxed` | Outboxed | `https://newsletter.readysetcloud.io` |
 | `bootcamp` | Bootcamp | `https://bootcamp.readysetcloud.io` |
 | `olivias-garden-foundation` | Olivia's Garden Foundation | `https://oliviasgarden.org` |
+
+## SideNav
+
+In-app section navigation that sits beside the page, for apps with more
+sections than a top bar holds. Keep the `AppNav` top bar (brand, launcher,
+profile) and put the sections here.
+
+```tsx
+import { AppNav, SideNav, SideNavLayout } from '@readysetcloud/ui';
+
+<AppNav appName="Fantasy" navItemsVariant="subtle" navItems={[…]} />
+<Container>
+  <SideNavLayout
+    nav={
+      <SideNav
+        aria-label="League"
+        header={<LeagueSwitcher />}
+        linkComponent={RouterLink}
+        items={[
+          { id: 'home', label: 'Home', href: '/home', icon: <HomeIcon />, active: true },
+          {
+            id: 'team', label: 'My Team', href: '/team', icon: <TeamIcon />,
+            items: [
+              { id: 'lineup', label: 'Lineup', href: '/team/lineup' },
+              { id: 'trades', label: 'Trades', href: '/team/trades', badge: 2, badgeLabel: '2 offers waiting' }
+            ]
+          },
+          { id: 'settings', label: 'Settings', href: '/settings', icon: <GearIcon />, section: 'League' }
+        ]}
+      />
+    }
+  >
+    <Outlet />
+  </SideNavLayout>
+</Container>
+```
+
+- **Items.** Same shape as `AppNavItem` plus `badge`, `badgeLabel` (screen-reader
+  text, e.g. "2 offers waiting"), `badgeTone`, and `items` for a nested group.
+  `section` groups consecutive top-level items under a heading. A badge of
+  `0`, `''` or `undefined` renders nothing.
+- **Groups.** A group with its own `href` renders its link plus a chevron
+  toggle; without one, the whole row toggles. A group opens on its own when it
+  holds the active item (and when the active item moves into it);
+  `defaultExpanded` overrides the initial state.
+- **Desktop rail.** Sticky beside the page. `collapsible` (default true) adds a
+  Collapse button that folds it to a 4.25rem icon rail: labels stay for screen
+  readers and show as tooltips, badges become dots, `header`/`footer` and
+  section headings hide, and a group links to its own page or its first
+  child's. Uncontrolled unless `collapsed` is passed — persist it with
+  `onCollapsedChange` if the app wants it sticky.
+- **Phone (≤768px, `SIDE_NAV_PHONE_QUERY`).** The rail is replaced by a menu
+  button in the page flow, labeled with the active item (`mobileTriggerLabel`
+  overrides). It opens a modal drawer from the left: scrim, scroll lock, Tab
+  kept inside, Esc / scrim / close button / following a link close it, focus
+  returns to the button. Drive it from your own control with `mobileOpen` +
+  `onMobileOpenChange` + `hideMobileTrigger`. Closed, the drawer is `inert`.
+- **Router links.** `linkComponent` is the same as `AppNav`'s; forward `title`
+  to the anchor so rail tooltips show.
 
 ## Drawer
 

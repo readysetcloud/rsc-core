@@ -678,6 +678,38 @@ toast('Subscriber imported.', { variant: 'success' });</code></pre>
 &lt;/script&gt;</code></pre>
         </div>
       </div>
+      <p>
+        Apps whose navigation lives on the page pair a quieter top bar
+        (<code>navItemsVariant="subtle"</code>) with a <code>SideNav</code>: in-app sections with
+        icons, badges, and nested groups beside the page. It is a sticky rail on desktop that
+        folds to icons, and a modal drawer from a menu button on a phone.
+      </p>
+      <div class="demo">
+        <div class="demo-code">
+<pre data-lang="react"><code>import { AppNav, SideNav, SideNavLayout } from '@readysetcloud/ui';
+
+&lt;AppNav appName="Fantasy" navItemsVariant="subtle" navItems={…} /&gt;
+&lt;SideNavLayout
+  nav={
+    &lt;SideNav
+      aria-label="League"
+      header={&lt;LeagueSwitcher /&gt;}
+      linkComponent={RouterLink}
+      items={[
+        { id: 'home', label: 'Home', href: '/home', icon: &lt;HomeIcon /&gt;, active: true },
+        { id: 'team', label: 'My Team', href: '/team', icon: &lt;TeamIcon /&gt;, items: [
+          { id: 'lineup', label: 'Lineup', href: '/team/lineup' },
+          { id: 'trades', label: 'Trades', href: '/team/trades', badge: 2, badgeLabel: '2 offers waiting' }
+        ] },
+        { id: 'chat', label: 'Chat', href: '/chat', icon: &lt;ChatIcon /&gt;, badge: unread }
+      ]}
+    /&gt;
+  }
+&gt;
+  &lt;Outlet /&gt;
+&lt;/SideNavLayout&gt;</code></pre>
+        </div>
+      </div>
     </section>
   </main>
 

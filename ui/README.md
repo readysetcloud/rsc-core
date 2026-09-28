@@ -131,7 +131,7 @@ public read comes from the `PublicReadUiAssets` bucket policy statement.
 import {
   Button, Input, PasswordInput, CodeInput, TextArea, Select,
   Card, CardHeader, CardTitle, CardBody, CardFooter,
-  Badge, Alert, Modal, Drawer, AppNav, ToastProvider, useToast,
+  Badge, Alert, Modal, Drawer, AppNav, SideNav, SideNavLayout, ToastProvider, useToast,
   Spinner, Skeleton, EmptyState, Container
 } from '@readysetcloud/ui';
 ```
@@ -227,6 +227,25 @@ beside your content (add `position: sticky; top: 0` yourself if you want it
 pinned). Below the mobile breakpoint it collapses to the same hamburger drawer
 as the top bar. Active / hover / highlight states are themed from the shared
 tokens in both light and dark.
+
+### Top bar plus in-app sections (`SideNav`)
+
+One `AppNav` renders one layout, and its side rail carries the brand, launcher
+and profile too — so it can't sit under a top bar. For apps that keep the top
+bar and also need a section nav beside the page, use `SideNav` inside
+`SideNavLayout`, and quiet the bar's own links with `navItemsVariant="subtle"`:
+
+```tsx
+<AppNav appName="Fantasy" navItemsVariant="subtle" navItems={[…]} />
+<SideNavLayout nav={<SideNav aria-label="League" items={sections} linkComponent={RouterLink} />}>
+  <Outlet />
+</SideNavLayout>
+```
+
+`SideNav` items take icons, badges (`badge`, `badgeLabel` for screen readers),
+nested `items`, and `active`. On desktop it is a sticky rail with a Collapse
+button that folds it to icons; at ≤768px it becomes a menu button that opens a
+modal drawer. See `AGENTS.md` for the full API.
 
 ### Client-side routing (`linkComponent`)
 

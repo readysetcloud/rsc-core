@@ -30,6 +30,8 @@ import { getVisibleServices, readySetCloudServices, type RscService } from '../s
 export type AppNavTheme = 'light' | 'dark' | 'system';
 export type AppNavAuthState = 'none' | 'anonymous' | 'authenticated';
 export type AppNavLayout = 'top' | 'side';
+/** `default` or `subtle` nav items — see the React AppNav's `navItemsVariant`. */
+export type AppNavItemsVariant = 'default' | 'subtle';
 
 export interface AppNavUser {
   name?: string;
@@ -73,6 +75,8 @@ export interface AppNavOptions {
   homeHref?: string;
   /** `top` (default) renders the horizontal bar; `side` renders a vertical rail. */
   layout?: AppNavLayout;
+  /** `default` or `subtle` nav items (top layout; the side rail ignores it). */
+  navItemsVariant?: AppNavItemsVariant;
   user?: AppNavUser;
   authState?: AppNavAuthState;
   signInAction?: AppNavAction;
@@ -174,6 +178,7 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
       currentServiceId,
       homeHref = '/',
       layout = 'top',
+      navItemsVariant = 'default',
       user,
       authState,
       className
@@ -221,7 +226,10 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
     inner.appendChild(collapse);
 
     if (visibleNavItems.length > 0) {
-      const nav = h('nav', { class: 'app-nav-links', 'aria-label': 'Primary navigation' });
+      const nav = h('nav', {
+        class: cx('app-nav-links', !isSide && navItemsVariant === 'subtle' && 'app-nav-links-subtle'),
+        'aria-label': 'Primary navigation'
+      });
       if (isSide) {
         for (const group of groupNavItems(visibleNavItems)) {
           const section = h('div', { class: 'app-nav-section' });

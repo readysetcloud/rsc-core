@@ -222,6 +222,17 @@ describe('mountAppNav', () => {
     expect([...root.querySelectorAll('.app-nav-link')].map((l) => l.textContent)).toEqual(['A', 'B']);
   });
 
+  it('renders subtle nav items on request, only in the top layout', () => {
+    const items = [{ id: 'a', label: 'A', href: '/a', active: true }];
+    handle = mountAppNav(root, { appName: 'RSC', navItems: items });
+    const links = () => root.querySelector('.app-nav-links') as HTMLElement;
+    expect(links().classList.contains('app-nav-links-subtle')).toBe(false);
+    handle.update({ navItemsVariant: 'subtle' });
+    expect(links().classList.contains('app-nav-links-subtle')).toBe(true);
+    handle.update({ layout: 'side' });
+    expect(links().classList.contains('app-nav-links-subtle')).toBe(false);
+  });
+
   it('destroy() removes the header and its dialogs', () => {
     handle = mountAppNav(root, { appName: 'RSC', authState: 'authenticated', user: { email: 'a@b.co' } });
     (root.querySelector('.app-nav-avatar') as HTMLButtonElement).click();

@@ -8,6 +8,13 @@ import { cx } from './cx';
 export type AppTheme = 'light' | 'dark' | 'system';
 export type AppNavAuthState = 'none' | 'anonymous' | 'authenticated';
 export type AppNavLayout = 'top' | 'side';
+/**
+ * How loudly the nav items read. `default` is the standard bar; `subtle` is for
+ * apps whose real navigation lives elsewhere on the page (e.g. a `SideNav`): quieter,
+ * smaller, lighter labels, right-aligned beside the actions, with an underline
+ * rather than a color change for the active item.
+ */
+export type AppNavItemsVariant = 'default' | 'subtle';
 
 export interface AppNavUser {
   name?: string;
@@ -49,6 +56,8 @@ export interface AppNavLinkProps {
   className?: string;
   children: ReactNode;
   'aria-current'?: 'page';
+  /** Tooltip, e.g. a `SideNav` rail item's label. Forward it to the anchor. */
+  title?: string;
 }
 
 export type AppNavLinkComponent = ComponentType<AppNavLinkProps>;
@@ -62,6 +71,8 @@ export interface AppNavProps {
   homeHref?: string;
   /** `top` (default) renders the horizontal bar; `side` renders a vertical rail. */
   layout?: AppNavLayout;
+  /** `default` or `subtle` nav items (top layout; the side rail ignores it). */
+  navItemsVariant?: AppNavItemsVariant;
   /**
    * Render in-app links with your router's link component to keep navigation
    * client-side (no full-page reload). Applied to the brand, nav items, primary
@@ -91,6 +102,7 @@ export function AppNav({
   currentServiceId,
   homeHref = '/',
   layout = 'top',
+  navItemsVariant = 'default',
   linkComponent,
   user,
   authState,
@@ -161,7 +173,10 @@ export function AppNav({
 
           <div className={cx('app-nav-collapse', mobileNavOpen && 'app-nav-collapse-open')}>
             {visibleNavItems.length > 0 && (
-              <nav className="app-nav-links" aria-label="Primary navigation">
+              <nav
+                className={cx('app-nav-links', !isSide && navItemsVariant === 'subtle' && 'app-nav-links-subtle')}
+                aria-label="Primary navigation"
+              >
                 {isSide
                   ? navGroups.map((group, index) => (
                       <div className="app-nav-section" key={group.section ?? `__ungrouped-${index}`}>

@@ -95,4 +95,17 @@ describe('AppNav side layout', () => {
       'Brand'
     ]);
   });
+
+  it('renders subtle nav items on request, only in the top layout', () => {
+    const { container, rerender } = render(<AppNav appName="RSC" navItems={sideItems} />);
+    expect(container.querySelector('.app-nav-links')?.classList.contains('app-nav-links-subtle')).toBe(false);
+
+    rerender(<AppNav appName="RSC" navItems={sideItems} navItemsVariant="subtle" />);
+    const links = container.querySelector('.app-nav-links') as HTMLElement;
+    expect(links.classList.contains('app-nav-links-subtle')).toBe(true);
+    expect(links.querySelector('.app-nav-link-active')?.getAttribute('aria-current')).toBe('page');
+
+    rerender(<AppNav appName="RSC" layout="side" navItems={sideItems} navItemsVariant="subtle" />);
+    expect(container.querySelector('.app-nav-links')?.classList.contains('app-nav-links-subtle')).toBe(false);
+  });
 });
