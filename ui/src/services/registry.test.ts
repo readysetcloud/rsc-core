@@ -15,9 +15,9 @@ describe('readySetCloudServices', () => {
 });
 
 describe('fantasy service entry', () => {
-  it('stays hidden from the launcher until the app launches', () => {
+  it('is live in the launcher', () => {
     const fantasy = readySetCloudServices.find((service) => service.id === 'fantasy');
     expect(fantasy?.href).toBe('https://fantasy.readysetcloud.io');
-    expect(fantasy?.active).toBe(false);
+    expect(fantasy?.active).toBe(true);
   });
 });

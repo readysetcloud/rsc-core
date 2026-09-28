@@ -58,7 +58,7 @@
       "shortName": "FF",
       "category": "Games",
       "external": true,
-      "active": false
+      "active": true
     }
   ]
 }
