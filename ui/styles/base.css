@@ -7,9 +7,13 @@
  *   - safe-area utilities for notched devices
  */
 
+/* No overflow-x clipping on html or body. Clipping both made body its own
+   scroll container, which silently broke `position: sticky` everywhere, and it
+   hid anything wider than the screen out of reach instead of letting it
+   scroll. The shipped components stay inside the viewport; an app that
+   overflows should see the scrollbar and fix the wide element. */
 html {
   font-family: var(--font-sans);
-  overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -18,7 +22,6 @@ body {
   background: rgb(var(--background));
   color: rgb(var(--foreground));
   line-height: 1.6;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -60,16 +63,27 @@ h4 { font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem); font-weight: 600; }
     min-height: 44px;
   }
 
-  /* iOS zooms any focused control under 16px — never give it the chance */
-  input[type='text'],
-  input[type='email'],
-  input[type='password'],
-  input[type='url'],
-  input[type='tel'],
-  input[type='search'],
-  input[type='number'],
-  textarea,
-  select {
+  /* iOS zooms any focused control under 16px — never give it the chance.
+     Wrapped in :is() so every entry (bare textarea/select included) carries
+     the specificity of input[type] and still wins over a CSS reset loaded
+     after this file, such as Tailwind's preflight `font-size: 100%`. */
+  :is(
+    input:not([type]),
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='search'],
+    input[type='number'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='month'],
+    input[type='time'],
+    input[type='week'],
+    textarea,
+    select
+  ) {
     font-size: 16px;
   }
 }

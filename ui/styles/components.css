@@ -106,6 +106,15 @@
   box-shadow: 0 0 0 3px rgb(var(--error-500) / 0.18);
 }
 
+/* Phones: the base layer's 16px form text and 44px targets apply to bare
+   elements, which this class outranks — so the class restates them. */
+@media (max-width: 768px) {
+  .input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -338,6 +347,31 @@
 .toast-warning { border-left: 3px solid rgb(var(--warning-500)); }
 .toast-info { border-left: 3px solid rgb(var(--primary-500)); }
 
+.toast-dismiss {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Phones: a full 44px target, pulled into the toast's padding so the toast
+   itself doesn't grow to fit it. */
+@media (max-width: 768px) {
+  .toast-dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin: -0.625rem -0.75rem -0.625rem 0;
+  }
+}
+
 /* ---------- drawer ----------
    Tab + panel slide as one unit: the wrapper is translated by the panel's
    extent, which parks the panel off-screen and leaves the tab peeking out.
@@ -408,8 +442,11 @@
 .drawer[data-state='closed'][data-side='bottom'] { transform: translateY(var(--rsc-drawer-extent)); }
 
 /* The scrim sits between a modal drawer and everything else — including any
-   other drawer, whose tab would otherwise stay live over the dimmed page. */
-.drawer-modal {
+   other drawer, whose tab would otherwise stay live over the dimmed page.
+   Qualified like the root rule (and one class heavier) so it outranks
+   `.drawer[data-side]`; a bare `.drawer-modal` lost on specificity and left
+   the panel under its own scrim, which then took every tap. */
+.drawer[data-side].drawer-modal {
   z-index: 91;
 }
 
@@ -1604,6 +1641,12 @@
 .segmented-control-option:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--ring));
+}
+
+@media (max-width: 768px) {
+  .segmented-control-option {
+    min-height: 44px;
+  }
 }
 
 /* ---------- stat tile ----------
