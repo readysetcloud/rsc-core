@@ -1476,6 +1476,12 @@
     padding: 0.5rem 1rem;
   }
 
+  /* The side layout's menu keeps its rail's shape: section titles and links
+     start at the left, so a badge sits at the row's end, not across it. */
+  .app-nav-side .app-nav-link {
+    justify-content: flex-start;
+  }
+
   .app-nav-actions {
     flex-wrap: wrap;
     justify-content: center;
