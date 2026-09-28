@@ -222,15 +222,32 @@ describe('mountAppNav', () => {
     expect([...root.querySelectorAll('.app-nav-link')].map((l) => l.textContent)).toEqual(['A', 'B']);
   });
 
-  it('renders subtle nav items on request, only in the top layout', () => {
-    const items = [{ id: 'a', label: 'A', href: '/a', active: true }];
-    handle = mountAppNav(root, { appName: 'RSC', navItems: items });
-    const links = () => root.querySelector('.app-nav-links') as HTMLElement;
-    expect(links().classList.contains('app-nav-links-subtle')).toBe(false);
-    handle.update({ navItemsVariant: 'subtle' });
-    expect(links().classList.contains('app-nav-links-subtle')).toBe(true);
-    handle.update({ layout: 'side' });
-    expect(links().classList.contains('app-nav-links-subtle')).toBe(false);
+  it('renders item badges like the React component, with a dot on the menu button', () => {
+    handle = mountAppNav(root, {
+      appName: 'Fantasy',
+      layout: 'side',
+      navItems: [
+        { id: 'trades', label: 'Trades', href: '/trades', badge: 2, badgeLabel: '2 offers waiting', badgeTone: 'error' },
+        { id: 'home', label: 'Home', href: '/home', badge: 0 }
+      ]
+    });
+    const [trades, home] = [...root.querySelectorAll('.app-nav-link')] as HTMLElement[];
+    const badge = trades!.querySelector('.app-nav-link-badge-error') as HTMLElement;
+    expect(trades!.textContent).toBe('Trades 22 offers waiting');
+    expect(badge.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+    expect(badge.querySelector('.sr-only')?.textContent).toBe('2 offers waiting');
+    expect(home!.querySelector('.app-nav-link-badge')).toBeNull();
+    expect(root.querySelector('.app-nav-menu-btn')?.classList.contains('app-nav-menu-btn-badged')).toBe(true);
+    handle.update({ navItems: [{ id: 'chat', label: 'Chat', href: '/chat', badge: 3 }] });
+    expect(root.querySelector('.app-nav-link-badge-primary')?.textContent).toBe('3');
+  });
+
+  it('closes the phone menu when a nav link is followed', () => {
+    handle = mountAppNav(root, { appName: 'Fantasy', navItems: [{ id: 'home', label: 'Home', href: '#home' }] });
+    (root.querySelector('.app-nav-menu-btn') as HTMLElement).click();
+    expect(root.querySelector('.app-nav-collapse-open')).toBeTruthy();
+    (root.querySelector('.app-nav-link') as HTMLElement).click();
+    expect(root.querySelector('.app-nav-collapse-open')).toBeNull();
   });
 
   it('destroy() removes the header and its dialogs', () => {

@@ -40,9 +40,9 @@ export {
 export {
   AppNav,
   type AppNavAction,
+  type AppNavBadgeTone,
   type AppNavAuthState,
   type AppNavItem,
-  type AppNavItemsVariant,
   type AppNavLayout,
   type AppNavLinkComponent,
   type AppNavLinkProps,
@@ -50,14 +50,6 @@ export {
   type AppNavUser,
   type AppTheme
 } from './components/AppNav';
-export {
-  SIDE_NAV_PHONE_QUERY,
-  SideNav,
-  SideNavLayout,
-  type SideNavBadgeTone,
-  type SideNavItem,
-  type SideNavProps
-} from './components/SideNav';
 export { ToastProvider, useToast, type ToastOptions, type ToastVariant } from './components/Toast';
 export { Skeleton, type SkeletonProps } from './components/Skeleton';
 export { EmptyState, type EmptyStateProps } from './components/EmptyState';

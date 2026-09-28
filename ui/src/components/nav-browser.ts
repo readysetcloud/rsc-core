@@ -30,8 +30,7 @@ import { getVisibleServices, readySetCloudServices, type RscService } from '../s
 export type AppNavTheme = 'light' | 'dark' | 'system';
 export type AppNavAuthState = 'none' | 'anonymous' | 'authenticated';
 export type AppNavLayout = 'top' | 'side';
-/** `default` or `subtle` nav items — see the React AppNav's `navItemsVariant`. */
-export type AppNavItemsVariant = 'default' | 'subtle';
+export type AppNavBadgeTone = 'primary' | 'neutral' | 'success' | 'warning' | 'error';
 
 export interface AppNavUser {
   name?: string;
@@ -57,6 +56,16 @@ export interface AppNavItem {
    * under one heading in the `side` layout (ignored in the `top` layout).
    */
   section?: string;
+  /**
+   * Optional count or short tag after the label (e.g. offers waiting, unread
+   * messages). `0`, `''` and `undefined` show nothing. While the phone menu is
+   * closed, the menu button carries a dot when any visible item has one.
+   */
+  badge?: number | string;
+  /** Screen-reader text for the badge, e.g. "2 offers waiting" (default: the badge itself). */
+  badgeLabel?: string;
+  /** Badge color (default `primary`). */
+  badgeTone?: AppNavBadgeTone;
 }
 
 export interface AppNavAction {
@@ -75,8 +84,6 @@ export interface AppNavOptions {
   homeHref?: string;
   /** `top` (default) renders the horizontal bar; `side` renders a vertical rail. */
   layout?: AppNavLayout;
-  /** `default` or `subtle` nav items (top layout; the side rail ignores it). */
-  navItemsVariant?: AppNavItemsVariant;
   user?: AppNavUser;
   authState?: AppNavAuthState;
   signInAction?: AppNavAction;
@@ -178,7 +185,6 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
       currentServiceId,
       homeHref = '/',
       layout = 'top',
-      navItemsVariant = 'default',
       user,
       authState,
       className
@@ -209,7 +215,7 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
 
     const menuBtn = h('button', {
       type: 'button',
-      class: 'app-nav-menu-btn',
+      class: cx('app-nav-menu-btn', visibleNavItems.some(hasBadge) && 'app-nav-menu-btn-badged'),
       'aria-label': 'Toggle navigation',
       'aria-expanded': String(mobileNavOpen)
     });
@@ -226,9 +232,12 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
     inner.appendChild(collapse);
 
     if (visibleNavItems.length > 0) {
-      const nav = h('nav', {
-        class: cx('app-nav-links', !isSide && navItemsVariant === 'subtle' && 'app-nav-links-subtle'),
-        'aria-label': 'Primary navigation'
+      const nav = h('nav', { class: 'app-nav-links', 'aria-label': 'Primary navigation' });
+      // Following a link closes the phone menu (a page that routes client-side keeps the nav).
+      nav.addEventListener('click', (event) => {
+        if (!mobileNavOpen || !(event.target as Element).closest('a')) return;
+        mobileNavOpen = false;
+        render();
       });
       if (isSide) {
         for (const group of groupNavItems(visibleNavItems)) {
@@ -501,7 +510,20 @@ function navLink(item: AppNavItem): El {
     link.appendChild(iconWrap);
   }
   link.appendChild(document.createTextNode(item.label));
+  if (hasBadge(item)) {
+    link.appendChild(document.createTextNode(' '));
+    const badge = h('span', { class: cx('app-nav-link-badge', `app-nav-link-badge-${item.badgeTone ?? 'primary'}`) });
+    badge.appendChild(
+      h('span', item.badgeLabel === undefined ? {} : { 'aria-hidden': 'true' }, String(item.badge))
+    );
+    if (item.badgeLabel !== undefined) badge.appendChild(h('span', { class: 'sr-only' }, item.badgeLabel));
+    link.appendChild(badge);
+  }
   return link;
+}
+
+function hasBadge(item: AppNavItem): boolean {
+  return item.badge !== undefined && item.badge !== 0 && item.badge !== '';
 }
 
 function createDialog(className: string, label: string, onClose: () => void): HTMLDialogElement {
