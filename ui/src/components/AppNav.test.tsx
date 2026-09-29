@@ -2,7 +2,7 @@
    icons, and that the default top layout stays flat. The vanilla build has its
    own parity tests in nav-browser.test.ts. */
 
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppNav, type AppNavItem, type AppNavLinkProps } from './AppNav';
 
@@ -94,5 +94,42 @@ describe('AppNav side layout', () => {
       'Posts',
       'Brand'
     ]);
+  });
+
+  it('shows item badges with their screen-reader label, none for zero, and a dot on the menu button', () => {
+    const { container, rerender } = render(
+      <AppNav
+        appName="Fantasy"
+        layout="side"
+        navItems={[
+          { id: 'trades', label: 'Trades', href: '/trades', badge: 2, badgeLabel: '2 offers waiting', badgeTone: 'error' },
+          { id: 'chat', label: 'Chat', href: '/chat', badge: '99+' },
+          { id: 'home', label: 'Home', href: '/home', badge: 0 }
+        ]}
+      />
+    );
+    const trades = screen.getByRole('link', { name: 'Trades 2 offers waiting' });
+    const badge = trades.querySelector('.app-nav-link-badge-error') as HTMLElement;
+    expect(badge.textContent).toBe('22 offers waiting');
+    expect(badge.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('link', { name: 'Chat 99+' }).querySelector('.app-nav-link-badge-primary')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Home' }).querySelector('.app-nav-link-badge')).toBeNull();
+    expect(container.querySelector('.app-nav-menu-btn')?.classList.contains('app-nav-menu-btn-badged')).toBe(true);
+
+    rerender(<AppNav appName="Fantasy" navItems={[{ id: 'home', label: 'Home', href: '/home', badge: '' }]} />);
+    expect(container.querySelector('.app-nav-link-badge')).toBeNull();
+    expect(container.querySelector('.app-nav-menu-btn')?.classList.contains('app-nav-menu-btn-badged')).toBe(false);
+  });
+
+  it('closes the phone menu when a nav link is followed', () => {
+    const { container } = render(
+      <AppNav appName="Fantasy" layout="side" navItems={[{ id: 'home', label: 'Home', href: '#home' }]} />
+    );
+    const menu = screen.getByRole('button', { name: 'Toggle navigation' });
+    fireEvent.click(menu);
+    expect(container.querySelector('.app-nav-collapse-open')).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+    expect(container.querySelector('.app-nav-collapse-open')).toBeNull();
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
   });
 });

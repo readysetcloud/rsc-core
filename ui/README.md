@@ -204,6 +204,9 @@ side layout:
   one label; items without a section render as a headingless run, so a
   standalone item stays put at the top or bottom of the rail. (Sections are
   ignored in the `top` layout.)
+- `badge` — a count or short tag after the label (both layouts), with
+  `badgeLabel` for screen readers and `badgeTone` for its color. `0` shows
+  nothing; the phone menu button gets a dot while any item has one.
 
 ```tsx
 <AppNav

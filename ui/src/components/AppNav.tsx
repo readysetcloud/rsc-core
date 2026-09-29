@@ -8,6 +8,7 @@ import { cx } from './cx';
 export type AppTheme = 'light' | 'dark' | 'system';
 export type AppNavAuthState = 'none' | 'anonymous' | 'authenticated';
 export type AppNavLayout = 'top' | 'side';
+export type AppNavBadgeTone = 'primary' | 'neutral' | 'success' | 'warning' | 'error';
 
 export interface AppNavUser {
   name?: string;
@@ -30,6 +31,16 @@ export interface AppNavItem {
    * under one heading in the `side` layout (ignored in the `top` layout).
    */
   section?: string;
+  /**
+   * Optional count or short tag after the label (e.g. offers waiting, unread
+   * messages). `0`, `''` and `undefined` show nothing. While the phone menu is
+   * closed, the menu button carries a dot when any visible item has one.
+   */
+  badge?: number | string;
+  /** Screen-reader text for the badge, e.g. "2 offers waiting" (default: the badge itself). */
+  badgeLabel?: string;
+  /** Badge color (default `primary`). */
+  badgeTone?: AppNavBadgeTone;
 }
 
 export interface AppNavAction {
@@ -114,6 +125,7 @@ export function AppNav({
   const visibleServices = useMemo(() => getVisibleServices(services), [services]);
   const visibleNavItems = useMemo(() => navItems.filter((item) => item.visible !== false), [navItems]);
   const navGroups = useMemo(() => groupNavItems(visibleNavItems), [visibleNavItems]);
+  const anyBadge = visibleNavItems.some(hasBadge);
   const isSide = layout === 'side';
   const resolvedAuthState = authState ?? (user ? 'authenticated' : 'none');
   const showAuthenticatedControls = resolvedAuthState === 'authenticated';
@@ -151,7 +163,7 @@ export function AppNav({
 
           <button
             type="button"
-            className="app-nav-menu-btn"
+            className={cx('app-nav-menu-btn', anyBadge && 'app-nav-menu-btn-badged')}
             onClick={() => setMobileNavOpen((open) => !open)}
             aria-label="Toggle navigation"
             aria-expanded={mobileNavOpen}
@@ -161,7 +173,15 @@ export function AppNav({
 
           <div className={cx('app-nav-collapse', mobileNavOpen && 'app-nav-collapse-open')}>
             {visibleNavItems.length > 0 && (
-              <nav className="app-nav-links" aria-label="Primary navigation">
+              <nav
+                className="app-nav-links"
+                aria-label="Primary navigation"
+                // In an SPA the nav stays mounted across pages: following a link closes the phone
+                // menu, as a full page load would.
+                onClick={(event) => {
+                  if ((event.target as Element).closest('a')) setMobileNavOpen(false);
+                }}
+              >
                 {isSide
                   ? navGroups.map((group, index) => (
                       <div className="app-nav-section" key={group.section ?? `__ungrouped-${index}`}>
@@ -378,8 +398,22 @@ function AppNavLink({ item, linkComponent }: { item: AppNavItem; linkComponent?:
         </span>
       )}
       {item.label}
+      {hasBadge(item) && (
+        <>
+          {/* A space, so the badge reads as its own word ("Trades 2 offers waiting"). */}{' '}
+          <span className={cx('app-nav-link-badge', `app-nav-link-badge-${item.badgeTone ?? 'primary'}`)}>
+            <span aria-hidden={item.badgeLabel !== undefined || undefined}>{item.badge}</span>
+            {item.badgeLabel !== undefined && <span className="sr-only">{item.badgeLabel}</span>}
+          </span>
+        </>
+      )}
     </AppNavAnchor>
   );
+}
+
+/** Whether an item shows a badge: `0`, `''` and `undefined` don't. */
+function hasBadge(item: AppNavItem): boolean {
+  return item.badge !== undefined && item.badge !== 0 && item.badge !== '';
 }
 
 function AppNavActionControl({

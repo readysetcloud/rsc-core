@@ -40,6 +40,7 @@ export {
 export {
   AppNav,
   type AppNavAction,
+  type AppNavBadgeTone,
   type AppNavAuthState,
   type AppNavItem,
   type AppNavLayout,

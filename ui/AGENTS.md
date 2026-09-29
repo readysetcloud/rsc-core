@@ -83,7 +83,7 @@ All components are typed, accept `className`, and forward standard HTML props.
 | `ProgressIndicator` | `steps: { id, label, status, description? }[]` | Step status list for setup/verification flows. Status: `pending`, `in-progress`, `completed`, `failed`. |
 | `ErrorState` | `heading?`, `message`, `action?` | Standard retryable error block built on `Alert`. |
 | `Container` | div props | max 72rem, fluid padding. |
-| `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. |
+| `AppNav` | `appName`, `navItems`, `layout`, `currentServiceId`, `authState`, `services`, auth actions | Shared navbar: hardcoded ReadySetCloud cloud mark, configurable Raleway app name, Manrope nav labels, theme toggle, authenticated-only 9-box app launcher, optional auth controls. `layout="side"` renders a vertical rail (per-item `icon` + grouped `section` headings); default `top` is the horizontal bar. Per-item `badge` (+ `badgeLabel`, `badgeTone`) shows a count after the label. |
 | `BadgeChest` | `points`, `level`, `levelName`, `levelMinPoints`, `nextLevel`, `badges`, `inProgress`, `loading`, `showInProgress`, `emptyState` | Cross-app trophy case: level + points header with progress bar, earned badge grid, and in-progress tiles. Presentational — fetch with `createBadgeClient` and pass the data in. |
 | `cx(...parts)` | | Classname join helper (replaces clsx for simple cases). |
 
@@ -120,6 +120,14 @@ Navbar rules:
   the vanilla build) and `section` (heading — consecutive same-section items are
   grouped; ungrouped items stay in place). Sections are ignored in `top`. The
   rail collapses to the shared hamburger drawer on mobile.
+- `badge` puts a count or short tag after an item's label in either layout
+  (offers waiting, unread messages); `0`, `''` and `undefined` show nothing.
+  Give it a `badgeLabel` ("2 offers waiting") so screen readers hear what the
+  number means, and a `badgeTone` (`primary` default, `neutral`, `success`,
+  `warning`, `error`). While the phone menu is closed, the menu button carries
+  a dot when any visible item has a badge. Same options in the vanilla build.
+- Following a nav link closes the phone menu (a client-side route change keeps
+  the nav mounted, so it would otherwise stay open over the new page).
 - `linkComponent` (React only) routes in-app links (brand, nav items, primary
   action, auth actions) through your router's link for client-side navigation —
   `({ href, ...props }) => <Link to={href} {...props} />`. External items always
