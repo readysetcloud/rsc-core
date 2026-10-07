@@ -319,6 +319,15 @@ that id in the **`SystemTaskPrincipals`** deploy parameter (comma-separated
 still `GET` the task even though the run acts as the system. See the [package
 README](agent/README.md#autonomous-tasks-non-chat-agents).
 
+**Persistent agents.** For an agent that should feel like it has agency (woken
+by the events that concern it, pacing itself like a person, pursuing durable
+goals, keeping its promises, checking in on its own), the package's
+`@readysetcloud/agent/agency` subpath adds a trigger router with atomic gates
+and human-like delays, typed agendas and commitments, scheduled check-ins, and a
+revision-checked per-agent state store. Delayed triggers ride the
+[deferred-event primitive](#deferred-events--publish-an-event-later) above. See
+[Agency](agent/README.md#agency--persistent-agents-readysetcloudagentagency).
+
 ### Pieces
 
 | Piece | Where |

@@ -38,6 +38,7 @@ Strands SDK and `zod`.
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
 | `DEFAULT_MODEL_ID`, `DEFAULT_REGION`, `DEFAULT_SYSTEM_PROMPT`, `DEFAULT_MAX_TOKENS`, `DEFAULT_TEMPERATURE` | Config constants (env-overridable). |
 | wire types — `ServerMessage`, `ClientMessage`, `AgentStreamEventBody`, `SendMessage` | The streaming contract shared with the UI client. |
+| `@readysetcloud/agent/agency` — `routeTrigger`, `reconcileAgenda`, `openCommitment` / `advanceCommitment`, `checkInMoment`, `responseDelay`, `readAgentState` / `updateAgentState` | Primitives for **persistent agents** that feel like they have agency: trigger rules with atomic gates and human-like delays, durable typed agendas and commitments, scheduled check-ins, and a revision-checked state store. Strands-free. See [Agency](#agency--persistent-agents-readysetcloudagentagency). |
 
 Cross-session memory is **not** built into `createAssistant`. Pass a Strands
 `memoryManager` — the host owns the backend. In rsc-core the AgentCore Runtime
@@ -54,6 +55,10 @@ Re-exports only the modules that pull in **no** Strands SDK (snapshot storage +
 session config) — import it from Lambdas so they don't bundle the agent runtime.
 Importing the package root would transitively load Strands and its optional
 integrations.
+
+`@readysetcloud/agent/agency` is likewise Strands-free: the trigger router,
+agendas, commitments, check-ins, and the agent state store (see
+[Agency](#agency--persistent-agents-readysetcloudagentagency)).
 
 ## Usage
 
@@ -234,6 +239,225 @@ Pass it to run the agent in **your own** stack against **your own** table
 (library mode) instead of through a shared host. Note the boundary: a library-mode
 run does not go through the shared runtime's guarantees (Bedrock grant, MCP
 allowlist, memory isolation) — your stack owns them.
+
+## Agency — persistent agents (`@readysetcloud/agent/agency`)
+
+```ts
+import { routeTrigger, reconcileAgenda, openCommitment, checkInMoment } from '@readysetcloud/agent/agency';
+```
+
+A task that runs when asked is a function. An agent that feels like it has
+**agency** is woken by things that concern it, paces itself like a person
+would, keeps pursuing a goal until it is really done, remembers what it
+promised, and shows up on its own now and then. The `./agency` subpath is the
+set of primitives behind that, extracted from the AI managers in
+[ai-fantasy-league](https://github.com/allenheltondev/ai-fantasy-league) and
+made generic. It is **Strands-free** (a Lambda can import it without bundling
+the runtime) and every piece composes with the task path above: a trigger
+becomes a `"Run Agent Task"` request, and the task reads its agenda and
+commitments on the way in and reconciles them on the way out.
+
+| Piece | What it gives an agent |
+| --- | --- |
+| **Triggers** — `routeTrigger`, `TriggerRule`, `dynamoTriggerGates`, `eventBridgeDispatcher`, `humanDelay` | Reasons to act. A rule per event type says which agents an event concerns and what kind of task it calls for; atomic gates keep it from being woken twice for the same work (a per-agent cooldown, a once-per key, a shared cooldown); `urgent` bypasses them for deadlines. |
+| **Response delays** — `responseDelay`, `RESPONSE_DELAY_PROFILES`, `ResponseDelayLever` | Timing that feels human. A seeded, right-skewed wait sized by the kind of event and the agent's own temperament, clamped so it never misses a deadline, identical on a redelivery. |
+| **Agenda** — `reconcileAgenda`, `agendaLines`, `agendaPriority` | Goals that persist. Typed goals reconciled from what the host *observes*, never from what a model *says*; a need creates a goal once, the goal survives runs until an observation no longer reports it, stale reads cannot revive it. |
+| **Commitments** — `openCommitment`, `advanceCommitment`, `dueCommitments` | Promises that are kept. "I'll look into that" becomes a record with an explicit lifecycle, owned by one task at a time, decided by results rather than words, with bounded reconsideration when the facts change. |
+| **Check-ins** — `checkInMoment`, `nextCheckIn` | Initiative. A scheduled heartbeat (a few times a day, in the agent's time zone) that makes it review its agenda and open commitments unprompted, where "nothing to do" is a fine, model-free answer. |
+| **State store** — `readAgentState`, `updateAgentState` | Durability. A revision-checked DynamoDB document per agent (and optional scope: a tenure, a season), so concurrent runs serialize instead of clobbering each other. |
+| `seededRandom`, `seededRoll`, `hashString` | Replayable dice, so a redelivered event never changes an agent's mind. |
+
+### How the pieces fit
+
+```mermaid
+flowchart LR
+    Events["Your app's events"] --> Router["routeTrigger (rules + gates + delay)"]
+    Heartbeat["Scheduled check-in event"] --> Router
+    Router -->|"Run Agent Task (+ trigger)"| Task["runAgentTask in your host"]
+    Router -.->|"delayed: Schedule Event"| Task
+    Task --> State[("agenda · commitments\n(updateAgentState)")]
+    State --> Task
+    Task -->|"follow-up"| Router
+```
+
+1. **Route.** Your event consumer calls `routeTrigger` with your rules. For each
+   agent a rule concerns it takes the agent's cooldown slot (a conditional
+   write), computes a delay, and dispatches a `"Run Agent Task"` with a
+   deterministic `taskId` (`taskIdFor(eventId, agentId, kind)`) and a `trigger`
+   `{ kind, eventId, detailType, payload }`. A delayed task is handed to the
+   `Schedule Event` primitive named by its task id, so a redelivered trigger
+   neither moves nor doubles it. A redelivery passes its own gates again and
+   lands on the same task id, where `runAgentTask`'s claim makes it a no-op.
+2. **Run.** Your `"Run Agent Task"` consumer reads `detail.trigger.kind` to pick
+   the task's behavior, loads the agenda (`readAgentState`), puts
+   `agendaLines(...)` in the prompt, and runs. Deterministic code decides what
+   the agent *may* do; the agenda only orders the options (`agendaPriority` is a
+   preference, never a permission).
+3. **Reconcile.** After acting, the task observes the real state again (a fresh
+   authoritative read, not the model's summary) and `reconcileAgenda`s it under
+   `updateAgentState`. A goal completes only when the observation stops
+   reporting the need; a pending request is not a result.
+4. **Commit.** When a conversation produces a promise, `openCommitment` records
+   it (by reference, never the text) and the task dispatches a follow-up task
+   that owns it. That task reports back through `advanceCommitment` (`waiting`
+   with the external thing it produced, or `closed` with a reason and the facts
+   it rested on), and a later check-in `dueCommitments` picks up lost or
+   reconsiderable ones.
+5. **Check in.** A scheduled rule (EventBridge cron → an event carrying
+   `checkInMoment(now)`) routes a `check_in` task to every agent, `oncePer`
+   `date-slot`, with a `routine` delay so each one wanders in at its own time.
+
+### Worked example
+
+```ts
+// rules.ts — what wakes a reviewer agent, and how it paces itself.
+import {
+  routeTrigger, humanDelay, dynamoTriggerGates, eventBridgeDispatcher,
+  type TriggerRuleMap, type TriggerRouterDeps,
+} from '@readysetcloud/agent/agency';
+
+type PrOpened = { repo: string; pr: number; reviewers: string[]; dueAt: string };
+type CheckIn = { date: string; slot: string; nextAt: string };
+
+const rules: TriggerRuleMap = {
+  'Pull Request Opened': {
+    kind: 'review',
+    agents: ({ detail }: { detail: PrOpened }) => detail.reviewers,
+    // Mulls it over for a bit, but always starts well before the due time.
+    delay: humanDelay<PrOpened>('considered', { deadline: (d) => d.dueAt }),
+    request: ({ detail }) => `Review pull request #${detail.pr} in ${detail.repo}.`,
+    payload: ({ detail }) => ({ repo: detail.repo, pr: detail.pr }),
+  },
+  'Review Deadline Near': {
+    kind: 'review',
+    urgent: true,                                    // through any cooldown, no delay
+    agents: ({ detail }: { detail: PrOpened }) => detail.reviewers,
+    request: ({ detail }) => `Finish your review of #${detail.pr} now.`,
+  },
+  'Reviewer Check-In': {
+    kind: 'check_in',
+    agents: async () => listReviewerAgents(),
+    oncePer: (d: CheckIn) => `${d.date}-${d.slot}`,  // once per slot, however often it is delivered
+    delay: humanDelay<CheckIn>('routine', { deadline: (d) => d.nextAt }),
+    request: () => 'Look over your open reviews and anything you said you would do.',
+  },
+};
+
+const deps: TriggerRouterDeps = {
+  rules,
+  gates: dynamoTriggerGates({ prefix: 'reviewers' }),
+  pacing: async (agentId) => {
+    const persona = await getPersona(agentId);
+    if (!persona) return null;                                 // not one of ours: skipped
+    return { cooldownMs: 15 * 60_000, responseDelay: persona.responseDelay };   // { multiplier, immediateChance }
+  },
+  principal: (agentId) => ({ type: 'system', id: agentId }),
+  dispatch: eventBridgeDispatcher({ sessionId: (t) => `reviewer-${t.agentId}` }),
+  responseDelays: process.env.RESPONSE_DELAYS !== 'off',
+};
+
+export const handler = (event) => routeTrigger(deps, event);
+```
+
+```ts
+// run.ts — the "Run Agent Task" consumer, with an agenda and commitments.
+import { runAgentTask, createAssistant, tool } from '@readysetcloud/agent';
+import {
+  readAgentState, updateAgentState, reconcileAgenda, agendaLines, emptyAgenda,
+  openCommitment, advanceCommitment, dueCommitments, emptyCommitments, taskIdFor,
+  type Agenda, type CommitmentBook,
+} from '@readysetcloud/agent/agency';
+
+type Need = { repo: string; pr: number; reason: 'requested' | 'stale' };
+
+export const handler = async ({ detail }) => {
+  const { taskId, principal, request, trigger } = detail;
+  const agentId = principal.id;
+
+  await runAgentTask({
+    taskId, principal, request,
+    buildAgent: async () => {
+      const agenda = (await readAgentState<Agenda<Need>>({ agentId, name: 'agenda' }))?.value ?? emptyAgenda<Need>();
+      const agent = createAssistant({
+        sessionId: `reviewer-${agentId}`,
+        systemPrompt: [
+          persona(agentId),
+          'Your open goals, best first. A review you have merely started does not complete one:',
+          ...agendaLines(agenda, (g) => `Review ${g.data.repo}#${g.data.pr} (${g.data.reason})`),
+        ].join('\n'),
+        tools: trigger?.kind === 'check_in' ? readOnlyTools : reviewTools,
+      });
+      return { agent };
+    },
+  });
+
+  // Observe, don't trust: reconcile the agenda from the real review state.
+  const open = await listOpenReviewRequests(agentId);       // an authoritative read
+  await updateAgentState<Agenda<Need>>({
+    agentId, name: 'agenda',
+    update: (current) => reconcileAgenda(current ?? emptyAgenda<Need>(), {
+      at: new Date().toISOString(), taskId,
+      needs: open.map((r) => ({ id: `review:${r.repo}#${r.pr}`, kind: 'review', data: r })),
+    }),
+  });
+};
+
+// Elsewhere: a chat reply promised "I'll take a look at that flaky test".
+export async function promiseToLook(agentId: string, msg: { channel: string; id: string; from: string }, intent: { test: string }) {
+  const followUpId = taskIdFor(`promise:${msg.id}`, agentId, 'investigate');
+  let outcome: string | undefined;
+  await updateAgentState<CommitmentBook<typeof intent>>({
+    agentId, name: 'commitments',
+    update: (book) => {
+      const r = openCommitment(book ?? emptyCommitments(), {
+        kind: 'investigate', at: new Date().toISOString(), taskId: followUpId,
+        counterpart: msg.from, source: { channel: msg.channel, ref: msg.id, visibility: 'shared' },
+        intent, expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60_000).toISOString(),
+      });
+      outcome = r.outcome;
+      return r.book;
+    },
+  });
+  if (outcome === 'created') await dispatchFollowUp(followUpId, agentId);   // through the same dispatcher
+  // 'existing' (a redelivery) and 'duplicate' dispatch nothing; 'limit' means say so instead of promising.
+}
+```
+
+The follow-up task calls `advanceCommitment(book, id, { type: 'start', taskId })`
+when it begins, then `{ type: 'closed', status: 'declined', reason, facts,
+reconsider: true }` or `{ type: 'waiting', externalRef }` with what it produced,
+always *before* it says anything about it. A check-in runs
+`dueCommitments(book, now, materialChange)` and re-dispatches a lost look
+(`resume`) or a decline whose facts changed (`reconsider`) with a `redispatch`
+event, at most once.
+
+### Boundaries and guarantees
+
+- **Observed, not claimed.** The agenda and commitments change only through
+  deterministic transitions fed by authoritative reads and task results. A
+  model's summary never completes a goal or settles a promise.
+- **Idempotent under at-least-once delivery.** Gates are owner-checked
+  conditional writes; task ids are deterministic per (event, agent, kind);
+  `openCommitment` is idempotent per source; `reconcileAgenda` rejects stale
+  observations; `updateAgentState` is compare-and-swap. Redeliveries and
+  replays converge.
+- **Bounded.** Active goals, open commitments (per agent and per counterpart),
+  history, child tasks per commitment, and reconsiderations are all capped
+  (`AGENDA_LIMITS`, `COMMITMENT_LIMITS`; pass your own).
+- **Private by construction.** A commitment stores where something was said,
+  never the text; a follow-up re-reads it. Whether agenda lines reach a prompt
+  that can write to a shared channel is your call (the fantasy league keeps
+  them out of chat tasks).
+- **Not included (yet).** The fantasy league also has a durable dispatch
+  outbox with a recovery sweep, per-task budget admission, and a kill switch.
+  Here a dispatch that fails throws to the router (EventBridge retries the
+  consumer; the gate stays the task's own so the retry passes), and spend
+  control is the host's.
+
+### Keys
+
+- **Agent state:** `pk=AGENT#{agentId}`, `sk=STATE#{name}` or `STATE#{name}#{scope}` (`entity=AgentState`, `revision`, `value`).
+- **Trigger gates:** `pk=TRIGGER#{[prefix#]slot}`, `sk=GATE` (`entity=TriggerGate`, `owner`, `lastTriggeredAt`, 30-day TTL).
 
 ## Server-side one-shot runs (`runAgent`)
 
@@ -493,6 +717,8 @@ adapt `DynamoSnapshotStorage`):
 - **Snapshots:** `pk=SESSION#{sessionId}`, `sk=SNAPSHOT#{scope}#{scopeId}#{id}` / `LATEST#…` / `MANIFEST#…`.
 - **Session config:** `pk=SESSION#{sessionId}`, `sk=CONFIG` (owner + prompt/model/tools).
 - **Task records:** `pk=TASK#{taskId}`, `sk=STATUS` (autonomous-run status/result, short TTL).
+- **Agent state:** `pk=AGENT#{agentId}`, `sk=STATE#{name}[#{scope}]` (agenda, commitments: revision-checked documents).
+- **Trigger gates:** `pk=TRIGGER#{slot}`, `sk=GATE` (cooldowns and once-per keys, owner-checked).
 
 Every data-plane function takes an optional `tableName` (defaulting to
 `TABLE_NAME`) so the package can be pointed at any table — see [`tableName` —

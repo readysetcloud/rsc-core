@@ -1,7 +1,7 @@
 {
   "name": "@readysetcloud/agent",
-  "version": "0.2.7",
-  "description": "Portable, framework-agnostic Node agent core for Ready, Set, Cloud: a Strands-TS assistant with DynamoDB-backed conversation snapshots and pluggable cross-session memory.",
+  "version": "0.3.0",
+  "description": "Portable, framework-agnostic Node agent core for Ready, Set, Cloud: a Strands-TS assistant with DynamoDB-backed conversation snapshots, pluggable cross-session memory, and agency primitives (triggers, agendas, commitments, check-ins) for persistent agents.",
   "author": "allenheltondev",
   "license": "MIT",
   "type": "module",
@@ -23,6 +23,10 @@
     "./memory": {
       "types": "./dist/memory/index.d.ts",
       "import": "./dist/memory/index.js"
+    },
+    "./agency": {
+      "types": "./dist/agency/index.d.ts",
+      "import": "./dist/agency/index.js"
     }
   },
   "files": [
