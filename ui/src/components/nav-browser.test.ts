@@ -265,6 +265,25 @@ describe('mountAppNav', () => {
     expect(root.querySelector('.app-nav-menu-btn')?.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('keeps the phone menu and its dialog intact when tapping inside the profile dialog', () => {
+    const onSignOut = vi.fn();
+    handle = mountAppNav(root, {
+      appName: 'RSC',
+      authState: 'authenticated',
+      user: { email: 'a@b.co' },
+      onSignOut,
+      closeMenuOnOutsideClick: true
+    });
+    (root.querySelector('.app-nav-menu-btn') as HTMLElement).click();
+    (root.querySelector('.app-nav-avatar') as HTMLElement).click();
+    const signOut = document.body.querySelector('.profile-menu-modal button') as HTMLButtonElement;
+    signOut.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(signOut.isConnected).toBe(true);
+    expect(root.querySelector('.app-nav-collapse-open')).toBeTruthy();
+    signOut.click();
+    expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
   it('destroy() removes the header and its dialogs', () => {
     handle = mountAppNav(root, { appName: 'RSC', authState: 'authenticated', user: { email: 'a@b.co' } });
     (root.querySelector('.app-nav-avatar') as HTMLButtonElement).click();

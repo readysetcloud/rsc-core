@@ -155,7 +155,10 @@ export function AppNav({
     if (!closeMenuOnOutsideClick || !mobileNavOpen) return;
     // pointerdown, not click: iOS Safari doesn't dispatch click from non-interactive content.
     const onPointerDown = (event: PointerEvent) => {
-      if (!headerRef.current?.contains(event.target as Node)) setMobileNavOpen(false);
+      const target = event.target as Element;
+      // The launcher/profile dialogs render outside the header but belong to the nav.
+      if (headerRef.current?.contains(target) || target.closest?.('.app-launcher-modal, .profile-menu-modal')) return;
+      setMobileNavOpen(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);

@@ -148,4 +148,13 @@ describe('AppNav side layout', () => {
     expect(container.querySelector('.app-nav-collapse-open')).toBeNull();
     expect(menu.getAttribute('aria-expanded')).toBe('false');
   });
+
+  it('treats taps inside its own dialogs as inside the nav', () => {
+    const { container } = render(
+      <AppNav appName="Fantasy" authState="authenticated" user={{ email: 'a@b.co' }} services={[]} closeMenuOnOutsideClick />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle navigation' }));
+    fireEvent.pointerDown(document.body.querySelector('.profile-menu-modal .app-nav-sign-out-action')!);
+    expect(container.querySelector('.app-nav-collapse-open')).toBeTruthy();
+  });
 });
