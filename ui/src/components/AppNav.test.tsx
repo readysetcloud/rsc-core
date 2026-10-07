@@ -132,4 +132,29 @@ describe('AppNav side layout', () => {
     expect(container.querySelector('.app-nav-collapse-open')).toBeNull();
     expect(menu.getAttribute('aria-expanded')).toBe('false');
   });
+
+  it('closes the phone menu on an outside click only when closeMenuOnOutsideClick is set', () => {
+    const items = [{ id: 'home', label: 'Home', href: '#home' }];
+    const { container, rerender } = render(<AppNav appName="Fantasy" navItems={items} />);
+    const menu = screen.getByRole('button', { name: 'Toggle navigation' });
+    fireEvent.click(menu);
+    fireEvent.pointerDown(document.body);
+    expect(container.querySelector('.app-nav-collapse-open')).toBeTruthy();
+
+    rerender(<AppNav appName="Fantasy" navItems={items} closeMenuOnOutsideClick />);
+    fireEvent.pointerDown(container.querySelector('.app-nav-collapse')!);
+    expect(container.querySelector('.app-nav-collapse-open')).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(container.querySelector('.app-nav-collapse-open')).toBeNull();
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('treats taps inside its own dialogs as inside the nav', () => {
+    const { container } = render(
+      <AppNav appName="Fantasy" authState="authenticated" user={{ email: 'a@b.co' }} services={[]} closeMenuOnOutsideClick />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle navigation' }));
+    fireEvent.pointerDown(document.body.querySelector('.profile-menu-modal .app-nav-sign-out-action')!);
+    expect(container.querySelector('.app-nav-collapse-open')).toBeTruthy();
+  });
 });

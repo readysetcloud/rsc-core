@@ -128,6 +128,8 @@ Navbar rules:
   a dot when any visible item has a badge. Same options in the vanilla build.
 - Following a nav link closes the phone menu (a client-side route change keeps
   the nav mounted, so it would otherwise stay open over the new page).
+- `closeMenuOnOutsideClick` (default `false`) also closes the phone menu when
+  the user taps anywhere outside the nav. Same option in the vanilla build.
 - `linkComponent` (React only) routes in-app links (brand, nav items, primary
   action, auth actions) through your router's link for client-side navigation —
   `({ href, ...props }) => <Link to={href} {...props} />`. External items always

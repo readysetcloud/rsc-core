@@ -95,6 +95,11 @@ export interface AppNavOptions {
   onThemeChange?: (theme: AppNavTheme) => void;
   onProfileClick?: () => void;
   onSignOut?: () => void;
+  /**
+   * Close the phone menu when the user taps or clicks anywhere outside the
+   * nav (default `false`: only the menu button or following a link closes it).
+   */
+  closeMenuOnOutsideClick?: boolean;
   className?: string;
 }
 
@@ -356,6 +361,18 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
 
   let headerEl: El | null = null;
 
+  // pointerdown, not click: iOS Safari doesn't dispatch click from non-interactive content.
+  const onDocumentPointerDown = (event: Event) => {
+    if (!opts.closeMenuOnOutsideClick || !mobileNavOpen) return;
+    const target = event.target as Node;
+    // The launcher/profile dialogs live on <body>, outside the header, but belong to the nav.
+    // Treating them as outside would re-render and replace the dialog mid-tap, swallowing its click.
+    if ([headerEl, launcherDialog, profileDialog].some((el) => el?.contains(target))) return;
+    mobileNavOpen = false;
+    render();
+  };
+  document.addEventListener('pointerdown', onDocumentPointerDown);
+
   applyTheme();
   render();
 
@@ -373,6 +390,7 @@ export function mountAppNav(target: string | El, options: AppNavOptions): AppNav
       render();
     },
     destroy() {
+      document.removeEventListener('pointerdown', onDocumentPointerDown);
       closeDialog(launcherDialog);
       closeDialog(profileDialog);
       launcherDialog?.remove();

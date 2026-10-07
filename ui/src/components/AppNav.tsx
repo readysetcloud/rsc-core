@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { getVisibleServices, readySetCloudServices, type RscService } from '../services/registry';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -91,6 +91,11 @@ export interface AppNavProps {
   onThemeChange?: (theme: AppTheme) => void;
   onProfileClick?: () => void;
   onSignOut?: () => void;
+  /**
+   * Close the phone menu when the user taps or clicks anywhere outside the
+   * nav (default `false`: only the menu button or following a link closes it).
+   */
+  closeMenuOnOutsideClick?: boolean;
   className?: string;
 }
 
@@ -115,11 +120,13 @@ export function AppNav({
   onThemeChange,
   onProfileClick,
   onSignOut,
+  closeMenuOnOutsideClick = false,
   className
 }: AppNavProps) {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
   const [uncontrolledTheme, setUncontrolledTheme] = useState<AppTheme>(defaultTheme);
   const selectedTheme = theme ?? uncontrolledTheme;
   const visibleServices = useMemo(() => getVisibleServices(services), [services]);
@@ -144,6 +151,19 @@ export function AppNav({
     document.documentElement.dataset.theme = selectedTheme;
   }, [applyThemeToDocument, selectedTheme]);
 
+  useEffect(() => {
+    if (!closeMenuOnOutsideClick || !mobileNavOpen) return;
+    // pointerdown, not click: iOS Safari doesn't dispatch click from non-interactive content.
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element;
+      // The launcher/profile dialogs render outside the header but belong to the nav.
+      if (headerRef.current?.contains(target) || target.closest?.('.app-launcher-modal, .profile-menu-modal')) return;
+      setMobileNavOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [closeMenuOnOutsideClick, mobileNavOpen]);
+
   const toggleTheme = () => {
     const next = selectedTheme === 'dark' ? 'light' : 'dark';
     if (theme === undefined) setUncontrolledTheme(next);
@@ -154,7 +174,7 @@ export function AppNav({
 
   return (
     <>
-      <header className={cx('app-nav', isSide && 'app-nav-side', className)}>
+      <header ref={headerRef} className={cx('app-nav', isSide && 'app-nav-side', className)}>
         <div className="app-nav-inner">
           <AppNavAnchor className="app-nav-brand" href={homeHref} linkComponent={linkComponent}>
             <span className="app-nav-brand-mark" aria-hidden="true" />
