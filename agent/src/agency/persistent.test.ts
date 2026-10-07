@@ -24,6 +24,7 @@ function setup(overrides: Record<string, unknown> = {}) {
   const completed: AgentTaskResult[] = [];
   const open = new Map<string, number[]>([['rev-1', [7]]]);
   const seen: Record<string, unknown>[] = [];
+  const attempts = new Map<string, number>();
   const agent = definePersistentAgent<Persona, Need, Intent>({
     name: 'reviewer',
     profile: (id) => (id.startsWith('rev-') ? { persona: { voice: 'terse' }, pacing } : null),
@@ -39,6 +40,10 @@ function setup(overrides: Record<string, unknown> = {}) {
       review: async (ctx) => {
         seen.push({ kind: ctx.kind, lines: ctx.agendaLines((g) => `review #${g.data.pr}`), payload: ctx.payload, persona: ctx.persona });
         if (ctx.payload.boom) throw new Error('model failed');
+        const n = (attempts.get(ctx.taskId) ?? 0) + 1;
+        attempts.set(ctx.taskId, n);
+        if (typeof ctx.payload.throttle === 'number' && n <= ctx.payload.throttle)
+          throw Object.assign(new Error('slow down'), { name: 'ThrottlingException' });
         if (ctx.payload.promise)
           await ctx.promise({
             kind: 'investigate',
@@ -138,7 +143,7 @@ describe('definePersistentAgent', () => {
     const d = detailOf(sent[0]!);
     const r = await agent.handleTask({ ...d, trigger: { ...d.trigger!, payload: { pr: 7, boom: true } } });
     expect(r).toMatchObject({ status: 'FAILED', error: 'model failed' });
-    expect(store.state.size).toBe(1); // only the commitments book read at start; no agenda written
+    expect([...store.state.keys()].some((k) => k.includes('reviewer.agenda'))).toBe(false);
   });
 
   it('keeps a promise: records it, dispatches the owning follow-up once, and lets it decide', async () => {
@@ -191,6 +196,71 @@ describe('definePersistentAgent', () => {
     const entry = ebSend.mock.calls[0][0].input.Entries[0];
     expect(entry).toMatchObject({ Source: 'agency.reviewer', DetailType: 'Agent Task Completed' });
     expect(JSON.parse(entry.Detail)).toMatchObject({ status: 'COMPLETED', agentType: 'reviewer', agentId: 'rev-1', kind: 'review' });
+  });
+
+  it('rethrows a retryable error with the claim given back, so the next delivery runs it', async () => {
+    const { agent, sent, detailOf, store, completed } = setup();
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    const flaky = { ...d, trigger: { ...d.trigger!, payload: { pr: 7, throttle: 1 } } };
+    await expect(agent.handleTask(flaky)).rejects.toMatchObject({ name: 'ThrottlingException' });
+    expect(store.tasks.get(d.taskId)).toMatchObject({ status: 'FAILED', error: 'Retrying: slow down' });
+    expect(completed).toHaveLength(0);
+    expect(await agent.handleTask(flaky)).toMatchObject({ status: 'COMPLETED', output: 'reviewed 7' });
+    expect(completed).toHaveLength(1);
+  });
+
+  it('fails a non-retryable error for good, and honors a custom classifier', async () => {
+    const { agent, sent, detailOf } = setup({ isRetryable: () => false });
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    const r = await agent.handleTask({ ...d, trigger: { ...d.trigger!, payload: { pr: 7, throttle: 1 } } });
+    expect(r).toMatchObject({ status: 'FAILED', error: 'slow down' });
+  });
+
+  it('classifies retryable errors', async () => {
+    const { isRetryableError } = await import('./persistent.js');
+    for (const e of [{ name: 'ThrottlingException' }, { code: 'ECONNRESET' }, { $retryable: {} }, { $metadata: { httpStatusCode: 503 } }, { statusCode: 429 }, { name: 'AgentStateConflictError' }])
+      expect(isRetryableError(e)).toBe(true);
+    for (const e of [new Error('bug'), { name: 'ValidationException', $metadata: { httpStatusCode: 400 } }, { name: 'AccessDeniedException' }, null, 'x'])
+      expect(isRetryableError(e)).toBe(false);
+  });
+
+  it('does nothing while paused, then picks up again', async () => {
+    let paused = true;
+    const { agent, sent, store, seen, detailOf } = setup({ paused: () => paused });
+    expect(await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } })).toEqual([]);
+    expect(sent).toHaveLength(0);
+    paused = false;
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    paused = true;
+    expect(await agent.handleTask(d)).toMatchObject({ status: 'FAILED', error: 'paused' });
+    expect(store.tasks.size).toBe(0);
+    expect(seen).toHaveLength(0);
+    paused = false;
+    expect(await agent.handleTask(d)).toMatchObject({ status: 'COMPLETED' });
+  });
+
+  it('caps tasks per agent per window, counting each task id once', async () => {
+    const { agent, sent, detailOf, seen, completed, advance } = setup({ taskCap: { max: 2, windowMs: 3600_000 } });
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    const flaky = { ...d, trigger: { ...d.trigger!, payload: { pr: 7, throttle: 1 } } };
+    await expect(agent.handleTask(flaky)).rejects.toThrow();     // counted once…
+    expect((await agent.handleTask(flaky)).status).toBe('COMPLETED'); // …not again on the retry
+    expect((await agent.handleTask({ ...d, taskId: 'two' })).status).toBe('COMPLETED');
+    const capped = await agent.handleTask({ ...d, taskId: 'three' });
+    expect(capped).toMatchObject({ status: 'FAILED', error: expect.stringMatching(/Task cap reached: at most 2 tasks per 60 minutes/) });
+    expect(seen.filter((s) => s.kind === 'review')).toHaveLength(3); // the throttled try, the retry, 'two'
+    expect(completed.at(-1)).toMatchObject({ taskId: 'three', status: 'FAILED' });
+    advance(3600_000);
+    expect((await agent.handleTask({ ...d, taskId: 'four' })).status).toBe('COMPLETED');
+  });
+
+  it('validates the cap, and can turn it off', () => {
+    expect(() => setup({ taskCap: { max: 0, windowMs: 1 } })).toThrow(/taskCap/);
+    expect(() => setup({ taskCap: null })).not.toThrow();
   });
 
   it('isolates state by scope', async () => {

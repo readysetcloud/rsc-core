@@ -109,7 +109,10 @@ export async function updateAgentState<T>(options: UpdateAgentStateOptions<T>): 
       lastError = err;
     }
   }
-  throw new Error(`updateAgentState: ${options.name} for ${options.agentId} changed ${attempts} times while updating`, {
+  const conflict = new Error(`updateAgentState: ${options.name} for ${options.agentId} changed ${attempts} times while updating`, {
     cause: lastError,
   });
+  // Contention clears on its own: callers that retry (a persistent agent's task) treat this as retryable.
+  conflict.name = 'AgentStateConflictError';
+  throw conflict;
 }

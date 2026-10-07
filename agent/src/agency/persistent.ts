@@ -51,6 +51,11 @@ import {
 //   handleTask(detail) your consumer of "Run Agent Task": claim → load state →
 //                      run the kind's handler → observe + reconcile → record
 //
+// Safety for agents nobody is watching: a retryable error (throttling, a
+// timeout, a 5xx) is rethrown so the platform's own delivery retry runs the
+// task again; `paused()` is a kill switch; and a per-agent task cap bounds
+// runaway loops. None of these needs infrastructure beyond what you deploy.
+//
 // Its events use their own `source` (`agency.<name>`), never the shared
 // service's `readysetcloud.agent`, so rsc-core's hosted task Lambda never runs
 // them. Your handlers decide what the agent does (usually with runAgent or
@@ -63,6 +68,47 @@ export const AGENT_CHECK_IN_DETAIL_TYPE = 'Agent Check-In';
 export const CHECK_IN_KIND = 'check_in';
 /** The `detail-type` recorded on a follow-up task's trigger. */
 export const FOLLOW_UP_DETAIL_TYPE = 'Agent Follow-Up';
+
+/** The default per-agent task cap: 100 tasks in any rolling 24 hours. */
+export const DEFAULT_TASK_CAP = { max: 100, windowMs: 24 * 60 * 60_000 } as const;
+
+const RETRYABLE_ERRORS = new Set([
+  'ThrottlingException',
+  'TooManyRequestsException',
+  'ProvisionedThroughputExceededException',
+  'RequestLimitExceeded',
+  'ServiceUnavailableException',
+  'ServiceUnavailable',
+  'InternalServerException',
+  'InternalServerError',
+  'InternalFailure',
+  'ModelNotReadyException',
+  'ModelTimeoutException',
+  'RequestTimeout',
+  'RequestTimeoutException',
+  'TimeoutError',
+  'AgentStateConflictError',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'EAI_AGAIN',
+]);
+
+/**
+ * The default for `isRetryable`: errors that clear up on their own. AWS SDK errors marked
+ * `$retryable`, throttling and timeouts by name or code, network resets, HTTP 429 and 5xx, and
+ * agent-state write contention. Everything else (bad input, a bug, a refused permission) is final.
+ */
+export function isRetryableError(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  const e = error as { name?: unknown; code?: unknown; $retryable?: unknown; $metadata?: { httpStatusCode?: unknown }; statusCode?: unknown };
+  if (e.$retryable) return true;
+  if (typeof e.name === 'string' && RETRYABLE_ERRORS.has(e.name)) return true;
+  if (typeof e.code === 'string' && RETRYABLE_ERRORS.has(e.code)) return true;
+  const status = e.$metadata?.httpStatusCode ?? e.statusCode;
+  return typeof status === 'number' && (status === 429 || status >= 500);
+}
 
 // ---------------------------------------------------------------------------
 // Storage
@@ -278,6 +324,25 @@ export interface PersistentAgentDefinition<P, N, I, F> {
   dispatch?(task: TriggerDispatch): Promise<void>;
   /** Called with every finished task; defaults to emitting "Agent Task Completed" from `source`. */
   onComplete?(result: AgentTaskResult, context: { agentId: string; principal: Principal; kind: string }): Promise<void>;
+  /**
+   * The kill switch: while it returns true, `route` dispatches nothing and `handleTask` runs nothing
+   * (tasks that arrive are dropped unclaimed). Back it with whatever you can flip without a deploy:
+   * an environment variable, a parameter, a table row. Queued promises resume at the next check-in.
+   */
+  paused?(): boolean | Promise<boolean>;
+  /**
+   * The most tasks one agent may run in a rolling window, counted per task id (a redelivery or a
+   * retry is not counted twice). Bounds runaway loops of check-ins, follow-ups, and promises.
+   * Default `DEFAULT_TASK_CAP` (100 a day); null turns it off.
+   */
+  taskCap?: { max: number; windowMs: number } | null;
+  /**
+   * Which errors give the task back for another delivery instead of failing it for good. A
+   * retryable error is rethrown, so your task Lambda's invocation fails and EventBridge (or Lambda's
+   * async retry) delivers the task again; the claim is released so that delivery can run it.
+   * Default `isRetryableError`. Pass `() => false` to never retry.
+   */
+  isRetryable?(error: unknown): boolean;
   tableName?: string;
   eventBusName?: string;
   /**
@@ -332,6 +397,29 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
     eventBridgeDispatcher({ source, ...(definition.eventBusName === undefined ? {} : { eventBusName: definition.eventBusName }) });
   const principalOf = definition.principal ?? ((agentId: string): Principal => ({ type: 'system', id: `${name}/${agentId}` }));
   const schedule = definition.checkIn?.schedule ?? DEFAULT_CHECK_IN_SCHEDULE;
+  const cap = definition.taskCap === undefined ? DEFAULT_TASK_CAP : definition.taskCap;
+  if (cap !== null && (!(cap.max >= 1) || !(cap.windowMs > 0)))
+    throw new Error(`definePersistentAgent(${name}): taskCap needs max ≥ 1 and windowMs > 0, or null`);
+  const isRetryable = definition.isRetryable ?? isRetryableError;
+  const isPaused = async () => (definition.paused === undefined ? false : await definition.paused());
+
+  /** Counts `taskId` against the agent's cap, once per task id; false when the cap is reached. */
+  async function admitTask(agentId: string, taskId: string): Promise<boolean> {
+    if (cap === null) return true;
+    type Usage = { tasks: { id: string; at: number }[] };
+    let allowed = false;
+    await store.update<Usage>({ agentId, name: `${name}.usage` }, (current) => {
+      const nowMs = clock().getTime();
+      const live = (current?.tasks ?? []).filter((t) => nowMs - t.at < cap.windowMs);
+      if (live.some((t) => t.id === taskId)) {
+        allowed = true;
+        return { tasks: live };
+      }
+      allowed = live.length < cap.max;
+      return { tasks: allowed ? [...live, { id: taskId, at: nowMs }] : live };
+    });
+    return allowed;
+  }
   const onComplete =
     definition.onComplete ??
     (async (result: AgentTaskResult, context: { agentId: string; principal: Principal; kind: string }) => {
@@ -370,6 +458,10 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
   }
 
   async function route(event: TriggerEvent): Promise<TriggerDecision[]> {
+    if (await isPaused()) {
+      definition.log?.({ agentType: name, eventId: event.id, detailType: event['detail-type'], decision: 'paused' });
+      return [];
+    }
     return routeTrigger(
       {
         rules,
@@ -399,11 +491,28 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
     const principal = principalOf(agentId);
     if (detail.principal?.type !== principal.type || detail.principal?.id !== principal.id)
       return fail('The task principal does not match the agent');
+    if (await isPaused()) {
+      // Dropped unclaimed: nothing runs while paused, and nothing is recorded as done.
+      definition.log?.({ agentType: name, agentId, taskId, decision: 'paused' });
+      return { taskId, status: 'FAILED', error: 'paused' };
+    }
     const profile = await definition.profile(agentId);
     if (profile === null) return fail(`Unknown ${name} agent`);
 
     const claim = await store.claim({ taskId, principal, request: detail.request });
     if (!claim.claimed) return claim.existing ?? { taskId, status: 'RUNNING' };
+
+    if (!(await admitTask(agentId, taskId))) {
+      const capped: AgentTaskResult = {
+        taskId,
+        status: 'FAILED',
+        error: `Task cap reached: at most ${cap?.max} tasks per ${Math.round((cap?.windowMs ?? 0) / 60_000)} minutes for one ${name} agent`,
+      };
+      definition.log?.({ agentType: name, agentId, taskId, decision: 'task_cap' });
+      await store.finish(capped);
+      await onComplete(capped, { agentId, principal, kind: trigger.kind });
+      return capped;
+    }
 
     const now = clock();
     const at = now.toISOString();
@@ -535,6 +644,13 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
       }
       result = { taskId, status: 'COMPLETED', output };
     } catch (err) {
+      if (isRetryable(err)) {
+        // Give the claim back (FAILED is claimable again) and fail the invocation, so the platform
+        // delivers this task again. No completion is announced: this is not the final outcome.
+        await store.finish({ taskId, status: 'FAILED', error: `Retrying: ${message(err)}` });
+        definition.log?.({ agentType: name, agentId, taskId, decision: 'retry', error: message(err) });
+        throw err;
+      }
       result = { taskId, status: 'FAILED', error: message(err) };
     }
     await store.finish(result);

@@ -116,6 +116,8 @@ export {
 
 export {
   definePersistentAgent,
+  isRetryableError,
+  DEFAULT_TASK_CAP,
   dynamoAgentStore,
   memoryAgentStore,
   AGENT_CHECK_IN_DETAIL_TYPE,

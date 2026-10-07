@@ -396,6 +396,21 @@ export const reviewer = definePersistentAgent<Persona, Need, Intent>({
 Follow-ups and promises dispatch through the same path with deterministic task
 ids, so a retried task never sends one twice.
 
+### Safety for agents nobody is watching
+
+Three guards are on by default, and none of them needs infrastructure beyond
+what you deploy.
+
+| Guard | Option | What it does |
+| --- | --- | --- |
+| Retries | `isRetryable` (default `isRetryableError`) | A throttle, a timeout, a network reset, a 429 or 5xx, or state-write contention is rethrown with the claim given back, so your task Lambda's invocation fails and the platform delivers the task again. Anything else ends as `FAILED`. Pass `() => false` to never retry. |
+| Pause | `paused()` | The kill switch. While it returns true, `route` dispatches nothing and `handleTask` drops what arrives, unclaimed. Back it with something you can flip without a deploy. Queued promises resume at the next check-in. |
+| Task cap | `taskCap` (default 100 per agent per rolling day) | Bounds runaway loops of check-ins, follow-ups, and promises. Each task id counts once, so a retry or redelivery is free. A capped task ends as `FAILED` with the reason. `null` turns it off. |
+
+A retried task runs its handler again, so make handlers safe to repeat: use
+`ctx.taskId` as the idempotency key for anything with side effects.
+Follow-ups and promises already are, because their task ids are deterministic.
+
 ### Deploy it in your stack
 
 ```ts
@@ -415,6 +430,7 @@ export const handler = () => reviewer.emitCheckIn();
 | `events:PutEvents` on the bus | Dispatching tasks, follow-ups, check-ins, and completions. |
 | rsc-core's `Schedule Event` primitive in the same account, or your own `dispatch` | Delayed tasks are handed to it. Pass `responseDelays: false` (or a custom `dispatch`) to run without it. |
 | A Bedrock grant, if your handlers call a model | The handlers are yours; so is the model access. |
+| A retry policy and a dead-letter queue on the task rule | Retryable errors come back through EventBridge's retry; the queue keeps whatever finally gives up. |
 
 For tests and local runs, pass `store: memoryAgentStore()`, `gates:
 memoryTriggerGates()`, a `dispatch` that calls `handleTask` directly, and
@@ -613,14 +629,15 @@ event, at most once.
   their events use their own source, and `definePersistentAgent` refuses the
   shared `readysetcloud.agent` source.
 - **Not included (yet).** The fantasy league also has a durable dispatch
-  outbox with a recovery sweep, per-task budget admission, and a kill switch.
-  Here a dispatch that fails throws to the router (EventBridge retries the
-  consumer; the gate stays the task's own so the retry passes), and spend
-  control is yours.
+  outbox with a recovery sweep and dollar-based budget admission. Both would
+  need infrastructure in your stack. Here a dispatch that fails throws to the
+  router (EventBridge retries it, and the gate stays the task's own so the retry
+  passes), a failed task is retried the same way, and spend is bounded by the
+  task cap. Dollar budgets, if you need them, belong in your handlers.
 
 ### Keys
 
-- **Agent state:** `pk=AGENT#{agentId}`, `sk=STATE#{name}` or `STATE#{name}#{scope}` (`entity=AgentState`, `revision`, `value`). `definePersistentAgent` names its documents `<type>.agenda` and `<type>.commitments`.
+- **Agent state:** `pk=AGENT#{agentId}`, `sk=STATE#{name}` or `STATE#{name}#{scope}` (`entity=AgentState`, `revision`, `value`). `definePersistentAgent` names its documents `<type>.agenda`, `<type>.commitments`, and `<type>.usage`.
 - **Trigger gates:** `pk=TRIGGER#{[prefix#]slot}`, `sk=GATE` (`entity=TriggerGate`, `owner`, `lastTriggeredAt`, 30-day TTL).
 
 ## Server-side one-shot runs (`runAgent`)
