@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tools & permissions · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Identity, principals, first-party and MCP tools, allowlists, and isolation boundaries for the Ready, Set, Cloud agent service.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link app-nav-link-active" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Tools & permissions</span>
+        <h1 class="page-hero-title">What it can do, and as whom</h1>
+        <p class="page-hero-subtitle">Identity is verified at the edge, tools are selected by name or allowlisted by host, and system-scoped work is an explicit grant. Every control here fails closed.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-warning">Verified identity</span><span class="page-hero-chip page-hero-chip-primary">Opt-in allowlists</span><span class="page-hero-chip page-hero-chip-success">No shell, no filesystem</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#identity">Identity</a></li><li><a href="#principals">Principals</a></li><li><a href="#first-party">First-party tools</a></li><li><a href="#mcp">MCP servers</a></li><li><a href="#isolation">Isolation</a></li></ul>
+
+    <section class="ds-section" id="identity">
+      <span class="ds-kicker">Identity</span>
+      <h2>Who the agent acts as</h2>
+      <p class="ds-lede">Identity is always the verified caller or a trusted first-party assertion, never a client value.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Surface</th><th>Identity</th><th>Verified by</th></tr></thead><tbody><tr><td>Chat</td><td>The Cognito <code>sub</code> in the bearer token on the socket</td><td>AgentCore’s inbound JWT authorizer, against the shared user pool</td></tr><tr><td><code>POST /agent/sessions</code>, <code>/agent/connect</code>, <code>/agent/tasks</code></td><td>The Cognito <code>sub</code> of the API caller</td><td>The CoreApi Cognito authorizer</td></tr><tr><td><code>Run Agent Task</code> event</td><td>The <code>principal</code> in the event detail</td><td>The account-internal bus: only first-party Lambdas can put events on it</td></tr><tr><td>Session ownership</td><td>The <code>userId</code> stored at creation</td><td>The host compares it to the verified caller at connect and at task time and refuses a mismatch</td></tr></tbody></table></div><div class="ds-note">A leaked or guessed <code>sessionId</code> cannot resume someone else’s conversation, and memory is scoped by the verified id, so recall can never leak across users.</div>
+    </section>
+    <section class="ds-section" id="principals">
+      <span class="ds-kicker">Principals</span>
+      <h2>User tasks and system tasks</h2>
+      <p class="ds-lede">Two kinds of identity for autonomous work, with different trust.</p>
+<div class="ds-grid"><div class="ds-link-card"><h3><code>{ type: "user", id: sub }</code></h3><p>A verified person. Reuses session ownership and MCP identity propagation unchanged. The default for <code>POST /agent/tasks</code>.</p></div><div class="ds-link-card"><h3><code>{ type: "system", id: "booked" }</code></h3><p>A service with no owning user, for ecosystem work. Asserting one is privileged: free for a first-party emitter on the internal bus, gated over the public API.</p></div></div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Where</th><th>Gate</th></tr></thead><tbody><tr><td>Internal bus (<code>requestAgentTask</code>)</td><td>None: a first-party emitter is already trusted to assert a principal.</td></tr><tr><td><code>POST /agent/tasks { system }</code></td><td>The <code>SystemTaskPrincipals</code> deploy parameter: comma-separated <code>sub:systemId</code> grants; <code>sub:*</code> allows any id; empty rejects all. Fails closed.</td></tr><tr><td>Launcher record</td><td>When a person launches a system task over the API, their <code>sub</code> is stored as <code>createdBy</code> so they can still read the task back even though the run acts as the system.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Granting a system principal</h3>
+          <p>Opt in explicitly, like the MCP allowlist.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="shell"><code># sub abc-123 may run as "booked" only; svc-sub may run as any system id
+SystemTaskPrincipals="abc-123:booked,svc-sub:*"</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="first-party">
+      <span class="ds-kicker">First-party tools</span>
+      <h2>A registry a session selects from by name</h2>
+      <p class="ds-lede">Enabling a shipped tool per session is a data operation; authoring a new one is the only code change.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Register and select</h3>
+          <p>The registry lives in the host. The package ships the type, the resolver, and two built-ins.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { tool, builtinTools, resolveTools, createAssistant } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+// Host registry: built-ins plus the host’s own.
+const TOOL_REGISTRY = {
+  ...builtinTools,                                   // http_request, notebook
+  get_current_time: () =&gt; tool({
+    name: 'get_current_time',
+    description: 'Returns the current server time as an ISO-8601 string.',
+    inputSchema: z.object({}),
+    callback: async () =&gt; new Date().toISOString(),
+  }),
+};
+
+// A session opts in by name: { tools: ['http_request', 'get_current_time'] }
+const tools = resolveTools(config.tools, TOOL_REGISTRY, { sessionId, userId });
+const agent = createAssistant({ sessionId, tools: [...tools, ...mcpClients] });</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Built-in</th><th>What it does</th><th>Watch out</th></tr></thead><tbody><tr><td><code>http_request</code></td><td>Generic HTTP client. The web-search seam: point it at a search API and let the model read the JSON back. Also any public REST endpoint or webhook.</td><td>An outbound-request surface: the model chooses the URL. Front it with an allowlist or prefer a scoped MCP gateway when egress matters.</td></tr><tr><td><code>notebook</code></td><td>An in-invocation scratchpad the model writes to and re-reads across steps of a run.</td><td>State lives in the invocation, not on the host.</td></tr></tbody></table></div><div class="ds-note"><strong>Deliberately not exposed:</strong> the SDK’s <code>bash</code> and <code>file_editor</code>. In a shared hosted runtime, shell exec is remote code execution and filesystem access reaches the host’s disk. A host that wants them imports them from the SDK and registers them itself, as an explicit, auditable choice.</div>
+    </section>
+    <section class="ds-section" id="mcp">
+      <span class="ds-kicker">MCP servers</span>
+      <h2>External tools, allowlisted and identity-aware</h2>
+      <p class="ds-lede">The one place a session points the runtime at an outbound URL.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Attach a server to a session</h3>
+          <p>Keyed by label. The host connects them at build time and attaches their tools beside the first-party ones.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>await createSession({
+  userId,
+  mcpServers: {
+    blog: {
+      url: 'https://mcp.example.com/mcp',
+      headers: { 'x-api-version': '2025-01' },        // user-supplied; ${VAR} interpolated by the host
+      authHeader: {                                     // authority-minted, forwarded verbatim
+        name: 'x-booked-auth',
+        value: '&lt;base64url(payload)&gt;.&lt;sig&gt;',
+      },
+    },
+  },
+});</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Control</th><th>Owner</th><th>Rule</th></tr></thead><tbody><tr><td>SSRF allowlist</td><td>Host (<code>create-session</code>)</td><td>Rejects any <code>mcpServers</code> whose URL host is not in <code>McpAllowedHosts</code>. Empty rejects all, so it is opt-in.</td></tr><tr><td>Secrets</td><td>Host environment</td><td><code>${VAR}</code> in string fields resolves against the host’s env. A secret never belongs in the session row, which the user creates.</td></tr><tr><td><code>authHeader</code></td><td>An authority (a trusted server-side session creator)</td><td>Mints a token binding tenant, user, session, and a version; the runtime forwards it verbatim, applied after user headers so they cannot shadow it, with no interpolation. The MCP server verifies it with the shared secret.</td></tr></tbody></table></div><div class="ds-note"><strong>Threat model, stated plainly:</strong> the HMAC proves the authority minted this for user U; it does not prove the presenter is this runtime. That is acceptable because the config row is not user-reachable, the host is allowlisted, and transport is TLS. The token is replayed on every reconnect for the session’s ~30-day life, so bind it to the <code>sessionId</code> and include a <code>version</code> the authority can bump to revoke.</div>
+    </section>
+    <section class="ds-section" id="isolation">
+      <span class="ds-kicker">Isolation</span>
+      <h2>What a run can and cannot reach</h2>
+      <p class="ds-lede">The boundaries each surface enforces.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Boundary</th><th>Chat runtime</th><th>Task Lambda</th><th>Library mode</th></tr></thead><tbody><tr><td>Bedrock</td><td>The deploy’s model grant</td><td>Same grant</td><td>Your stack’s</td></tr><tr><td>Table</td><td><code>AgentChatTable</code>, by session</td><td>Same table, by task and session</td><td>Any table via <code>tableName</code></td></tr><tr><td>Cross-session memory</td><td>AgentCore Memory, per verified user</td><td>None by default</td><td>Whatever <code>memoryManager</code> you pass</td></tr><tr><td>Outbound network</td><td>MCP hosts in the allowlist; <code>http_request</code> if enabled</td><td>Same</td><td>Yours</td></tr><tr><td>Identity</td><td>Verified JWT</td><td>Event principal or verified JWT</td><td>Yours</td></tr></tbody></table></div><div class="ds-note"><strong>Library mode</strong> (passing <code>tableName</code> and running the core in your own stack) does not go through the shared runtime’s guarantees. Your stack owns the Bedrock grant, the allowlist, and memory isolation.</div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://github.com/readysetcloud/rsc-core/tree/main/agent"><code>@readysetcloud/agent</code></a> and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reference · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Reference for the Ready, Set, Cloud agent service: HTTP routes, the EventBridge contract, package exports, environment variables, deploy parameters, and table keys.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link" href="tools.html">Tools & permissions</a><a class="app-nav-link app-nav-link-active" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Reference</span>
+        <h1 class="page-hero-title">Routes, events, exports, keys</h1>
+        <p class="page-hero-subtitle">The contracts in one place. When a page and the shipped package disagree, the package README and the code win.</p>
+        
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#api">HTTP API</a></li><li><a href="#events">Events</a></li><li><a href="#exports">Package exports</a></li><li><a href="#env">Environment</a></li><li><a href="#keys">Storage</a></li><li><a href="#pieces">Repository</a></li></ul>
+
+    <section class="ds-section" id="api">
+      <span class="ds-kicker">HTTP API</span>
+      <h2>CoreApi routes</h2>
+      <p class="ds-lede">All under the shared REST API (<code>/readysetcloud/api-url</code> in SSM), authorized by a Cognito JWT.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Method & path</th><th>Body</th><th>Returns</th></tr></thead><tbody><tr><td><code>POST /agent/sessions</code></td><td><code>{ systemPrompt?, modelId?, temperature?, maxTokens?, title?, tools?, mcpServers? }</code></td><td><code>{ sessionId }</code>; the caller is the owner</td></tr><tr><td><code>POST /agent/connect</code></td><td><code>{ sessionId }</code></td><td><code>{ wsUrl }</code>; auth is the bearer subprotocol on the socket</td></tr><tr><td><code>POST /agent/tasks</code></td><td><code>{ request, sessionId?, wait?, system? }</code></td><td><code>200</code> result envelope, or <code>202 { taskId, status }</code></td></tr><tr><td><code>GET /agent/tasks/{taskId}</code></td><td></td><td>The result envelope; owner (or <code>createdBy</code>) only</td></tr></tbody></table></div>
+    </section>
+    <section class="ds-section" id="events">
+      <span class="ds-kicker">Events</span>
+      <h2>Bus contract</h2>
+      <p class="ds-lede">All on the account’s default bus. Sources and detail types as the package exports them.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Detail type</th><th>Source</th><th>Direction</th><th>Detail</th></tr></thead><tbody><tr><td><code>Run Agent Task</code></td><td><code>readysetcloud.agent</code></td><td>App → agent</td><td><code>{ taskId, principal, request, sessionId?, trigger?, systemPrompt?, modelId?, temperature?, maxTokens?, tools?, mcpServers? }</code></td></tr><tr><td><code>Agent Task Completed</code></td><td><code>readysetcloud.agent</code></td><td>Agent → apps</td><td><code>{ taskId, status, output?, error?, principal }</code></td></tr><tr><td><code>Create Agent Session</code></td><td><code>readysetcloud.agent</code></td><td>App → agent</td><td>A session request from another stack; consumed by <code>create-session-from-event</code></td></tr><tr><td><code>Schedule Event</code> / <code>Cancel Scheduled Event</code></td><td>any</td><td>App → core</td><td><code>{ at | delay, timezone?, name?, whenPast?, event }</code>; the deferred-event primitive delayed tasks ride</td></tr></tbody></table></div>
+    </section>
+    <section class="ds-section" id="exports">
+      <span class="ds-kicker">Package</span>
+      <h2><code>@readysetcloud/agent</code> exports</h2>
+      <p class="ds-lede">Three entry points, by what they pull in.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Entry</th><th>Loads Strands?</th><th>Exports</th></tr></thead><tbody><tr><td><code>@readysetcloud/agent</code></td><td>Yes</td><td><code>createAssistant</code>, <code>handleUserMessage</code>, <code>handleTask</code>, <code>runAgentTask</code>, <code>runAgent</code>, <code>tool</code>, <code>McpClient</code>, <code>builtinTools</code>, <code>resolveTools</code>, <code>streamTurn</code>, wire types, config constants, plus everything on <code>./memory</code></td></tr><tr><td><code>@readysetcloud/agent/memory</code></td><td>No</td><td><code>DynamoSnapshotStorage</code>, <code>createSession</code> / <code>getSessionConfig</code>, <code>requestSession</code>, <code>createTask</code> / <code>startTask</code> / <code>finishTask</code> / <code>getTask</code>, <code>requestAgentTask</code> / <code>emitTaskCompleted</code>, <code>TaskResultCache</code>, <code>resolveMcpServerConfigs</code></td></tr><tr><td><code>@readysetcloud/agent/agency</code></td><td>No</td><td><code>routeTrigger</code>, <code>humanDelay</code>, <code>dynamoTriggerGates</code>, <code>memoryTriggerGates</code>, <code>eventBridgeDispatcher</code>, <code>taskIdFor</code>, <code>responseDelay</code>, <code>reconcileAgenda</code>, <code>agendaLines</code>, <code>agendaPriority</code>, <code>openCommitment</code>, <code>advanceCommitment</code>, <code>expireCommitments</code>, <code>dueCommitments</code>, <code>checkInMoment</code>, <code>nextCheckIn</code>, <code>readAgentState</code>, <code>updateAgentState</code>, <code>seededRandom</code>, <code>seededRoll</code></td></tr></tbody></table></div><div class="ds-note">Requires Node 22+. Dependencies are the AWS SDK v3 DynamoDB and EventBridge clients, the Strands SDK pinned exact at 1.9.0, and <code>zod</code>. <code>src/stream.ts</code> is the one SDK coupling point and a contract test guards it.</div>
+    </section>
+    <section class="ds-section" id="env">
+      <span class="ds-kicker">Environment</span>
+      <h2>Variables and deploy parameters</h2>
+      <p class="ds-lede">Read at module scope; the same code runs in AgentCore, a Lambda, or a test.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Used by</th></tr></thead><tbody><tr><td><code>TABLE_NAME</code></td><td>Yes</td><td></td><td>Snapshots, session config, task rows, agent state, trigger gates. Every data-plane call also takes an explicit <code>tableName</code>.</td></tr><tr><td><code>BEDROCK_MODEL_ID</code></td><td>No</td><td><code>us.amazon.nova-lite-v1:0</code></td><td>Default chat and task model</td></tr><tr><td><code>BEDROCK_REGION</code> / <code>AWS_REGION</code></td><td>No</td><td><code>us-east-1</code></td><td>Bedrock region</td></tr><tr><td><code>BEDROCK_MAX_TOKENS</code>, <code>BEDROCK_TEMPERATURE</code></td><td>No</td><td><code>4096</code>, <code>0.7</code></td><td>Sampling defaults</td></tr><tr><td><code>AGENT_MEMORY_ID</code></td><td>Runtime only</td><td></td><td>The AgentCore Memory resource the chat runtime builds its memory manager from</td></tr><tr><td><code>MCP_ALLOWED_HOSTS</code></td><td>Host</td><td>empty (rejects all)</td><td>From the <code>McpAllowedHosts</code> parameter; checked by <code>create-session</code></td></tr><tr><td><code>SYSTEM_TASK_PRINCIPALS</code></td><td>Host</td><td>empty (rejects all)</td><td>From the <code>SystemTaskPrincipals</code> parameter; checked by <code>create-task</code></td></tr></tbody></table></div>
+    </section>
+    <section class="ds-section" id="keys">
+      <span class="ds-kicker">Storage</span>
+      <h2>Single-table keys</h2>
+      <p class="ds-lede">One DynamoDB table with <code>pk</code>/<code>sk</code> and a TTL on <code>expiresAt</code>.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Item</th><th>pk</th><th>sk</th><th>Notes</th></tr></thead><tbody><tr><td>Snapshots</td><td><code>SESSION#{sessionId}</code></td><td><code>SNAPSHOT#…</code>, <code>LATEST#…</code>, <code>MANIFEST#…</code></td><td>Strands conversation state; 30-day TTL</td></tr><tr><td>Session config</td><td><code>SESSION#{sessionId}</code></td><td><code>CONFIG</code></td><td>Owner, prompt, model, tools, MCP specs</td></tr><tr><td>Task record</td><td><code>TASK#{taskId}</code></td><td><code>STATUS</code></td><td>Status and result; 24-hour TTL</td></tr><tr><td>Agent state</td><td><code>AGENT#{agentId}</code></td><td><code>STATE#{name}[#{scope}]</code></td><td>Agenda, commitments; <code>revision</code>-checked</td></tr><tr><td>Trigger gate</td><td><code>TRIGGER#{[prefix#]slot}</code></td><td><code>GATE</code></td><td><code>owner</code>, <code>lastTriggeredAt</code>; 30-day TTL</td></tr></tbody></table></div><div class="ds-note">Nobody reads this table across a stack boundary. A result crosses as the <code>Agent Task Completed</code> event, a session request as <code>Create Agent Session</code>.</div>
+    </section>
+    <section class="ds-section" id="pieces">
+      <span class="ds-kicker">Repository</span>
+      <h2>Where each piece lives</h2>
+      <p class="ds-lede"></p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Piece</th><th>Path</th></tr></thead><tbody><tr><td>Portable agent core</td><td><code>agent/</code> (<code>@readysetcloud/agent</code>)</td></tr><tr><td>AgentCore Runtime artifact (NODE_22 WebSocket host, memory wiring)</td><td><code>agent-runtime/</code></td></tr><tr><td>Session and connect Lambdas</td><td><code>functions/create-session.mjs</code>, <code>functions/create-session-from-event.mjs</code>, <code>functions/websocket-connect.mjs</code></td></tr><tr><td>Task Lambdas</td><td><code>functions/create-task.mjs</code>, <code>functions/get-task.mjs</code>, <code>functions/run-agent-task.mjs</code></td></tr><tr><td>Deferred events</td><td><code>functions/schedule-event.mjs</code></td></tr><tr><td>Infrastructure</td><td><code>template.yaml</code></td></tr><tr><td>React chat surface</td><td><code>ui/src/chat/</code> (<code>@readysetcloud/ui/chat</code>)</td></tr><tr><td>These pages</td><td><code>design-system/agent/</code>, published with the design-system guide</td></tr></tbody></table></div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://github.com/readysetcloud/rsc-core/tree/main/agent"><code>@readysetcloud/agent</code></a> and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+/*
+ * Agent guide chrome, on top of site.css. Layout only — every color, radius,
+ * and font comes from the ui package tokens, so these pages restyle themselves
+ * with the design system.
+ */
+
+.ag-nav-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: rgb(var(--border));
+  margin-inline: 0.25rem;
+  align-self: center;
+}
+
+@media (max-width: 900px) {
+  .ag-nav-divider { display: none; }
+}
+
+/* ---------- numbered steps ---------- */
+
+.ag-steps {
+  list-style: none;
+  counter-reset: ag-step;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ag-steps li {
+  counter-increment: ag-step;
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.25rem 0.875rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-lg);
+  background: rgb(var(--surface));
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.ag-steps li::before {
+  content: counter(ag-step);
+  grid-row: 1 / span 2;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: rgb(var(--primary-100));
+  color: rgb(var(--primary-800));
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.8125rem;
+}
+
+.ag-steps li strong { color: rgb(var(--foreground)); }
+.ag-steps li span { color: rgb(var(--muted-foreground)); }
+
+/* ---------- flow diagram ---------- */
+
+.ag-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.ag-flow-node {
+  flex: 1 1 9rem;
+  min-width: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid rgb(var(--primary-200));
+  border-radius: var(--radius-lg);
+  background: rgb(var(--primary-50));
+  color: rgb(var(--primary-900));
+  font-size: 0.8125rem;
+}
+
+.ag-flow-node strong { font-size: 0.875rem; }
+.ag-flow-node span { color: rgb(var(--primary-700)); font-size: 0.75rem; }
+
+.ag-flow-arrow {
+  align-self: center;
+  color: rgb(var(--muted-foreground));
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .ag-flow { flex-direction: column; }
+  .ag-flow-arrow { transform: rotate(90deg); align-self: center; }
+}
+
+/* ---------- misc ---------- */
+
+.ag-split { margin-top: 1rem; }
+
+.ds-section .ds-lede:empty { display: none; }
+
+.ds-table td .status-badge { white-space: nowrap; }

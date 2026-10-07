@@ -1,8 +1,9 @@
 # Design system guide
 
-The GitHub Pages site for the Ready, Set, Cloud design system. Published by
-`.github/workflows/design-system-pages.yaml` on every push to `main` that
-touches this directory or `ui/`.
+The GitHub Pages site for the Ready, Set, Cloud design system, and, under
+[`agent/`](agent/), the guide to the agent service and `@readysetcloud/agent`.
+Published by `.github/workflows/design-system-pages.yaml` on every push to
+`main` that touches this directory, `ui/`, or `agent/README.md`.
 
 ## Staying in sync with the package
 
@@ -24,6 +25,17 @@ gallery pages), so AI agents can be pointed at
 `https://design.readysetcloud.io/llms.txt` instead of the repo. There is no
 separate doc to maintain — keep `ui/AGENTS.md` current and the published copy
 follows on the next deploy.
+
+## Agent guide (`agent/`)
+
+Six authored pages (`index`, `chat`, `tasks`, `agency`, `tools`, `reference`)
+that document the agent service: capabilities, how to trigger chat and tasks,
+persistent-agent primitives, identity and permissions, and the contracts. They
+use the same chrome (`../site.css`, `../site.js`) plus `agent/agent.css` for
+steps and flow diagrams, so they restyle with the design system. The build
+publishes `agent/README.md` verbatim at `/agent/llms.txt` as the LLM-readable
+companion. When a page and the package disagree, fix the page: the README and
+the code are the source of truth.
 
 ## Local preview
 

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasks · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Autonomous agent tasks in Ready, Set, Cloud: how to trigger a run from an API, an event, or a schedule; principals; the idempotent lifecycle; and server-side one-shot runs with structured output.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link" href="chat.html">Chat</a><a class="app-nav-link app-nav-link-active" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Autonomous tasks</span>
+        <h1 class="page-hero-title">Do something, then report back</h1>
+        <p class="page-hero-subtitle">A one-shot run through the same secure path as chat, with no socket: triggered by an API call or an event, idempotent under duplicate delivery, and announced on the bus when it finishes.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">API or event</span><span class="page-hero-chip page-hero-chip-success">Idempotent</span><span class="page-hero-chip page-hero-chip-warning">user or system principal</span><span class="page-hero-chip">Structured output</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#model">The model</a></li><li><a href="#trigger">Triggering</a></li><li><a href="#lifecycle">Lifecycle</a></li><li><a href="#one-shot">One-shot runAgent</a></li></ul>
+
+    <section class="ds-section" id="model">
+      <span class="ds-kicker">Model</span>
+      <h2>A task is a trigger, an identity, and a result sink</h2>
+      <p class="ds-lede">Chat needs a socket. A task needs those three things and nothing else.</p>
+<div class="ds-grid"><div class="ds-link-card"><h3>Trigger</h3><p>An API call (<code>POST /agent/tasks</code>) or a <code>Run Agent Task</code> event. Both land on the same consumer.</p></div><div class="ds-link-card"><h3>Identity</h3><p>A <code>Principal</code>: <code>{ type: "user", id: sub }</code> for a person, <code>{ type: "system", id: "booked" }</code> for a service.</p></div><div class="ds-link-card"><h3>Result sink</h3><p>One envelope, <code>{ taskId, status, output?, error? }</code>, on the API response, the task row, and the <code>Agent Task Completed</code> event.</p></div></div><div class="ag-flow" role="list"><div class="ag-flow-node" role="listitem"><strong>Trigger</strong><span>API or event</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Claim</strong><span>conditional write on TASK#id</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Build</strong><span>session config, tools, MCP</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Run</strong><span>one buffered turn</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Record</strong><span>COMPLETED or FAILED</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Emit</strong><span>Agent Task Completed</span></div></div>
+    </section>
+    <section class="ds-section" id="trigger">
+      <span class="ds-kicker">Triggering</span>
+      <h2>Four ways to start a task</h2>
+      <p class="ds-lede">Choose by who is calling and whether they can wait.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Caller</th><th>Mechanism</th><th>Identity</th><th>Result</th></tr></thead><tbody><tr><td>A signed-in user from an app</td><td><code>POST /agent/tasks { request, sessionId?, wait?, system? }</code></td><td>The caller’s verified <code>sub</code>, or an allowlisted <code>system</code> id</td><td><code>200</code> with the result when it finishes within ~25s, else <code>202 { taskId, status }</code> and the event</td></tr><tr><td>A first-party backend</td><td><code>requestAgentTask()</code> emits <code>Run Agent Task</code></td><td>Asserted by the emitter (the bus is account-internal)</td><td><code>Agent Task Completed</code> event; optionally <code>GET /agent/tasks/{id}</code></td></tr><tr><td>A schedule or a delayed step</td><td><code>Schedule Event</code> wrapping a <code>Run Agent Task</code></td><td>As above</td><td>As above, at the scheduled time</td></tr><tr><td>A trigger router (agency)</td><td><code>routeTrigger</code> → <code>eventBridgeDispatcher</code></td><td>Per agent, from <code>principal(agentId)</code></td><td>As above, with a <code>trigger</code> on the request</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>From a backend</h3>
+          <p>Fire-and-forget. The owning stack’s consumer runs it and announces the result.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { requestAgentTask } from '@readysetcloud/agent/memory';
+
+const { taskId } = await requestAgentTask({
+  principal: { type: 'system', id: 'booked' },      // or { type: 'user', id: sub }
+  request: 'Summarize this week’s new blog comments',
+  // optional: sessionId, systemPrompt, modelId, temperature, maxTokens, tools, mcpServers
+});</code></pre><pre data-lang="json"><code>// The event it emits (source "readysetcloud.agent", detail-type "Run Agent Task")
+{
+  "taskId": "6d1f...",
+  "principal": { "type": "system", "id": "booked" },
+  "request": "Summarize this week’s new blog comments",
+  "trigger": { "kind": "digest", "eventId": "...", "detailType": "..." }   // present when a router sent it
+}</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Later, not now</h3>
+          <p>Wrap the task in the bus-level deferred-event primitive. A re-emit with the same <code>name</code> moves the schedule instead of doubling it.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="json"><code>{
+  "Source": "newsletter",
+  "DetailType": "Schedule Event",
+  "Detail": {
+    "name": "digest-2026-10-07",
+    "at": "2026-10-07T09:00:00",
+    "timezone": "America/Chicago",
+    "whenPast": "send",
+    "event": {
+      "source": "readysetcloud.agent",
+      "detailType": "Run Agent Task",
+      "detail": { "taskId": "digest-2026-10-07", "principal": { "type": "system", "id": "newsletter" }, "request": "..." }
+    }
+  }
+}</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>From an app, waiting for the answer</h3>
+          <p>The API records the task as PENDING, triggers the run, and polls its own row within the REST timeout.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="shell"><code>curl -X POST "$CORE_API_URL/agent/tasks" \
+  -H "Authorization: Bearer $ID_TOKEN" -H "Content-Type: application/json" \
+  -d '{"request": "Draft release notes from the last 10 commits.", "wait": true}'
+
+# 200 { "taskId": "...", "status": "COMPLETED", "output": "..." }
+# or 202 { "taskId": "...", "status": "RUNNING" }  → watch "Agent Task Completed" or GET /agent/tasks/{taskId}</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="lifecycle">
+      <span class="ds-kicker">Lifecycle</span>
+      <h2>Idempotent under at-least-once delivery</h2>
+      <p class="ds-lede">EventBridge may deliver twice. The task row makes that harmless.</p>
+<ol class="ag-steps"><li><strong>Warm cache.</strong><span>An in-memory <code>TaskResultCache</code> on the Lambda container answers a duplicate that lands on the same instance. An accelerator only; a miss is always correct.</span></li><li><strong>Durable claim.</strong><span><code>startTask</code> is a conditional write that moves the row from absent, <code>PENDING</code>, or <code>FAILED</code> to <code>RUNNING</code>. DynamoDB serializes the writes, so exactly one of N deliveries wins. The losers return the existing result or report it in flight.</span></li><li><strong>Build after the claim.</strong><span><code>buildAgent</code> runs only for the winner, so a duplicate never loads config or connects MCP servers.</span></li><li><strong>Run and record.</strong><span>One buffered turn (<code>handleTask</code>), then <code>finishTask</code> writes <code>COMPLETED</code> or <code>FAILED</code>, conditional on the row still being <code>RUNNING</code>.</span></li><li><strong>Emit.</strong><span><code>Agent Task Completed</code> on every outcome, so async consumers are uniform whether or not a synchronous caller was still waiting.</span></li></ol><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td><span class="status-badge status-badge-neutral">PENDING</span></td><td>Created by the API so a <code>GET</code> sees it before the runtime picks it up. Optional.</td></tr><tr><td><span class="status-badge status-badge-primary">RUNNING</span></td><td>Claimed by exactly one invocation.</td></tr><tr><td><span class="status-badge status-badge-success">COMPLETED</span></td><td>Finished; <code>output</code> holds the assistant text.</td></tr><tr><td><span class="status-badge status-badge-error">FAILED</span></td><td>The run threw; <code>error</code> holds the message. A retry may claim it again.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Running a task in your own host</h3>
+          <p>The portable core has no runtime of its own. Any compute with the package installed can consume the event.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { runAgentTask, createAssistant, getSessionConfig, TaskResultCache } from '@readysetcloud/agent';
+
+const cache = new TaskResultCache();   // module scope — reused across warm invocations
+
+export const handler = async ({ detail }) =&gt; {
+  const { taskId, principal, request, sessionId } = detail;
+  return runAgentTask({
+    taskId, principal, request, sessionId, cache,
+    buildAgent: async () =&gt; {
+      const config = sessionId ? await getSessionConfig(sessionId) : null;
+      if (config &amp;&amp; config.userId !== principal.id) throw new Error('not your session');
+      const agent = createAssistant({ sessionId: sessionId ?? `task-${taskId}`, systemPrompt: config?.systemPrompt });
+      return { agent, cleanup: async () =&gt; { /* disconnect MCP clients */ } };
+    },
+  });
+};</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="one-shot">
+      <span class="ds-kicker">One-shot</span>
+      <h2><code>runAgent</code>: build, run, validate, forget</h2>
+      <p class="ds-lede">For orchestrators that call the model many times and want typed answers, not prose.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Structured output</h3>
+          <p>Pass a Zod schema and the SDK forces the model to emit against it. A resolved call is a schema-valid one.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { runAgent, tool } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+const grammar = await runAgent({
+  input: draft,
+  modelId: 'us.anthropic.claude-lite-...',          // pin a model per lens
+  systemPrompt: 'You are a grammar &amp; spelling reviewer.',
+  outputSchema: z.object({ suggestions: z.array(z.object({ span: z.string(), fix: z.string() })) }),
+});
+grammar.output.suggestions;                           // typed, validated
+
+// A tool-using lens, with a bounded loop and trusted context the model cannot forge:
+const searchBlog = tool({
+  name: 'search_blog',
+  description: "Search the tenant's own posts",
+  inputSchema: z.object({ query: z.string() }),
+  callback: async ({ query }, context) =&gt; searchWithinTenant(context?.invocationState.tenantId as string, query),
+});
+const facts = await runAgent({
+  input: draft,
+  systemPrompt: 'Fact-check claims using the blog search tool.',
+  tools: [searchBlog],
+  maxIterations: 6,
+  invocationState: { tenantId, sub },                 // injected by trusted code, read by handlers
+});</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Option</th><th>Effect</th></tr></thead><tbody><tr><td><code>outputSchema</code></td><td>Zod schema; <code>output</code> becomes the validated object and <code>structured</code> is true.</td></tr><tr><td><code>tools</code></td><td>First-party <code>tool()</code>s, an <code>McpClient</code>, or a sub-agent.</td></tr><tr><td><code>maxIterations</code></td><td>Caps the tool loop (maps to the SDK’s per-invocation turn limit).</td></tr><tr><td><code>modelId</code>, <code>temperature</code>, <code>maxTokens</code>, <code>region</code></td><td>Per-call model selection.</td></tr><tr><td><code>invocationState</code></td><td>Trusted values threaded to every tool’s <code>context.invocationState</code>. Not a tool input, so the model never sees or sets it.</td></tr></tbody></table></div><div class="ds-note">For a <strong>durable</strong> orchestrator, run the outer call as a task (<code>runAgentTask</code>) and let its lenses call <code>runAgent</code>. <code>runAgent</code> buffers the final answer; it does not stream.</div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://github.com/readysetcloud/rsc-core/tree/main/agent"><code>@readysetcloud/agent</code></a> and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+</body>
+</html>

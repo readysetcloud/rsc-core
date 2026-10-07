@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overview · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="The Ready, Set, Cloud agent service and @readysetcloud/agent package: streaming chat, autonomous tasks, persistent agents, tools, permissions, and how to trigger them.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link app-nav-link-active" href="index.html">Overview</a><a class="app-nav-link" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">@readysetcloud/agent</span>
+        <h1 class="page-hero-title">One agent. Every app.</h1>
+        <p class="page-hero-subtitle">The shared AI agent behind Ready, Set, Cloud: a Strands-TS core that streams chat to the browser, runs autonomous tasks from an API or an event, and, with the agency primitives, behaves like something that has a job to do.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">Chat + tasks + one-shot</span><span class="page-hero-chip page-hero-chip-success">Per-user memory</span><span class="page-hero-chip">Tools: first-party + MCP</span><span class="page-hero-chip page-hero-chip-warning">Identity-verified</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#what">Three ways to run</a></li><li><a href="#capabilities">Capabilities</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#use-cases">Use cases</a></li><li><a href="#start">Quick start</a></li></ul>
+<div class="ds-note">These pages document the <strong>rsc-core agent service</strong> and the npm package behind it, <code>@readysetcloud/agent</code>. The service is shared infrastructure: every Ready, Set, Cloud app gets chat, autonomous tasks, and persistent agents from one deployment, and changes behavior with data (a session row, an event) rather than a redeploy.</div>
+    <section class="ds-section" id="what">
+      <span class="ds-kicker">What it is</span>
+      <h2>One agent core, three ways to run it</h2>
+      <p class="ds-lede">The same Strands-TS core serves a browser conversation, a fire-and-forget job, and an orchestrator calling it in a loop.</p>
+<div class="ds-grid ds-grid-wide"><a class="ds-link-card" href="chat.html"><h3>Streaming chat</h3><p>A browser opens a WebSocket to the AgentCore runtime with its Cognito token as the bearer and streams tokens back through <code>@readysetcloud/ui/chat</code>. Per-user, cross-session memory included.</p><span class="ds-card-arrow">Read →</span></a><a class="ds-link-card" href="tasks.html"><h3>Autonomous tasks</h3><p>A one-shot "do something" run with no socket: triggered by <code>POST /agent/tasks</code> or a <code>Run Agent Task</code> event, idempotent under at-least-once delivery, result delivered inline or on the bus.</p><span class="ds-card-arrow">Read →</span></a><a class="ds-link-card" href="tasks.html#one-shot"><h3>Server-side one-shot</h3><p><code>runAgent</code> builds an agent, runs one turn, and returns a schema-validated object. No table, no trace. For orchestrators fanning one input across several analyses.</p><span class="ds-card-arrow">Read →</span></a><a class="ds-link-card" href="agency.html"><h3>Persistent agents</h3><p>The <code>./agency</code> subpath turns a task runner into something that feels alive: triggers with human pacing, durable goals, kept promises, scheduled check-ins.</p><span class="ds-card-arrow">Read →</span></a></div>
+    </section>
+    <section class="ds-section" id="capabilities">
+      <span class="ds-kicker">Capabilities</span>
+      <h2>What an agent here can do</h2>
+      <p class="ds-lede">Every capability below is available to all three run modes unless noted.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Capability</th><th>How</th><th>Where to read</th></tr></thead><tbody><tr><td>Talk to a Bedrock model</td><td>Any Bedrock model id; the default is <code>us.amazon.nova-lite-v1:0</code>. Pin a model per session or per call.</td><td><a href="reference.html#env">Reference → Environment</a></td></tr><tr><td>Remember a conversation</td><td>Strands snapshots in DynamoDB, keyed by session, so a reconnect resumes exactly where it left off.</td><td><a href="chat.html#memory">Chat → Memory</a></td></tr><tr><td>Remember a person across sessions</td><td>AgentCore Memory extracts facts and preferences per verified user and injects the relevant ones each turn. Chat runtime only.</td><td><a href="chat.html#memory">Chat → Memory</a></td></tr><tr><td>Call first-party tools</td><td>A host registry of named <code>tool()</code> factories a session opts into by name. Built-ins: <code>http_request</code>, <code>notebook</code>.</td><td><a href="tools.html#first-party">Tools → First-party</a></td></tr><tr><td>Call external tools over MCP</td><td>A session lists MCP servers by URL; the host allowlists hosts and forwards an authority-minted identity header.</td><td><a href="tools.html#mcp">Tools → MCP</a></td></tr><tr><td>Return structured output</td><td><code>runAgent({ outputSchema })</code> forces the model to emit against a Zod schema and returns the validated object.</td><td><a href="tasks.html#one-shot">Tasks → One-shot</a></td></tr><tr><td>Run as a system, not a person</td><td>A <code>system</code> principal for ecosystem work with no owning user. Free on the internal bus, allowlisted over the API.</td><td><a href="tools.html#principals">Tools → Principals</a></td></tr><tr><td>Act on events, with pacing</td><td>Trigger rules route events to agents through atomic gates (cooldowns, once-per keys) with seeded, deadline-aware delays.</td><td><a href="agency.html#triggers">Agency → Triggers</a></td></tr><tr><td>Pursue goals and keep promises</td><td>Typed agendas reconciled from observed state and commitments with an explicit lifecycle, both stored per agent.</td><td><a href="agency.html#agenda">Agency → Agenda</a></td></tr><tr><td>Run later</td><td>A delayed task rides the bus-level <code>Schedule Event</code> primitive; no scheduler client or IAM role in the caller.</td><td><a href="tasks.html#trigger">Tasks → Triggering</a></td></tr></tbody></table></div>
+    </section>
+    <section class="ds-section" id="architecture">
+      <span class="ds-kicker">Architecture</span>
+      <h2>How a request moves</h2>
+      <p class="ds-lede">Identity is verified at the edge, behavior is loaded from data, and results leave as events.</p>
+<div class="ag-flow" role="list"><div class="ag-flow-node" role="listitem"><strong>Caller</strong><span>browser, backend, schedule</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Edge</strong><span>Cognito JWT, or the internal bus</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Config</strong><span>session row or event detail</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Agent core</strong><span>@readysetcloud/agent</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Bedrock + tools</strong><span>model, MCP, memory</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Result</strong><span>stream, task row, event</span></div></div><div class="ag-split"><div class="ds-grid"><div class="ds-link-card"><h3>Chat path</h3><p>Browser → <code>POST /agent/connect</code> → <code>wss://chat.&lt;domain&gt;</code> → AgentCore Runtime (NODE_22) → stream frames back. The runtime loads the session config, enforces that the verified caller owns it, and builds the assistant.</p></div><div class="ds-link-card"><h3>Task path</h3><p>API or event → <code>RunAgentTaskFunction</code> (Lambda) → conditional claim on the task row → build agent → run → <code>Agent Task Completed</code> event. Duplicate deliveries never re-run the agent.</p></div></div></div>
+    </section>
+    <section class="ds-section" id="use-cases">
+      <span class="ds-kicker">Use cases</span>
+      <h2>What people build with it</h2>
+      <p class="ds-lede">Patterns already in use across the ecosystem, and the pieces they are made of.</p>
+<div class="ds-grid ds-grid-wide"><div class="ds-link-card"><h3>In-app assistant</h3><p>A support or research chat inside a dashboard. <em>Chat</em> + a session with the app’s system prompt + an MCP server scoped to the user’s own data via <code>authHeader</code>.</p></div><div class="ds-link-card"><h3>Content review engine</h3><p>Fan a draft across grammar, fact-check, and style lenses, each a <code>runAgent</code> with its own model and schema, then synthesize. Run the outer call as a task for idempotency.</p></div><div class="ds-link-card"><h3>Nightly digest</h3><p>A schedule emits <code>Run Agent Task</code> as a <code>system</code> principal; the result event fans out to email or Slack. No user, no socket.</p></div><div class="ds-link-card"><h3>Workflow step</h3><p>A Step Functions state or a Lambda calls <code>POST /agent/tasks</code> with <code>wait: true</code> and gets a structured answer inline in under ~25 seconds, or a ticket plus an event.</p></div><div class="ds-link-card"><h3>Persistent persona</h3><p>An agent that reviews what it is assigned, pursues open goals across runs, keeps the promises it makes in chat, and checks in three times a day. The fantasy-league AI managers are this.</p></div><div class="ds-link-card"><h3>Ecosystem automation</h3><p>Any first-party stack with <code>events:PutEvents</code> can request a run and react to its completion without touching the agent’s table or IAM.</p></div></div>
+    </section>
+    <section class="ds-section" id="start">
+      <span class="ds-kicker">Quick start</span>
+      <h2>Three ways in</h2>
+      <p class="ds-lede">Pick the surface that matches your caller.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Backend: trigger a task</h3>
+          <p>Fire-and-forget from any first-party Lambda. Only <code>events:PutEvents</code> is needed.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { requestAgentTask } from '@readysetcloud/agent/memory';
+
+const { taskId } = await requestAgentTask({
+  principal: { type: 'system', id: 'newsletter' },
+  request: 'Summarize this week’s new blog comments as three bullets.',
+});
+// Listen for "Agent Task Completed" with this taskId.</code></pre><pre data-lang="shell"><code># Or over the API as the signed-in caller (waits up to ~25s for the result)
+curl -X POST "$CORE_API_URL/agent/tasks" \
+  -H "Authorization: Bearer $ID_TOKEN" -H "Content-Type: application/json" \
+  -d '{"request":"Summarize this week’s new blog comments.","wait":true}'</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Frontend: render chat</h3>
+          <p>Create a session, then hand the chat component a function that returns the socket URL and the bearer subprotocol.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="tsx"><code>import { Chat } from '@readysetcloud/ui/chat';
+const { sessionId } = await authed('/agent/sessions', { systemPrompt });
+&lt;Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" /&gt;</code></pre>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Library: run one turn</h3>
+          <p>No table, no session. Build, run, validate, return.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { runAgent } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+const { output } = await runAgent({
+  input: draft,
+  systemPrompt: 'You are a grammar and spelling reviewer.',
+  outputSchema: z.object({ suggestions: z.array(z.object({ span: z.string(), fix: z.string() })) }),
+});</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://github.com/readysetcloud/rsc-core/tree/main/agent"><code>@readysetcloud/agent</code></a> and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+</body>
+</html>

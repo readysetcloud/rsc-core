@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agency · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Persistent agents with @readysetcloud/agent/agency: trigger rules with atomic gates and human-like delays, durable agendas reconciled from observation, commitments with a lifecycle, scheduled check-ins, and a revision-checked state store.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link app-nav-link-active" href="agency.html">Agency</a><a class="app-nav-link" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Persistent agents</span>
+        <h1 class="page-hero-title">An agent with a job to do</h1>
+        <p class="page-hero-subtitle">The primitives that make an agent feel like it has agency: it is woken by what concerns it, paces itself like a person, pursues durable goals, keeps the promises it makes, and checks in on its own.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">Strands-free</span><span class="page-hero-chip page-hero-chip-success">Idempotent</span><span class="page-hero-chip page-hero-chip-warning">Observed, not claimed</span><span class="page-hero-chip">Bounded</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#why">Why</a></li><li><a href="#fit">How it fits</a></li><li><a href="#triggers">Triggers</a></li><li><a href="#agenda">Agenda</a></li><li><a href="#commitments">Commitments</a></li><li><a href="#check-ins">Check-ins</a></li><li><a href="#example">Worked example</a></li><li><a href="#boundaries">Boundaries</a></li></ul>
+<div class="ds-note">Everything on this page is the <code>@readysetcloud/agent/agency</code> subpath. It is Strands-free, so a Lambda imports it without bundling the runtime, and every piece composes with the task path: a trigger becomes a <code>Run Agent Task</code>, and the task reads its agenda and commitments on the way in and reconciles them on the way out. The design was extracted from the AI managers in <a href="https://github.com/allenheltondev/ai-fantasy-league">ai-fantasy-league</a>.</div>
+    <section class="ds-section" id="why">
+      <span class="ds-kicker">Why</span>
+      <h2>What makes an agent feel like it has agency</h2>
+      <p class="ds-lede">A task that runs when asked is a function. An agent people believe in does five more things.</p>
+<div class="ds-grid"><div class="ds-link-card"><h3>It is woken by what concerns it</h3><p>Not every event. A rule per event type names the agents it touches and the kind of work it calls for.</p></div><div class="ds-link-card"><h3>It paces itself like a person</h3><p>A cooldown so it is not woken twice for the same work, and a seeded, right-skewed delay so it does not answer the instant something lands.</p></div><div class="ds-link-card"><h3>It keeps pursuing a goal</h3><p>A typed agenda reconciled from what the host observes, never from what the model claims. A goal stays open until it is really done.</p></div><div class="ds-link-card"><h3>It keeps its promises</h3><p>“I’ll look into that” becomes a record with an explicit lifecycle, owned by one task at a time, settled by results rather than words.</p></div><div class="ds-link-card"><h3>It shows up on its own</h3><p>A scheduled check-in a few times a day where “nothing to do” is a fine, model-free answer.</p></div><div class="ds-link-card"><h3>It never changes its mind on a replay</h3><p>Every roll is seeded by event and agent, so a redelivered event lands on the same task id with the same delay.</p></div></div>
+    </section>
+    <section class="ds-section" id="fit">
+      <span class="ds-kicker">Shape</span>
+      <h2>How the pieces fit</h2>
+      <p class="ds-lede">None of them requires the others. Together they make the loop below.</p>
+<div class="ag-flow" role="list"><div class="ag-flow-node" role="listitem"><strong>Your events</strong><span>and a scheduled check-in</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>routeTrigger</strong><span>rules, gates, delay</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Run Agent Task</strong><span>+ trigger, or Schedule Event</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Your task runner</strong><span>reads agenda, runs</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Observe + reconcile</strong><span>updateAgentState</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Follow-ups</strong><span>back through the router</span></div></div><ol class="ag-steps"><li><strong>Route.</strong><span>Your event consumer calls <code>routeTrigger</code> with your rules. For each agent a rule concerns it takes the agent’s cooldown slot (a conditional write), computes a delay, and dispatches a <code>Run Agent Task</code> with a deterministic <code>taskId</code> and a <code>trigger</code> <code>{ kind, eventId, detailType, payload }</code>. A delayed task is handed to <code>Schedule Event</code> named by its task id.</span></li><li><strong>Run.</strong><span>Your <code>Run Agent Task</code> consumer reads <code>detail.trigger.kind</code> to pick the task’s behavior, loads the agenda, puts <code>agendaLines(...)</code> in the prompt, and runs. Deterministic code decides what the agent <em>may</em> do; the agenda only orders the options.</span></li><li><strong>Reconcile.</strong><span>After acting, the task observes the real state again and <code>reconcileAgenda</code>s it under <code>updateAgentState</code>. A goal completes only when the observation stops reporting the need; a pending request is not a result.</span></li><li><strong>Commit.</strong><span>When a conversation produces a promise, <code>openCommitment</code> records it by reference and the task dispatches a follow-up that owns it. The follow-up reports back through <code>advanceCommitment</code>, and a check-in picks up lost or reconsiderable ones.</span></li><li><strong>Check in.</strong><span>A cron emits an event carrying <code>checkInMoment(now)</code>; a <code>oncePer</code> rule keyed by date and slot routes a <code>check_in</code> to every agent with a routine delay, so each wanders in at its own time.</span></li></ol>
+    </section>
+    <section class="ds-section" id="triggers">
+      <span class="ds-kicker">Triggers</span>
+      <h2>Rules, gates, and delays</h2>
+      <p class="ds-lede">The router is a table of rules. Each rule answers: who, what kind of task, how urgently, and how often.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Rule field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>kind</code></td><td>The task kind requested; also the agent’s default cooldown slot, so a review never delays a reply.</td></tr><tr><td><code>agents(detail)</code></td><td>Which agents the event concerns. Empty routes nowhere.</td></tr><tr><td><code>request(input)</code>, <code>payload(input)</code></td><td>The instruction the task runs and the ids it needs. Never the event’s untrusted text.</td></tr><tr><td><code>urgent</code></td><td>Bypasses cooldowns and delays (a deadline) but still starts the cooldown.</td></tr><tr><td><code>oncePer(detail)</code></td><td>Fire once per key across every delivery and every event with that key (a daily window keyed by date).</td></tr><tr><td><code>cooldown</code></td><td>A named slot and window instead of the agent’s baseline, shared by kinds that should pace together (every chat kind).</td></tr><tr><td><code>sharedCooldown</code></td><td>One reaction per moment across all agents the rule reaches.</td></tr><tr><td><code>admit(input)</code></td><td>A per-agent gate before the cooldown: a personality roll, a budget check. Returns a reason or null.</td></tr><tr><td><code>delay(input)</code></td><td>Milliseconds to wait. <code>humanDelay(profile, { deadline })</code> builds the usual one.</td></tr></tbody></table></div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Gate</th><th>Slot</th><th>Semantics</th></tr></thead><tbody><tr><td>Once-per key</td><td><code>rule#{kind}#{key}</code></td><td>Taken once, forever (<code>windowMs: null</code>). A redelivery of the same event passes again because it is the owner.</td></tr><tr><td>Shared cooldown</td><td><code>rule#{kind}#shared#{key}</code></td><td>Last taken at least <code>ms</code> ago, or the owner’s.</td></tr><tr><td>Agent cooldown</td><td><code>{agentId}#{kind or slot}</code></td><td>As above with the agent’s baseline window; <code>urgent</code> sets the window to 0 and always passes.</td></tr></tbody></table></div><div class="ds-note">Every gate is an owner-checked conditional write (<code>dynamoTriggerGates</code> in production, <code>memoryTriggerGates</code> in tests). Two deliveries racing for one gate cannot both pass, while a retry of the same event passes its own gates again and lands on the same task id, where <code>runAgentTask</code>’s claim makes it a no-op.</div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Response delays</h3>
+          <p>A right-skewed sample sized by the kind of event, scaled by the agent’s temperament, capped, and clamped to a share of the time left before a deadline.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { responseDelay, RESPONSE_DELAY_PROFILES } from '@readysetcloud/agent/agency';
+
+// Profiles: prompt (seconds), conversational (minutes), considered (~45m, cap 8h), routine (~90m, cap 12h)
+const { delayMs, reason } = responseDelay({
+  profile: 'considered',
+  seed: `${eventId}:${agentId}`,                      // same seed, same delay
+  lever: { multiplier: 1, immediateChance: 0.1 },     // part of the persona; { 0, 1 } answers at once
+  now,
+  deadline: offer.expiresAt,                          // never past half the time left
+});</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="agenda">
+      <span class="ds-kicker">Agenda</span>
+      <h2>Goals reconciled from observation</h2>
+      <p class="ds-lede">A model’s summary is lossy and has no completion condition. An agenda does.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Rule</th><th>Effect</th></tr></thead><tbody><tr><td>Observed, not claimed</td><td>Needs come from a fresh authoritative read the host performs. The model never completes a goal.</td></tr><tr><td>Idempotent</td><td>The same need reported again creates nothing. The same id in the same epoch keeps its <code>createdAt</code>.</td></tr><tr><td>Stable ordering</td><td>A still-open goal keeps its place ahead of newly discovered needs, so the agent does not thrash between priorities.</td></tr><tr><td>Stale reads rejected</td><td>An observation older than the last, or from an earlier epoch, changes nothing.</td></tr><tr><td>Completion</td><td>A need that stops being reported completes its goal. A new epoch expires the old epoch’s goals. <code>closed</code> cancels them all.</td></tr><tr><td>Bounded</td><td><code>AGENDA_LIMITS</code>: three active goals, twelve in history, or your own.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Reconcile after acting</h3>
+          <p>Read the real state, reconcile under the revision-checked store, and project active goals into the next prompt.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { readAgentState, updateAgentState, reconcileAgenda, agendaLines, emptyAgenda, type Agenda } from '@readysetcloud/agent/agency';
+
+type Need = { repo: string; pr: number; reason: 'requested' | 'stale' };
+
+// Before the run: into the prompt.
+const agenda = (await readAgentState&lt;Agenda&lt;Need&gt;&gt;({ agentId, name: 'agenda' }))?.value ?? emptyAgenda&lt;Need&gt;();
+const lines = agendaLines(agenda, (g) =&gt; `Review ${g.data.repo}#${g.data.pr} (${g.data.reason})`);
+
+// After the run: observe, then reconcile.
+const open = await listOpenReviewRequests(agentId);        // an authoritative read
+await updateAgentState&lt;Agenda&lt;Need&gt;&gt;({
+  agentId, name: 'agenda',
+  update: (current) =&gt; reconcileAgenda(current ?? emptyAgenda&lt;Need&gt;(), {
+    at: new Date().toISOString(), taskId,
+    needs: open.map((r) =&gt; ({ id: `review:${r.repo}#${r.pr}`, kind: 'review', data: r })),
+  }),
+});</code></pre>
+        </div>
+      </div><div class="do-dont">
+        <div class="do"><span class="do-dont-label">Do</span><pre><code>const rank = agendaPriority(agenda, (g) =&gt; serves(option, g));
+const pick = legalOptions.sort((a, b) =&gt; rank(b) - rank(a))[0];</code></pre><p>Priority orders options that already passed legality, budget, and permission checks.</p></div>
+        <div class="dont"><span class="do-dont-label">Don't</span><pre><code>if (agendaPriority(agenda, ...) &gt; 0) overpay(option);</code></pre><p>A goal is never permission to overpay, skip a check, or act outside the agent’s authority.</p></div>
+      </div>
+    </section>
+    <section class="ds-section" id="commitments">
+      <span class="ds-kicker">Commitments</span>
+      <h2>Promises with a lifecycle</h2>
+      <p class="ds-lede">What was asked, where, which task owes the work, what it decided and why, and whether that was reported back.</p>
+<div class="ag-flow" role="list"><div class="ag-flow-node" role="listitem"><strong>queued</strong><span>opened</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>evaluating</strong><span>start</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>waiting_on_counterpart</strong><span>waiting + externalRef</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>fulfilled · declined · cancelled · expired</strong><span>settle</span></div></div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Transition</th><th>Who may apply it</th><th>Effect</th></tr></thead><tbody><tr><td><code>openCommitment</code></td><td>The task that heard the promise</td><td>Idempotent per source; <code>duplicate</code> for the same intent still open with that counterpart; <code>limit</code> when the agent already owes enough (three open, one per counterpart).</td></tr><tr><td><code>start</code></td><td>The assigned task only</td><td>queued → evaluating</td></tr><tr><td><code>waiting</code></td><td>The assigned task only</td><td>Records the external thing it produced (an offer id, a ticket) and waits on the counterpart.</td></tr><tr><td><code>closed</code></td><td>The assigned task only</td><td>A final reason and the facts it rested on. <code>reconsider: true</code> schedules one more look after a cooldown, if the deadline allows.</td></tr><tr><td><code>settle</code></td><td>A read of the system of record</td><td>What the counterpart did. Never from chat.</td></tr><tr><td><code>redispatch</code></td><td>A check-in</td><td><code>resume</code> a queued look whose task never started; <code>reconsider</code> a due decline when <code>materialChange</code> finds something new. Bounded by child tasks and reconsiderations.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Record a promise, then dispatch the task that owns it</h3>
+          <p>The text is never stored. The follow-up re-reads the message by reference.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { updateAgentState, openCommitment, emptyCommitments, taskIdFor, type CommitmentBook } from '@readysetcloud/agent/agency';
+
+const followUpId = taskIdFor(`promise:${msg.id}`, agentId, 'investigate');
+let outcome;
+await updateAgentState&lt;CommitmentBook&lt;{ test: string }&gt;&gt;({
+  agentId, name: 'commitments',
+  update: (book) =&gt; {
+    const r = openCommitment(book ?? emptyCommitments(), {
+      kind: 'investigate', at: now, taskId: followUpId,
+      counterpart: msg.from, source: { channel: msg.channel, ref: msg.id, visibility: 'shared' },
+      intent: { test: 'flaky-login-spec' }, expiresAt: twoDaysFromNow,
+    });
+    outcome = r.outcome;
+    return r.book;
+  },
+});
+if (outcome === 'created') await dispatchFollowUp(followUpId, agentId);
+// 'existing' (a redelivery) and 'duplicate' dispatch nothing; 'limit' means say so instead of promising.</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="check-ins">
+      <span class="ds-kicker">Check-ins</span>
+      <h2>The heartbeat</h2>
+      <p class="ds-lede">Fixed wall-clock times in the agent’s own time zone. A late or retried job still counts as that check-in.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Compute the moment, emit it, route it once</h3>
+          <p>The default schedule is morning, afternoon, and evening, US Eastern.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { checkInMoment } from '@readysetcloud/agent/agency';
+
+// In the scheduled job (an EventBridge rule on a cron):
+const moment = checkInMoment(new Date(), { timeZone: 'America/New_York', slots: { morning: 9, afternoon: 14, evening: 20 } });
+await publish('Agent Check-In', { date: moment.date, slot: moment.slot, nextAt: moment.nextAt.toISOString() });
+
+// In the rules:
+'Agent Check-In': {
+  kind: 'check_in',
+  agents: () =&gt; listAgents(),
+  oncePer: (d) =&gt; `${d.date}-${d.slot}`,
+  delay: humanDelay('routine', { deadline: (d) =&gt; d.nextAt }),
+  request: () =&gt; 'Look over your open goals and anything you said you would do.',
+}</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="example">
+      <span class="ds-kicker">Worked example</span>
+      <h2>A reviewer agent, end to end</h2>
+      <p class="ds-lede">Rules, pacing, dispatch, and the task that reads its agenda.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>rules.ts</h3>
+          <p>What wakes the agent and how it paces itself.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { routeTrigger, humanDelay, dynamoTriggerGates, eventBridgeDispatcher, type TriggerRuleMap, type TriggerRouterDeps } from '@readysetcloud/agent/agency';
+
+type PrOpened = { repo: string; pr: number; reviewers: string[]; dueAt: string };
+
+const rules: TriggerRuleMap = {
+  'Pull Request Opened': {
+    kind: 'review',
+    agents: ({ detail }: { detail: PrOpened }) =&gt; detail.reviewers,
+    delay: humanDelay&lt;PrOpened&gt;('considered', { deadline: (d) =&gt; d.dueAt }),
+    request: ({ detail }) =&gt; `Review pull request #${detail.pr} in ${detail.repo}.`,
+    payload: ({ detail }) =&gt; ({ repo: detail.repo, pr: detail.pr }),
+  },
+  'Review Deadline Near': {
+    kind: 'review',
+    urgent: true,
+    agents: ({ detail }: { detail: PrOpened }) =&gt; detail.reviewers,
+    request: ({ detail }) =&gt; `Finish your review of #${detail.pr} now.`,
+  },
+};
+
+const deps: TriggerRouterDeps = {
+  rules,
+  gates: dynamoTriggerGates({ prefix: 'reviewers' }),
+  pacing: async (agentId) =&gt; {
+    const persona = await getPersona(agentId);
+    if (!persona) return null;                                 // not one of ours: skipped
+    return { cooldownMs: 15 * 60_000, responseDelay: persona.responseDelay };
+  },
+  principal: (agentId) =&gt; ({ type: 'system', id: agentId }),
+  dispatch: eventBridgeDispatcher({ sessionId: (t) =&gt; `reviewer-${t.agentId}` }),
+  responseDelays: process.env.RESPONSE_DELAYS !== 'off',
+};
+
+export const handler = (event) =&gt; routeTrigger(deps, event);</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Decision</th><th>Meaning</th></tr></thead><tbody><tr><td><span class="status-badge status-badge-success">requested</span></td><td>Dispatched (now, or scheduled by <code>delayMs</code>). Carries the <code>taskId</code>.</td></tr><tr><td><span class="status-badge status-badge-neutral">cooldown</span></td><td>The agent’s slot for this kind is still warm.</td></tr><tr><td><span class="status-badge status-badge-neutral">repeat</span></td><td>The once-per key was already taken by another event.</td></tr><tr><td><span class="status-badge status-badge-neutral">shared_cooldown</span></td><td>Another agent already reacted to this moment.</td></tr><tr><td><span class="status-badge status-badge-warning">declined</span></td><td>The rule’s <code>admit</code> turned the agent away; <code>reason</code> says why.</td></tr><tr><td><span class="status-badge status-badge-error">unknown_agent</span></td><td><code>pacing()</code> returned null: not an agent this router runs.</td></tr></tbody></table></div>
+    </section>
+    <section class="ds-section" id="boundaries">
+      <span class="ds-kicker">Boundaries</span>
+      <h2>Guarantees, and what is deliberately left out</h2>
+      <p class="ds-lede"></p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Guarantee</th><th>Where it comes from</th></tr></thead><tbody><tr><td>Observed, not claimed</td><td>Agenda and commitment transitions take authoritative reads and task results; a model’s words never complete or settle anything.</td></tr><tr><td>Idempotent under at-least-once delivery</td><td>Owner-checked gates, deterministic task ids, idempotent <code>openCommitment</code>, stale-observation rejection, compare-and-swap state writes.</td></tr><tr><td>Bounded</td><td>Active goals, open commitments per agent and per counterpart, history, child tasks, reconsiderations.</td></tr><tr><td>Private by construction</td><td>A commitment stores where something was said, never the text. Whether agenda lines reach a prompt that can post publicly is your call.</td></tr></tbody></table></div><div class="ds-note"><strong>Not included (yet):</strong> the fantasy league’s durable dispatch outbox with recovery sweep, per-task budget admission, and a kill switch. Here a failed dispatch throws to the router and EventBridge retries the consumer; the gate stays the task’s own so the retry passes. Spend control is the host’s.</div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://github.com/readysetcloud/rsc-core/tree/main/agent"><code>@readysetcloud/agent</code></a> and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+</body>
+</html>

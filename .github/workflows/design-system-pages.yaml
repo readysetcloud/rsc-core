@@ -2,7 +2,8 @@ name: Publish Design System Guide
 
 # The guide consumes the ui package's own stylesheets and browser bundles,
 # so it redeploys whenever either the guide or the package changes — docs
-# and package cannot drift.
+# and package cannot drift. The agent guide (design-system/agent/) publishes
+# agent/README.md as its LLM companion, so that file is a trigger too.
 on:
   push:
     branches:
@@ -10,6 +11,7 @@ on:
     paths:
       - 'ui/**'
       - 'design-system/**'
+      - 'agent/README.md'
       - 'scripts/build-design-site.mjs'
       - '.github/workflows/design-system-pages.yaml'
   workflow_dispatch:

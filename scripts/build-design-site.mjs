@@ -47,4 +47,21 @@ ${agentGuide}`;
 await writeFile(`${OUT}/llms.txt`, llmsDoc);
 await writeFile(`${OUT}/AGENTS.md`, llmsDoc);
 
-console.log(`Design-system guide assembled in ${OUT}/`);
+// The agent guide (design-system/agent/*.html) documents @readysetcloud/agent
+// and the rsc-core agent service. Its LLM-readable companion is the package
+// README itself, published verbatim at /agent/llms.txt — same no-drift rule.
+const packageGuide = await readFile('agent/README.md', 'utf8');
+await writeFile(`${OUT}/agent/llms.txt`, `<!--
+  Published from rsc-core/agent/README.md on every deploy — do not edit here.
+  Human-readable companions on this site:
+    ${SITE}/agent/index.html      overview, capabilities, use cases
+    ${SITE}/agent/chat.html       streaming chat: sessions, connect, wire protocol, memory
+    ${SITE}/agent/tasks.html      autonomous tasks: triggering, lifecycle, one-shot runs
+    ${SITE}/agent/agency.html     persistent agents: triggers, agendas, commitments, check-ins
+    ${SITE}/agent/tools.html      tools, identity, principals, allowlists, isolation
+    ${SITE}/agent/reference.html  routes, events, exports, environment, table keys
+-->
+
+${packageGuide}`);
+
+console.log(`Design-system and agent guides assembled in ${OUT}/`);

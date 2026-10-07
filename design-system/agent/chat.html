@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Streaming AI chat in Ready, Set, Cloud apps: sessions, the connect handshake, the wire protocol, the React chat surface, and the two planes of memory.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link app-nav-link-active" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Streaming chat</span>
+        <h1 class="page-hero-title">A conversation, streamed</h1>
+        <p class="page-hero-subtitle">A browser-direct WebSocket to the AgentCore runtime, authorized by the user’s Cognito token, configured by a session row, and remembered per person.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">WebSocket</span><span class="page-hero-chip page-hero-chip-warning">Cognito bearer</span><span class="page-hero-chip page-hero-chip-success">Snapshots + AgentCore Memory</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#flow">How it works</a></li><li><a href="#session">Sessions</a></li><li><a href="#frontend">Frontend</a></li><li><a href="#wire">Wire protocol</a></li><li><a href="#memory">Memory</a></li></ul>
+
+    <section class="ds-section" id="flow">
+      <span class="ds-kicker">How it works</span>
+      <h2>Session, connect, stream</h2>
+      <p class="ds-lede">Four steps from a signed-in user to streamed tokens, with identity verified before any model call.</p>
+<ol class="ag-steps"><li><strong>Configure a session.</strong><span>A signed-in caller <code>POST /agent/sessions</code> (or backend code calls <code>createSession()</code>) with an optional system prompt, model, temperature, max tokens, title, named first-party <code>tools</code>, and external <code>mcpServers</code>. The row is <code>pk=SESSION#{id}, sk=CONFIG</code>, owned by the verified caller. This is the knob for behavior: the runtime is a generic host, so changing a prompt or a model is a data operation.</span></li><li><strong>Get the URL.</strong><span>The browser calls <code>POST /agent/connect</code> with the <code>sessionId</code> and receives the <code>wss://</code> URL. On custom-domain deploys that is <code>wss://chat.&lt;domain&gt;/ws</code>, a CloudFront proxy that hides the account id in the runtime ARN.</span></li><li><strong>Stream.</strong><span>The browser opens the socket presenting its Cognito ID token as an OAuth bearer in the <code>Sec-WebSocket-Protocol</code> header. The runtime’s inbound JWT authorizer validates it, the runtime reads the verified <code>sub</code>, loads the session config, refuses a mismatch with the owner, builds the assistant, and streams <code>stream_event</code> then <code>complete</code> frames.</span></li><li><strong>Remember.</strong><span>Conversation snapshots persist per session; AgentCore Memory extracts long-term facts and preferences per user and injects them on later turns.</span></li></ol><div class="ag-flow" role="list"><div class="ag-flow-node" role="listitem"><strong>Browser</strong><span>Cognito ID token</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>POST /agent/connect</strong><span>wss URL</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>AgentCore Runtime</strong><span>JWT authorizer, owner check</span></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Bedrock + tools</strong></div><span class="ag-flow-arrow" aria-hidden="true">→</span><div class="ag-flow-node" role="listitem"><strong>Frames</strong><span>stream_event, complete</span></div></div>
+    </section>
+    <section class="ds-section" id="session">
+      <span class="ds-kicker">Sessions</span>
+      <h2>Dynamic configuration</h2>
+      <p class="ds-lede">One deployed host serves many differently-behaved agents. Everything about a session is data.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>systemPrompt</code></td><td>string</td><td>The persona and instructions. Defaults to the package prompt.</td></tr><tr><td><code>modelId</code></td><td>string</td><td>Bedrock model id (cross-region profile prefix included). Defaults to the deploy’s chat model.</td></tr><tr><td><code>temperature</code>, <code>maxTokens</code></td><td>number</td><td>Sampling controls; package defaults when unset.</td></tr><tr><td><code>title</code></td><td>string</td><td>Display name for the conversation.</td></tr><tr><td><code>tools</code></td><td>string[]</td><td>Names from the host’s first-party tool registry to enable for this session.</td></tr><tr><td><code>mcpServers</code></td><td>record</td><td>External MCP servers by label: <code>url</code>, <code>headers</code>, optional <code>authHeader</code>. Hosts must be allowlisted.</td></tr><tr><td><code>userId</code></td><td>string</td><td>Set by the host from the verified caller. The session’s owner; never client-supplied.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Create a session from a backend</h3>
+          <p>The verified user becomes the owner. The host enforces ownership at connect time.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { createSession, getSessionConfig } from '@readysetcloud/agent/memory';
+
+const { sessionId } = await createSession({
+  userId,                                   // verified caller — the OWNER
+  systemPrompt: 'You are a terse code reviewer.',
+  modelId: 'us.anthropic.claude-sonnet-4-...',
+  tools: ['http_request'],
+});
+
+// At connect, the host loads it and refuses a mismatch:
+const config = await getSessionConfig(sessionId);
+if (config &amp;&amp; config.userId !== verifiedSub) throw new Error('not your session');</code></pre>
+        </div>
+      </div><div class="ds-note"><code>createSession</code> is conditional on the session not already existing, so an owner can never be overwritten. A session with no config row runs with package defaults. The generated id is a UUID, which satisfies AgentCore’s session-id length requirement.</div>
+    </section>
+    <section class="ds-section" id="frontend">
+      <span class="ds-kicker">Frontend</span>
+      <h2>Rendering chat in an app</h2>
+      <p class="ds-lede">The app owns auth and injects a URL getter; the chat components never import app auth.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>@readysetcloud/ui/chat</h3>
+          <p>Create the session once, then return the URL plus the bearer subprotocol on every (re)connect.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="tsx"><code>import { Chat } from '@readysetcloud/ui/chat';
+import { useAuth } from '@readysetcloud/ui/auth';
+
+const { user, getToken } = useAuth();
+const authed = async (path, body) =&gt;
+  (await fetch(`${CORE_API_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${await getToken()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })).json();
+
+// base64url without padding — how AgentCore expects the bearer in the subprotocol.
+const b64url = (s) =&gt; btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+// 1. Create a session once (optionally set prompt/model), keep the id in state.
+const { sessionId } = await authed('/agent/sessions', { systemPrompt, modelId });
+
+// 2. Per (re)connect, return the URL + the Cognito ID token as an OAuth bearer subprotocol.
+const getConnectionUrl = async (sid?: string) =&gt; {
+  const { wsUrl } = await authed('/agent/connect', { sessionId: sid });
+  const token = await getToken();
+  return {
+    url: wsUrl,
+    protocols: [`base64UrlBearerAuthorization.${b64url(token)}`, 'base64UrlBearerAuthorization'],
+  };
+};
+
+// 3. Render.
+&lt;Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" /&gt;;</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Export</th><th>Use</th></tr></thead><tbody><tr><td><code>Chat</code></td><td>The complete surface: message list, composer, streaming state, reconnect.</td></tr><tr><td><code>useAgentChat</code></td><td>The hook behind it, for a custom layout: messages, status, <code>send</code>.</td></tr><tr><td><code>WebSocketChatClient</code></td><td>The bare client: connect with a URL and protocols, listen for <code>ServerMessage</code>s.</td></tr><tr><td><code>ChatMessage</code></td><td>One rendered message (markdown-aware).</td></tr></tbody></table></div><div class="ds-note"><code>CORE_API_URL</code> is the SSM value at <code>/readysetcloud/api-url</code> (prod: <code>https://api.readysetcloud.io/core</code>). Omit the session body to take every default.</div>
+    </section>
+    <section class="ds-section" id="wire">
+      <span class="ds-kicker">Wire protocol</span>
+      <h2>What travels over the socket</h2>
+      <p class="ds-lede">Preserved verbatim from the original Python agent, so the shapes are stable.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Server to browser</h3>
+          <p>A turn is a series of <code>stream_event</code> frames, then one <code>complete</code>. Errors close the turn.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="json"><code>{ "type": "stream_event", "event": { "init_event_loop": true } }
+{ "type": "stream_event", "event": { "data": "Here" } }
+{ "type": "stream_event", "event": { "current_tool_use": { "name": "http_request", "tool_use_id": "..." } } }
+{ "type": "stream_event", "event": { "data": " is what I found." } }
+{ "type": "stream_event", "event": { "complete": true } }
+{ "type": "complete", "session_id": "..." }
+{ "type": "error", "error": "...", "message": "..." }</code></pre><pre data-lang="json"><code>// Browser to server: one request per turn. user_id is optional; the
+// runtime prefers the verified id from the connection.
+{ "request": "What shipped this week?", "session_id": "..." }</code></pre>
+        </div>
+      </div><div class="ds-note">A rejected token closes the socket with code <code>4401</code> or <code>1008</code>; the UI client surfaces both as an auth error rather than a reconnect loop.</div>
+    </section>
+    <section class="ds-section" id="memory">
+      <span class="ds-kicker">Memory</span>
+      <h2>Two planes of memory</h2>
+      <p class="ds-lede">Continuity within a conversation and recall across them are different problems with different stores.</p>
+<div class="ds-grid"><div class="ds-link-card"><h3>Conversation snapshots</h3><p><strong>Within and across a connection.</strong> Strands snapshots persist to the agent table at <code>pk=SESSION#{sessionId}</code> with a 30-day TTL, so a reconnect resumes exactly. Available to chat and to tasks tied to a session.</p></div><div class="ds-link-card"><h3>Cross-session memory</h3><p><strong>Across sessions, per person.</strong> The chat runtime hands each turn to AgentCore Memory; it extracts facts (<code>/facts/{sub}</code>) and preferences (<code>/users/{sub}/preferences</code>) scoped to the verified caller, and the Strands memory manager injects the relevant ones each turn, plus a <code>search_memory</code> tool for explicit lookups.</p></div></div><div class="ds-note">Tasks run <strong>memory-light</strong> by default: snapshots only, no AgentCore Memory, so the task Lambda does not carry that dependency. A host that needs long-term recall in a task passes a <code>memoryManager</code> to <code>createAssistant</code>.</div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://github.com/readysetcloud/rsc-core/tree/main/agent"><code>@readysetcloud/agent</code></a> and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+</body>
+</html>
