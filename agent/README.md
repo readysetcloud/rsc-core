@@ -38,7 +38,7 @@ Strands SDK and `zod`.
 | `DynamoSnapshotStorage` | Implements Strands' `SnapshotStorage` port against the single table. |
 | `DEFAULT_MODEL_ID`, `DEFAULT_REGION`, `DEFAULT_SYSTEM_PROMPT`, `DEFAULT_MAX_TOKENS`, `DEFAULT_TEMPERATURE` | Config constants (env-overridable). |
 | wire types — `ServerMessage`, `ClientMessage`, `AgentStreamEventBody`, `SendMessage` | The streaming contract shared with the UI client. |
-| `@readysetcloud/agent/agency` — `routeTrigger`, `reconcileAgenda`, `openCommitment` / `advanceCommitment`, `checkInMoment`, `responseDelay`, `readAgentState` / `updateAgentState` | Primitives for **persistent agents** that feel like they have agency: trigger rules with atomic gates and human-like delays, durable typed agendas and commitments, scheduled check-ins, and a revision-checked state store. Strands-free. See [Agency](#agency--persistent-agents-readysetcloudagentagency). |
+| `@readysetcloud/agent/agency` — `definePersistentAgent`, plus the primitives under it: `routeTrigger`, `reconcileAgenda`, `openCommitment` / `advanceCommitment`, `checkInMoment`, `responseDelay`, `readAgentState` / `updateAgentState` | The **persistent agent** type, a build tool you run in your own stack: define an agent type once and get its router and task handler, with trigger rules, human-like pacing, durable agendas and commitments, and scheduled check-ins. Strands-free. See [Persistent agents](#persistent-agents--a-build-tool-readysetcloudagentagency). |
 
 Cross-session memory is **not** built into `createAssistant`. Pass a Strands
 `memoryManager` — the host owns the backend. In rsc-core the AgentCore Runtime
@@ -58,7 +58,25 @@ integrations.
 
 `@readysetcloud/agent/agency` is likewise Strands-free: the trigger router,
 agendas, commitments, check-ins, and the agent state store (see
-[Agency](#agency--persistent-agents-readysetcloudagentagency)).
+[Agency](#persistent-agents--a-build-tool-readysetcloudagentagency)).
+
+## Agent types
+
+The package builds four kinds of agent. The first three run on the shared
+rsc-core service (or any host you point them at). The fourth is a **build
+tool**: you define the agent type and run it in your own stack; the shared
+service never hosts it.
+
+| | Chat | Task | One-shot | Persistent agent |
+| --- | --- | --- | --- | --- |
+| **What it is** | A conversation streamed to a browser | One "do something" run, then report back | One stateless call that returns a typed answer | A long-lived agent with a job: woken by events, pursuing goals, keeping promises |
+| **Started by** | A person opening a socket | An API call or a `Run Agent Task` event | Your code calling `runAgent` | Your trigger rules and its own scheduled check-ins |
+| **Identity** | The verified user | A user or an allowlisted system | Whatever your code passes | Its own: `{ type: 'system', id: '<type>/<agentId>' }`, with a persona |
+| **Lives** | One session (snapshots for ~30 days) | One run | One call | Indefinitely: state carries across every run |
+| **Keeps** | Conversation snapshots, per-user memory | A task row with the result | Nothing | An agenda, commitments, cooldowns |
+| **Paces itself** | No (answers when asked) | No | No | Yes: cooldowns and human-like delays |
+| **Runs on** | Shared runtime | Shared task Lambda | Anywhere | **Your stack**: your router and task Lambdas |
+| **Entry point** | `createAssistant`, `handleUserMessage` | `requestAgentTask`, `runAgentTask` | `runAgent` | `definePersistentAgent` (`./agency`) |
 
 ## Usage
 
@@ -240,11 +258,17 @@ Pass it to run the agent in **your own** stack against **your own** table
 run does not go through the shared runtime's guarantees (Bedrock grant, MCP
 allowlist, memory isolation) — your stack owns them.
 
-## Agency — persistent agents (`@readysetcloud/agent/agency`)
+## Persistent agents — a build tool (`@readysetcloud/agent/agency`)
 
 ```ts
-import { routeTrigger, reconcileAgenda, openCommitment, checkInMoment } from '@readysetcloud/agent/agency';
+import { definePersistentAgent } from '@readysetcloud/agent/agency';
 ```
+
+> **Not a hosted service.** A persistent agent is the fourth [agent
+> type](#agent-types) and the only one rsc-core does not run for you. You define
+> the agent type in your app and deploy its router and task handler in your own
+> stack, against your own table. Its events carry their own source
+> (`agency.<name>`), so the shared task Lambda never picks them up.
 
 A task that runs when asked is a function. An agent that feels like it has
 **agency** is woken by things that concern it, paces itself like a person
@@ -266,6 +290,140 @@ commitments on the way in and reconciles them on the way out.
 | **Check-ins** — `checkInMoment`, `nextCheckIn` | Initiative. A scheduled heartbeat (a few times a day, in the agent's time zone) that makes it review its agenda and open commitments unprompted, where "nothing to do" is a fine, model-free answer. |
 | **State store** — `readAgentState`, `updateAgentState` | Durability. A revision-checked DynamoDB document per agent (and optional scope: a tenure, a season), so concurrent runs serialize instead of clobbering each other. |
 | `seededRandom`, `seededRoll`, `hashString` | Replayable dice, so a redelivered event never changes an agent's mind. |
+
+### Define one: `definePersistentAgent`
+
+One definition per agent type. It names the type, says how to look up an
+instance's persona and pacing, lists what wakes it and what it does for each
+kind of task, and says how to observe what it still needs. You get back two
+handlers to deploy and a check-in emitter.
+
+```ts
+// reviewer.ts — a code-review agent type your app runs.
+import { definePersistentAgent, humanDelay } from '@readysetcloud/agent/agency';
+import { runAgent } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+type Persona = { name: string; voice: string };
+type Need = { repo: string; pr: number };
+type Intent = { test: string };                    // what a promise is about
+
+export const reviewer = definePersistentAgent<Persona, Need, Intent>({
+  name: 'reviewer',
+  tableName: process.env.TABLE_NAME,
+
+  // Who an instance is, and how it paces itself. null: not one of ours.
+  profile: async (agentId) => {
+    const row = await loadReviewer(agentId);
+    return row && { persona: row.persona, pacing: { cooldownMs: 15 * 60_000, responseDelay: row.responseDelay } };
+  },
+
+  // What wakes it.
+  rules: {
+    'Pull Request Opened': {
+      kind: 'review',
+      agents: ({ detail }) => detail.reviewers,
+      delay: humanDelay('considered', { deadline: (d) => d.dueAt }),
+      request: ({ detail }) => `Review pull request #${detail.pr} in ${detail.repo}.`,
+      payload: ({ detail }) => ({ repo: detail.repo, pr: detail.pr }),
+    },
+  },
+  checkIn: { agents: () => listReviewerIds() },        // 9:00, 14:00, 20:00 ET by default
+
+  // What it does, by task kind.
+  tasks: {
+    review: async (ctx) => {
+      const { output } = await runAgent({
+        input: ctx.request,
+        systemPrompt: [
+          `You are ${ctx.persona.name}. ${ctx.persona.voice}`,
+          'Your open goals, best first:',
+          ...ctx.agendaLines((g) => `review ${g.data.repo}#${g.data.pr}`),
+        ].join('\n'),
+        tools: reviewTools(ctx.payload),
+        outputSchema: z.object({ summary: z.string(), followUpTest: z.string().nullable() }),
+      });
+      if (output.followUpTest)                         // "I'll look into that flaky test"
+        await ctx.promise({
+          kind: 'investigate',
+          counterpart: String(ctx.payload.author),
+          source: { channel: `pr-${ctx.payload.pr}`, ref: String(ctx.payload.commentId), visibility: 'shared' },
+          intent: { test: output.followUpTest },
+          expiresAt: new Date(ctx.now.getTime() + 2 * 86_400_000).toISOString(),
+          request: `Investigate ${output.followUpTest}.`,
+        });
+      return output.summary;
+    },
+    investigate: async (ctx) => {                       // owns the promise above
+      const c = ctx.commitment!;
+      await ctx.advanceCommitment(c.id, { type: 'start', taskId: ctx.taskId });
+      const verdict = await investigate(c.intent.test);
+      await ctx.advanceCommitment(c.id, verdict.fixed
+        ? { type: 'waiting', taskId: ctx.taskId, externalRef: verdict.prUrl }
+        : { type: 'closed', taskId: ctx.taskId, status: 'declined', reason: 'not_reproducible', reconsider: true });
+      return verdict.summary;
+    },
+    check_in: async (ctx) => {
+      const due = ctx.dueCommitments((c) => flakeSeenAgain(c.intent.test));
+      for (const c of due.reconsider) await ctx.redispatch(c, 'reconsider', `Look at ${c.intent.test} again.`);
+      for (const c of due.resume) await ctx.redispatch(c, 'resume', `Investigate ${c.intent.test}.`);
+      return due.reconsider.length + due.resume.length ? 'followed up' : 'nothing to do';
+    },
+  },
+
+  // After every task: what does it still need? The agenda is reconciled from
+  // this read, never from the model's output.
+  observe: async (ctx) => ({
+    needs: (await openReviewRequests(ctx.agentId)).map((r) => ({ id: `review:${r.repo}#${r.pr}`, kind: 'review', data: r })),
+  }),
+});
+```
+
+**What the definition gives you**
+
+| Member | Use |
+| --- | --- |
+| `route(event)` | Your router Lambda. Routes your app's events and this type's `Agent Check-In` through the rules, gates, and delays, and dispatches one `Run Agent Task` per agent. |
+| `handleTask(detail)` | Your task Lambda. Validates the task belongs to this type and principal, claims it once, loads the agenda and commitments (expiring looks never taken), runs the kind's handler, then reconciles the agenda from `observe`. Records `COMPLETED` or `FAILED` and emits `Agent Task Completed`. |
+| `emitCheckIn(now?)`, `checkInEvent(now?)` | Call from a cron at each slot. Only agents of this type answer it. |
+| `source` | The EventBridge source of everything this type emits, `agency.<name>` by default. |
+
+**What a task handler gets (`ctx`)**: `agentId`, `persona`, `kind`, `request`,
+`payload`, `now`, `agenda`, `agendaLines(describe)`, `commitments`, the
+`commitment` it owns (for a promise's follow-up), `promise(...)`,
+`advanceCommitment(id, event)`, `followUp({ kind, key, request })`,
+`dueCommitments(materialChange)`, and `redispatch(commitment, mode, request)`.
+Follow-ups and promises dispatch through the same path with deterministic task
+ids, so a retried task never sends one twice.
+
+### Deploy it in your stack
+
+```ts
+// router.ts — rule: source [your app, "agency.reviewer"], your event types + "Agent Check-In"
+export const handler = (event) => reviewer.route(event);
+
+// task.ts — rule: source "agency.reviewer", detail-type "Run Agent Task"
+export const handler = (event) => reviewer.handleTask(event.detail);
+
+// check-in.ts — schedule: cron(0 9,14,20 * * ? *) in America/New_York
+export const handler = () => reviewer.emitCheckIn();
+```
+
+| Your stack needs | Why |
+| --- | --- |
+| A DynamoDB table with `pk`/`sk` and TTL on `expiresAt` | Task rows, agent state, and trigger gates (pass `tableName`). |
+| `events:PutEvents` on the bus | Dispatching tasks, follow-ups, check-ins, and completions. |
+| rsc-core's `Schedule Event` primitive in the same account, or your own `dispatch` | Delayed tasks are handed to it. Pass `responseDelays: false` (or a custom `dispatch`) to run without it. |
+| A Bedrock grant, if your handlers call a model | The handlers are yours; so is the model access. |
+
+For tests and local runs, pass `store: memoryAgentStore()`, `gates:
+memoryTriggerGates()`, a `dispatch` that calls `handleTask` directly, and
+`responseDelays: false`.
+
+### Under the hood: the primitives
+
+`definePersistentAgent` is assembled from these, all exported for anyone who
+needs a different shape.
 
 ### How the pieces fit
 
@@ -307,7 +465,9 @@ flowchart LR
    `checkInMoment(now)`) routes a `check_in` task to every agent, `oncePer`
    `date-slot`, with a `routine` delay so each one wanders in at its own time.
 
-### Worked example
+### Using the primitives directly
+
+The same reviewer, assembled by hand rather than with `definePersistentAgent`.
 
 ```ts
 // rules.ts — what wakes a reviewer agent, and how it paces itself.
@@ -352,7 +512,8 @@ const deps: TriggerRouterDeps = {
     return { cooldownMs: 15 * 60_000, responseDelay: persona.responseDelay };   // { multiplier, immediateChance }
   },
   principal: (agentId) => ({ type: 'system', id: agentId }),
-  dispatch: eventBridgeDispatcher({ sessionId: (t) => `reviewer-${t.agentId}` }),
+  // Its own source, so rsc-core's shared task Lambda never runs these tasks.
+  dispatch: eventBridgeDispatcher({ source: 'agency.reviewer', sessionId: (t) => `reviewer-${t.agentId}` }),
   responseDelays: process.env.RESPONSE_DELAYS !== 'off',
 };
 
@@ -448,15 +609,18 @@ event, at most once.
   never the text; a follow-up re-reads it. Whether agenda lines reach a prompt
   that can write to a shared channel is your call (the fantasy league keeps
   them out of chat tasks).
+- **Yours to run.** Persistent agents are never hosted by the shared service:
+  their events use their own source, and `definePersistentAgent` refuses the
+  shared `readysetcloud.agent` source.
 - **Not included (yet).** The fantasy league also has a durable dispatch
   outbox with a recovery sweep, per-task budget admission, and a kill switch.
   Here a dispatch that fails throws to the router (EventBridge retries the
   consumer; the gate stays the task's own so the retry passes), and spend
-  control is the host's.
+  control is yours.
 
 ### Keys
 
-- **Agent state:** `pk=AGENT#{agentId}`, `sk=STATE#{name}` or `STATE#{name}#{scope}` (`entity=AgentState`, `revision`, `value`).
+- **Agent state:** `pk=AGENT#{agentId}`, `sk=STATE#{name}` or `STATE#{name}#{scope}` (`entity=AgentState`, `revision`, `value`). `definePersistentAgent` names its documents `<type>.agenda` and `<type>.commitments`.
 - **Trigger gates:** `pk=TRIGGER#{[prefix#]slot}`, `sk=GATE` (`entity=TriggerGate`, `owner`, `lastTriggeredAt`, 30-day TTL).
 
 ## Server-side one-shot runs (`runAgent`)

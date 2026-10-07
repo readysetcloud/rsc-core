@@ -6,6 +6,9 @@
 //
 // The pieces compose; none requires the others:
 //
+//   persistent      definePersistentAgent: the fourth agent type, built from the
+//                   pieces below and run in YOUR stack (a build tool, not a
+//                   hosted service): route(event) + handleTask(detail)
 //   triggers        events → "Run Agent Task" requests, through atomic gates
 //                   (cooldowns, once-per keys) with human-like delays
 //   agenda          typed goals reconciled from observations, bounded, idempotent
@@ -110,5 +113,25 @@ export {
   type TriggerRule,
   type TriggerRuleMap,
 } from './triggers.js';
+
+export {
+  definePersistentAgent,
+  dynamoAgentStore,
+  memoryAgentStore,
+  AGENT_CHECK_IN_DETAIL_TYPE,
+  CHECK_IN_KIND,
+  FOLLOW_UP_DETAIL_TYPE,
+  type PersistentAgent,
+  type PersistentAgentCheckIn,
+  type PersistentAgentDefinition,
+  type PersistentAgentObservation,
+  type PersistentAgentProfile,
+  type PersistentAgentStore,
+  type PersistentFollowUp,
+  type PersistentPromise,
+  type PersistentStateKey,
+  type PersistentTaskContext,
+  type PersistentTaskHandler,
+} from './persistent.js';
 
 export type { TaskTrigger } from '../memory/task-events.js';

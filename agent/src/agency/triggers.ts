@@ -339,6 +339,7 @@ async function routeRule(deps: TriggerRouterDeps, event: TriggerEvent, rule: Tri
       request: rule.request(input),
       trigger: {
         kind: rule.kind,
+        agentId,
         eventId: event.id,
         detailType: event['detail-type'],
         ...(payload === undefined ? {} : { payload }),
@@ -355,6 +356,13 @@ async function routeRule(deps: TriggerRouterDeps, event: TriggerEvent, rule: Tri
 export interface EventBridgeDispatcherOptions {
   /** Bus to publish on; defaults to the account's `default` bus. */
   eventBusName?: string;
+  /**
+   * `source` of the "Run Agent Task" events. Defaults to `readysetcloud.agent`, the shared
+   * service's task source, which rsc-core's own task Lambda consumes. A persistent agent your
+   * stack runs uses its own (`definePersistentAgent` sets `agency.<name>`) so the shared service
+   * never picks its tasks up.
+   */
+  source?: string;
   /** `source` of the "Schedule Event" request a delayed task becomes (default: the task source). */
   scheduleSource?: string;
   /** Per-task overrides a host wants on every routed task (a system prompt, a model, named tools). */
@@ -370,6 +378,7 @@ export interface EventBridgeDispatcherOptions {
  * redelivered trigger neither delays nor duplicates the task).
  */
 export function eventBridgeDispatcher(options: EventBridgeDispatcherOptions = {}): (task: TriggerDispatch) => Promise<void> {
+  const source = options.source ?? TASK_EVENT_SOURCE;
   return async (task) => {
     const sessionId = options.sessionId?.(task);
     const detail: TaskRequestDetail = {
@@ -383,16 +392,16 @@ export function eventBridgeDispatcher(options: EventBridgeDispatcherOptions = {}
     const entry =
       task.delayMs > 0
         ? {
-            Source: options.scheduleSource ?? TASK_EVENT_SOURCE,
+            Source: options.scheduleSource ?? source,
             DetailType: 'Schedule Event',
             Detail: JSON.stringify({
               name: task.taskId,
               at: task.runAt.toISOString(),
               whenPast: 'send',
-              event: { source: TASK_EVENT_SOURCE, detailType: TASK_REQUEST_DETAIL_TYPE, detail },
+              event: { source, detailType: TASK_REQUEST_DETAIL_TYPE, detail },
             }),
           }
-        : { Source: TASK_EVENT_SOURCE, DetailType: TASK_REQUEST_DETAIL_TYPE, Detail: JSON.stringify(detail) };
+        : { Source: source, DetailType: TASK_REQUEST_DETAIL_TYPE, Detail: JSON.stringify(detail) };
     await eventBridge.send(new PutEventsCommand({
       Entries: [{ ...entry, ...(options.eventBusName ? { EventBusName: options.eventBusName } : {}) }],
     }));

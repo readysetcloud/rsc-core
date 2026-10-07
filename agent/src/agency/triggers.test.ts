@@ -234,4 +234,14 @@ describe('eventBridgeDispatcher', () => {
     expect(detail).toMatchObject({ name: task.taskId, at: '2026-10-07T12:00:05.000Z', whenPast: 'send' });
     expect(detail.event).toMatchObject({ source: 'readysetcloud.agent', detailType: 'Run Agent Task', detail: { taskId: task.taskId, trigger: task.trigger } });
   });
+
+  it('publishes under its own source when given one, so the shared task Lambda ignores it', async () => {
+    const dispatch = eventBridgeDispatcher({ source: 'agency.reviewer' });
+    await dispatch(task);
+    await dispatch({ ...task, delayMs: 5000, runAt: new Date(now.getTime() + 5000) });
+    const [now1, later] = ebSend.mock.calls.map((c) => c[0].input.Entries[0]);
+    expect(now1).toMatchObject({ Source: 'agency.reviewer', DetailType: 'Run Agent Task' });
+    expect(later).toMatchObject({ Source: 'agency.reviewer', DetailType: 'Schedule Event' });
+    expect(JSON.parse(later.Detail).event.source).toBe('agency.reviewer');
+  });
 });

@@ -40,6 +40,8 @@ export const TASK_COMPLETED_DETAIL_TYPE = 'Agent Task Completed';
 export interface TaskTrigger {
   /** The task kind the trigger rule named (`check_in`, `reply`, `review_offer`...). */
   kind: string;
+  /** The agent the task is for, when a router woke a specific agent. */
+  agentId?: string;
   /** The event that caused it. */
   eventId: string;
   detailType: string;
