@@ -1,16 +1,18 @@
 /*
- * Deletes old versions of the stage AgentCore runtime so PR deploys stay under
- * the per-runtime version quota. Every deploy that changes agent/ rolls a new
- * runtime version; on stage that happens on every agent PR and the quota fills
- * up (raising it takes AWS Support weeks). Prod has a much higher limit and
- * must never run this.
+ * Deletes old versions of the AgentCore runtime so deploys stay under the
+ * AgentCore version quota. Every deploy that rolls the runtime creates a new,
+ * immutable version, and nothing ever removes old ones; raising the quota takes
+ * AWS Support weeks. Both deploy workflows run this before deploying: the PR
+ * workflow on stage, deploy.yaml on prod.
  *
- * Keeps the newest N versions (default 10) plus any version an endpoint
- * points at, and deletes the rest. It refuses to run unless
- * PRUNE_AGENT_VERSIONS=stage, which only the PR (stage) workflow sets.
+ * Keeps the newest N versions (default 3) plus any version an endpoint points
+ * at, and deletes the rest. A failed deploy's rollback issues a new update
+ * rather than reusing an old version, so older versions are never needed.
+ * It refuses to run unless PRUNE_AGENT_VERSIONS names the environment (stage
+ * or prod), which only the workflows set, so it is never run by accident.
  *
- * Usage: PRUNE_AGENT_VERSIONS=stage AWS_REGION=us-east-1 \
- *          node scripts/prune-agent-versions.mjs <runtimeId> [keep=10] [--dry-run]
+ * Usage: PRUNE_AGENT_VERSIONS=stage|prod AWS_REGION=us-east-1 \
+ *          node scripts/prune-agent-versions.mjs <runtimeId> [keep=3] [--dry-run]
  *
  * Deletion is asynchronous; the script waits up to two minutes for it to finish.
  */
@@ -22,12 +24,13 @@ import {
   DeleteAgentRuntimeCommand
 } from '@aws-sdk/client-bedrock-agentcore-control';
 
-if (process.env.PRUNE_AGENT_VERSIONS !== 'stage') {
-  console.error('Refusing to prune: set PRUNE_AGENT_VERSIONS=stage. This script is for the stage (PR) workflow only.');
+const environment = process.env.PRUNE_AGENT_VERSIONS;
+if (environment !== 'stage' && environment !== 'prod') {
+  console.error('Refusing to prune: set PRUNE_AGENT_VERSIONS to stage or prod. The deploy workflows set it; nothing else should.');
   process.exit(1);
 }
 
-const [runtimeId, keepArg = '10', flag] = process.argv.slice(2);
+const [runtimeId, keepArg = '3', flag] = process.argv.slice(2);
 const keep = Number(keepArg);
 if (!runtimeId || !(keep >= 1)) {
   console.error('Usage: node scripts/prune-agent-versions.mjs <runtimeId> [keep>=1] [--dry-run]');
@@ -56,7 +59,7 @@ const inUse = new Set(
     .filter(Boolean)
 );
 const doomed = versions.slice(keep).filter((v) => !inUse.has(v));
-console.log(`${versions.length} versions; keeping ${versions.length - doomed.length} (newest ${keep} + in use: ${[...inUse].join(', ') || 'none'}); deleting ${doomed.length}`);
+console.log(`[${environment}] ${versions.length} versions; keeping ${versions.length - doomed.length} (newest ${keep} + in use: ${[...inUse].join(', ') || 'none'}); deleting ${doomed.length}`);
 
 for (const version of doomed) {
   // Without a version, DeleteAgentRuntime deletes the whole runtime. Never let that happen.
