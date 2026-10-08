@@ -15,6 +15,8 @@ import { Drawer, type DrawerSide } from './components/Drawer';
 import { enhanceDrawers } from './components/drawer-dom';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ToastProvider, useToast } from './components/Toast';
+import { PasswordInput } from './components/Input';
+import { ResendCodeButton } from './auth/components/ResendCodeButton';
 import { useEffect } from 'react';
 
 const PACKAGE_CSS = `${baseCss}\n${componentsCss}`;
@@ -183,5 +185,28 @@ describe('phone sizing (max-width: 768px)', () => {
     const style = getComputedStyle(dismiss);
     expect(style.minHeight).toBe('44px');
     expect(style.minWidth).toBe('44px');
+  });
+
+  it('gives the password Show/Hide toggle a 44px target inside the field', () => {
+    render(<PasswordInput label="Password" />);
+    emulatePhone();
+    const toggle = document.querySelector('[aria-label="Show password"]') as HTMLElement;
+    expect(toggle.getAttribute('style')).toBeNull();
+    const style = getComputedStyle(toggle);
+    expect(style.minHeight).toBe('44px');
+    expect(style.minWidth).toBe('44px');
+    expect(style.position).toBe('absolute');
+    // The field reserves more room than the toggle takes, so text never runs under it.
+    const input = document.querySelector('.password-field > .input') as HTMLElement;
+    expect(input.getAttribute('style')).toBeNull();
+    expect(getComputedStyle(input).paddingRight).toBe('3.25rem');
+  });
+
+  it('gives the Resend code button a 44px target with no inline override', () => {
+    render(<ResendCodeButton email="a@example.com" onResend={async () => {}} />);
+    emulatePhone();
+    const button = document.querySelector('.auth-text-button') as HTMLElement;
+    expect(button.getAttribute('style')).toBeNull();
+    expect(getComputedStyle(button).minHeight).toBe('44px');
   });
 });

@@ -47,18 +47,9 @@ export function ResendCodeButton({
   return (
     <button
       type="button"
-      className="auth-link"
+      className="auth-link auth-text-button"
       onClick={resend}
       disabled={secondsLeft > 0}
-      style={{
-        background: 'none',
-        border: 'none',
-        cursor: secondsLeft > 0 ? 'default' : 'pointer',
-        opacity: secondsLeft > 0 ? 0.6 : 1,
-        padding: 0,
-        minHeight: 'auto',
-        fontSize: '0.8125rem'
-      }}
     >
       {secondsLeft > 0 ? `Resend code in ${secondsLeft}s` : 'Resend code'}
     </button>

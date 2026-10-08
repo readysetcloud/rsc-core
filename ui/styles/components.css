@@ -1551,6 +1551,62 @@
   text-decoration: underline;
 }
 
+/* A text-only button inside an auth form ("Resend code"). Pair with
+   .auth-link for the color. */
+.auth-text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.auth-text-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* PasswordInput: the field reserves room on the right for the Show/Hide
+   toggle, which sits centered inside it. */
+.password-field {
+  position: relative;
+}
+
+.password-field > .input {
+  padding-right: 3.25rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* Phones: full 44px targets. The toggle fills the field's height and stays
+   inside the room the field reserves for it. */
+@media (max-width: 768px) {
+  .auth-text-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .password-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    right: 0.25rem;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* Verification code entry */
 .input-code {
   font-family: var(--font-mono);
