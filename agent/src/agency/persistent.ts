@@ -431,21 +431,37 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
       }]);
     });
 
-  // Completion delivery survives a failed onComplete: the result is already stored as final, so a
-  // redelivery stops at the claim. A failed delivery is recorded here and retried by the next
-  // delivery of the same task.
+  // Completion delivery survives any single failure. A durable "completion owed" record is written
+  // while the task is still RUNNING, before the result becomes final; it is cleared only after the
+  // completion is published. So once a task is final, either its completion went out or the record
+  // says it is owed, and the next delivery of the task (which stops at the claim) publishes it.
+  //
+  //   owed record fails  → nothing is final yet: the claim is given back and the task is retried
+  //   finish fails       → the task stays RUNNING (the crash window a recovery sweep would cover)
+  //   publish fails      → the record stays: the next delivery publishes the completion
+  //   clearing fails     → the next delivery publishes again: completions are at-least-once
   type Undelivered = { results: { result: AgentTaskResult; kind: string }[] };
   const undeliveredKey = (agentId: string): PersistentStateKey => ({ agentId, name: `${name}.undelivered` });
-  async function complete(result: AgentTaskResult, context: { agentId: string; principal: Principal; kind: string }) {
+  async function settle(result: AgentTaskResult, context: { agentId: string; principal: Principal; kind: string }) {
+    try {
+      await store.update<Undelivered>(undeliveredKey(context.agentId), (current) => ({
+        results: [...(current?.results ?? []).filter((r) => r.result.taskId !== result.taskId), { result, kind: context.kind }].slice(-100),
+      }));
+    } catch (err) {
+      await store.finish({ taskId: result.taskId, status: 'FAILED', error: `Retrying: ${message(err)}` }).catch(() => undefined);
+      definition.log?.({ agentType: name, agentId: context.agentId, taskId: result.taskId, decision: 'retry', error: message(err) });
+      throw err;
+    }
+    await store.finish(result);
     try {
       await onComplete(result, context);
     } catch (err) {
-      await store.update<Undelivered>(undeliveredKey(context.agentId), (current) => ({
-        results: [...(current?.results ?? []).filter((r) => r.result.taskId !== result.taskId), { result, kind: context.kind }].slice(-50),
-      }));
       definition.log?.({ agentType: name, agentId: context.agentId, taskId: result.taskId, decision: 'completion_undelivered', error: message(err) });
       throw err;
     }
+    await store.update<Undelivered>(undeliveredKey(context.agentId), (current) => ({
+      results: (current?.results ?? []).filter((r) => r.result.taskId !== result.taskId),
+    }));
   }
   async function redeliver(agentId: string, principal: Principal, taskId: string) {
     const pending = (await store.read<Undelivered>(undeliveredKey(agentId)))?.results.find((r) => r.result.taskId === taskId);
@@ -536,8 +552,7 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
         error: `Task cap reached: at most ${cap?.max} tasks per ${Math.round((cap?.windowMs ?? 0) / 60_000)} minutes for one ${name} agent`,
       };
       definition.log?.({ agentType: name, agentId, taskId, decision: 'task_cap' });
-      await store.finish(capped);
-      await complete(capped, { agentId, principal, kind: trigger.kind });
+      await settle(capped, { agentId, principal, kind: trigger.kind });
       return capped;
     }
 
@@ -680,8 +695,7 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
       }
       result = { taskId, status: 'FAILED', error: message(err) };
     }
-    await store.finish(result);
-    await complete(result, { agentId, principal, kind: trigger.kind });
+    await settle(result, { agentId, principal, kind: trigger.kind });
     return result;
   }
 

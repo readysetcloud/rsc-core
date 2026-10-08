@@ -282,6 +282,52 @@ describe('definePersistentAgent', () => {
     expect(ebSend.mock.calls.map((c) => c[0].input.Entries[0]).filter((e) => e.DetailType === 'Agent Task Completed')).toHaveLength(2);
   });
 
+  it('still owes the completion when publishing fails and the store then fails too', async () => {
+    // The reviewer's case: onComplete fails, then every write fails (one outage).
+    const base = memoryAgentStore();
+    let writesDown = false;
+    const store = { ...base, update: async <T,>(key: Parameters<typeof base.update>[0], fn: (c: T | null) => T) => {
+      if (writesDown) throw Object.assign(new Error('table down'), { name: 'ServiceUnavailableException' });
+      return base.update<T>(key, fn);
+    } };
+    let publishes = 0;
+    const { agent, sent, detailOf, seen } = setup({
+      store,
+      onComplete: async () => {
+        publishes += 1;
+        if (publishes === 1) { writesDown = true; throw Object.assign(new Error('bus down'), { name: 'ServiceUnavailableException' }); }
+      },
+    });
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    await expect(agent.handleTask(d)).rejects.toThrow('bus down');
+    expect(base.tasks.get(d.taskId)?.status).toBe('COMPLETED');
+    // Writes recover; the next delivery stops at the claim, finds the owed completion, and publishes it.
+    writesDown = false;
+    expect(await agent.handleTask(d)).toMatchObject({ status: 'COMPLETED' });
+    expect(publishes).toBe(2);
+    expect(seen).toHaveLength(1);
+    await agent.handleTask(d);
+    expect(publishes).toBe(2); // cleared after it went out
+  });
+
+  it('gives the claim back when the owed-completion record cannot be written', async () => {
+    const base = memoryAgentStore();
+    let failOwed = true;
+    const store = { ...base, update: async <T,>(key: Parameters<typeof base.update>[0], fn: (c: T | null) => T) => {
+      if (failOwed && key.name === 'reviewer.undelivered') { failOwed = false; throw Object.assign(new Error('throttled'), { name: 'ThrottlingException' }); }
+      return base.update<T>(key, fn);
+    } };
+    const { agent, sent, detailOf, completed } = setup({ store });
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    await expect(agent.handleTask(d)).rejects.toThrow('throttled');
+    expect(base.tasks.get(d.taskId)?.status).toBe('FAILED'); // not final: claimable again
+    expect(completed).toHaveLength(0);
+    expect(await agent.handleTask(d)).toMatchObject({ status: 'COMPLETED' });
+    expect(completed).toHaveLength(1);
+  });
+
   it('isolates state by scope', async () => {
     let tenure = 'season-1';
     const { agent, sent, detailOf, seen } = setup({ scope: () => tenure });
