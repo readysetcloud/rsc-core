@@ -35,12 +35,11 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
     return (
       <Field label={label} error={error} hint={hint}>
         {(field) => (
-          <div style={{ position: 'relative' }}>
+          <div className="password-field">
             <input
               ref={ref}
               type={visible ? 'text' : 'password'}
               className={cx('input', error && 'input-error', className)}
-              style={{ paddingRight: '3.25rem' }}
               {...field}
               {...rest}
             />
@@ -48,18 +47,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
               type="button"
               onClick={() => setVisible((v) => !v)}
               aria-label={visible ? 'Hide password' : 'Show password'}
-              className="auth-link"
-              style={{
-                position: 'absolute',
-                right: '0.5rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                minHeight: 'auto'
-              }}
+              className="auth-link password-toggle"
             >
               {visible ? 'Hide' : 'Show'}
             </button>
