@@ -506,7 +506,14 @@ pre code { background: transparent; padding: 0; font-size: inherit; }
 }
 
 .ds-anchor-list a {
-  display: inline-block;
+  /* Phones give every bare <a> a 44px min-height (ui/styles/base.css),
+     which made these pills tall with the label stuck to the top. Size
+     them on purpose (still above the 24px WCAG 2.2 target minimum) and
+     center the label. */
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 2rem;
   padding: 0.25rem 0.75rem;
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-full);

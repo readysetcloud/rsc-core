@@ -160,12 +160,12 @@ for (const block of document.querySelectorAll('.demo-code')) {
     const tabs = document.createElement('div');
     tabs.className = 'segmented-control';
     tabs.setAttribute('role', 'group');
-    tabs.setAttribute('aria-label', 'Code language');
+    tabs.setAttribute('aria-label', panes.some(p => p.dataset.label) ? 'Code example' : 'Code language');
     panes.forEach((pane, index) => {
       const tab = document.createElement('button');
       tab.type = 'button';
       tab.className = 'segmented-control-option';
-      tab.textContent = pane.dataset.lang;
+      tab.textContent = pane.dataset.label ?? pane.dataset.lang;
       tab.setAttribute('aria-pressed', String(index === 0));
       pane.hidden = index !== 0;
       tab.addEventListener('click', () => {
