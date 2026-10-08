@@ -64,6 +64,29 @@ jobs:
           aws-access-key-id: ${{ secrets.PROD_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.PROD_SECRET_KEY }}
 
+      # Every prod deploy rolls a new AgentCore runtime version (the artifact
+      # key is the commit SHA), and old versions are never removed. Keep the
+      # newest 3, plus any an endpoint uses, so deploys stay under the version
+      # quota. Non-blocking: pruning never stops a prod deploy.
+      - name: Prune old AgentCore runtime versions
+        continue-on-error: true
+        env:
+          AWS_REGION: us-east-1
+          PRUNE_AGENT_VERSIONS: prod
+        run: |
+          RUNTIME_ID="$(aws cloudformation describe-stack-resource \
+            --stack-name rsc-core \
+            --logical-resource-id AgentCoreRuntime \
+            --query StackResourceDetail.PhysicalResourceId \
+            --output text 2>/dev/null || true)"
+          RUNTIME_ID="${RUNTIME_ID##*/}"
+          if [[ -z "${RUNTIME_ID}" || "${RUNTIME_ID}" == "None" ]]; then
+            echo "No AgentCore runtime in the stack yet; nothing to prune."
+            exit 0
+          fi
+          npm ci --ignore-scripts
+          node scripts/prune-agent-versions.mjs "${RUNTIME_ID}" 3
+
       - name: SAM Build and Deploy
         run: |
           npm install -g esbuild
