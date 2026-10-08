@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="../site.css">
   <link rel="stylesheet" href="agent.css">
 </head>
-<body>
+<body class="ag-page ag-page-landing">
   <nav class="app-nav">
     <div class="app-nav-inner">
       <a class="app-nav-brand" href="../index.html">
@@ -43,22 +43,71 @@
       <div class="page-hero-content">
         <span class="ds-kicker">@readysetcloud/agent</span>
         <h1 class="page-hero-title">One agent. Every app.</h1>
-        <p class="page-hero-subtitle">The AI agent behind Ready, Set, Cloud. It streams chat to the browser, runs jobs from an API call or an event, and with the agency primitives it acts like it actually has a job to do.</p>
-        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">Chat + tasks + one-shot</span><span class="page-hero-chip page-hero-chip-success">Per-user memory</span><span class="page-hero-chip">Tools: first-party + MCP</span><span class="page-hero-chip page-hero-chip-warning">Identity-verified</span></div>
+        <p class="page-hero-subtitle">This is the AI agent behind everything in Ready, Set, Cloud. I wanted one place to go whenever I need an agent, whether it’s a chat window in a dashboard or something that runs at 2 AM while I’m asleep. Three of its four types run on a shared service you call. The fourth is a build tool you run yourself.</p>
+        
+        <div class="ag-hero-actions"><a class="btn btn-primary" href="#pick">Find your agent</a><a class="btn btn-secondary" href="https://www.npmjs.com/package/@readysetcloud/agent">View on npm</a></div>
       </div>
     </header>
-    <ul class="ds-anchor-list"><li><a href="#what">Four types</a></li><li><a href="#types">Which one?</a></li><li><a href="#capabilities">Capabilities</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#use-cases">Use cases</a></li><li><a href="#start">Quick start</a></li></ul>
-<div class="ds-note">This is the guide to <a href="https://www.npmjs.com/package/@readysetcloud/agent"><code>@readysetcloud/agent</code></a>, the package behind every AI feature in the Ready, Set, Cloud ecosystem, and to the rsc-core service that hosts most of them. I wanted one place to go whenever I need an agent, whether it’s a chat window in a dashboard or something that runs at 2 AM while I’m asleep. So there are four agent types in here. Three run on a shared service that every app calls, and you change how they behave with data (a session row, an event) instead of a redeploy. The fourth, the <strong>persistent agent</strong>, is different. It’s a build tool. You define it in your app and run it in your own stack.</div>
-    <section class="ds-section" id="what">
-      <span class="ds-kicker">What it is</span>
-      <h2>One core, four ways to use it</h2>
-      <p class="ds-lede">Three of these are services you call. The last one is something you build.</p>
-<div class="ds-grid ds-grid-wide"><a class="ds-link-card" href="chat.html"><h3>Streaming chat</h3><p>The one everybody pictures. A browser opens a WebSocket straight to the AgentCore runtime, gets in with its Cognito token, and streams tokens back into <code>@readysetcloud/ui/chat</code>. It remembers the person from one conversation to the next, too.</p><span class="ds-card-arrow">Read →</span></a><a class="ds-link-card" href="tasks.html"><h3>Autonomous tasks</h3><p>“Go do this and tell me when you’re done.” No socket required. Start one with <code>POST /agent/tasks</code> or a <code>Run Agent Task</code> event and the answer comes back inline or on the bus. Deliver it twice and it still only runs once.</p><span class="ds-card-arrow">Read →</span></a><a class="ds-link-card" href="tasks.html#one-shot"><h3>Server-side one-shot</h3><p>Sometimes you just want an answer. <code>runAgent</code> builds an agent, runs one turn, and hands back an object that matches your schema. No table, no trace. Perfect for fanning one input across a handful of analyses.</p><span class="ds-card-arrow">Read →</span></a><a class="ds-link-card" href="agency.html"><h3>Persistent agents · build tool</h3><p>An agent with a job. Define the type once with <code>definePersistentAgent</code> and deploy it next to the rest of your app. Every instance has a personality, wakes up when your events concern it (or on its own schedule), takes its time like a person would, and remembers its goals and promises between runs.</p><span class="ds-card-arrow">Read →</span></a></div>
+
+    <section class="ds-section ag-picker-section" id="pick">
+      <span class="ds-kicker">Start here</span>
+      <h2>Which agent do you need?</h2>
+      <p class="ds-lede">Answer a question or two and I’ll point you at the right page. (No JavaScript? All four answers are listed below.)</p>
+      <div class="ag-picker" data-picker>
+        <div class="ag-picker-q" data-q="q1">
+          <p class="ag-picker-ask"><span class="ag-picker-n">1</span>Is a person typing to it?</p>
+          <div class="ag-picker-options">
+            <button type="button" class="ag-picker-opt" data-result="chat">Yes, it’s a conversation</button>
+            <button type="button" class="ag-picker-opt" data-next="q2">No, code kicks it off</button>
+          </div>
+        </div>
+        <div class="ag-picker-q" data-q="q2" hidden>
+          <p class="ag-picker-ask"><span class="ag-picker-n">2</span>Should it act on its own, over days or weeks?</p>
+          <div class="ag-picker-options">
+            <button type="button" class="ag-picker-opt" data-result="persistent">Yes, it has a job to do</button>
+            <button type="button" class="ag-picker-opt" data-next="q3">No, it runs when asked</button>
+          </div>
+        </div>
+        <div class="ag-picker-q" data-q="q3" hidden>
+          <p class="ag-picker-ask"><span class="ag-picker-n">3</span>Does the run need a record and a completion event?</p>
+          <div class="ag-picker-options">
+            <button type="button" class="ag-picker-opt" data-result="task">Yes, other things wait on it</button>
+            <button type="button" class="ag-picker-opt" data-result="oneshot">No, I just want a typed answer back</button>
+          </div>
+        </div>
+        <div class="ag-picker-results">
+          <a class="ag-picker-result" data-result="chat" href="chat.html">
+            <span class="ag-picker-tag">Streaming chat</span>
+            <strong>You want chat.</strong>
+            <span>A WebSocket from the browser to the shared runtime, with memory that follows the person. It takes three steps and about 40 lines of code.</span>
+            <span class="ds-card-arrow">Build it →</span>
+          </a>
+          <a class="ag-picker-result" data-result="persistent" href="agency.html">
+            <span class="ag-picker-tag">Persistent agent · build tool</span>
+            <strong>You want a persistent agent.</strong>
+            <span>An agent with a personality, goals, and promises to keep, woken by your events and its own check-ins. You define it and run it in your own stack.</span>
+            <span class="ds-card-arrow">Read the essay →</span>
+          </a>
+          <a class="ag-picker-result" data-result="task" href="tasks.html">
+            <span class="ag-picker-tag">Autonomous task</span>
+            <strong>You want a task.</strong>
+            <span>Send a request from an API call, an event, or a schedule. It runs once even if it’s delivered twice, and announces the result on the bus.</span>
+            <span class="ds-card-arrow">Follow one →</span>
+          </a>
+          <a class="ag-picker-result" data-result="oneshot" href="tasks.html#one-shot">
+            <span class="ag-picker-tag">One-shot</span>
+            <strong>You want <code>runAgent</code>.</strong>
+            <span>One call, one schema-validated object, nothing stored. It’s the right fit for fanning an input across a few analyses.</span>
+            <span class="ds-card-arrow">See it →</span>
+          </a>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm ag-picker-reset" data-picker-reset hidden>Start over</button>
+      </div>
     </section>
     <section class="ds-section" id="types">
-      <span class="ds-kicker">Agent types</span>
-      <h2>So which one do I want?</h2>
-      <p class="ds-lede">Start with two questions: who kicks it off, and how long does it need to stick around? Here’s the side-by-side.</p>
+      <span class="ds-kicker">Side by side</span>
+      <h2>The four types, compared</h2>
+      <p class="ds-lede">Picked one already? Here’s how it stacks up against the others.</p>
 
       <figure class="ag-figure" id="fig-types">
         <div class="ag-diagram-scroll">
@@ -71,14 +120,62 @@
         <figcaption>Chat and tasks run on the shared rsc-core service. A one-shot is a function call you can make from anywhere. A persistent agent is a build tool: <code>definePersistentAgent</code> hands your app the handlers, and your stack runs them under the agent’s own event source.</figcaption>
       </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th></th><th>Chat</th><th>Task</th><th>One-shot</th><th>Persistent agent</th></tr></thead><tbody><tr><td><strong>What it is</strong></td><td>A conversation streamed to a browser</td><td>“Do this, then tell me”</td><td>One stateless call, one typed answer</td><td>A long-lived agent with a job to do</td></tr><tr><td><strong>Started by</strong></td><td>A person opening a socket</td><td>An API call or a <code>Run Agent Task</code> event</td><td>Your code calling <code>runAgent</code></td><td>Your trigger rules and its own scheduled check-ins</td></tr><tr><td><strong>Identity</strong></td><td>The verified user</td><td>A user, or an allowlisted system</td><td>Whatever your code passes</td><td>Its own: <code>system</code> <code>&lt;type&gt;/&lt;agentId&gt;</code>, with a persona</td></tr><tr><td><strong>Lives</strong></td><td>One session (snapshots ~30 days)</td><td>One run</td><td>One call</td><td>Indefinitely: state carries across every run</td></tr><tr><td><strong>Keeps</strong></td><td>Snapshots, per-user memory</td><td>A task row with the result</td><td>Nothing</td><td>An agenda, commitments, cooldowns</td></tr><tr><td><strong>Paces itself</strong></td><td>No</td><td>No</td><td>No</td><td>Yes: cooldowns and human-like delays</td></tr><tr><td><strong>Runs on</strong></td><td><span class="status-badge status-badge-primary">Shared runtime</span></td><td><span class="status-badge status-badge-primary">Shared task Lambda</span></td><td><span class="status-badge status-badge-neutral">Anywhere</span></td><td><span class="status-badge status-badge-success">Your stack</span></td></tr><tr><td><strong>Entry point</strong></td><td><code>createAssistant</code></td><td><code>requestAgentTask</code>, <code>runAgentTask</code></td><td><code>runAgent</code></td><td><code>definePersistentAgent</code></td></tr></tbody></table></div>
     </section>
-    <section class="ds-section" id="capabilities">
-      <span class="ds-kicker">Capabilities</span>
-      <h2>What it can do</h2>
-      <p class="ds-lede">The whole menu, where to read more about each item, and which agent types get it.</p>
-<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Capability</th><th>How</th><th>Where to read</th><th>Types</th></tr></thead><tbody><tr><td>Talk to a Bedrock model</td><td>Any Bedrock model id; the default is <code>us.amazon.nova-lite-v1:0</code>. Pin a model per session or per call.</td><td><a href="reference.html#env">Reference → Environment</a></td><td>All</td></tr><tr><td>Remember a conversation</td><td>Strands snapshots in DynamoDB, keyed by session, so a reconnect resumes exactly where it left off.</td><td><a href="chat.html#memory">Chat → Memory</a></td><td>Chat · Task</td></tr><tr><td>Remember a person across sessions</td><td>AgentCore Memory extracts facts and preferences per verified user and injects the relevant ones each turn. Chat runtime only.</td><td><a href="chat.html#memory">Chat → Memory</a></td><td>Chat</td></tr><tr><td>Call first-party tools</td><td>A host registry of named <code>tool()</code> factories a session opts into by name. Built-ins: <code>http_request</code>, <code>notebook</code>.</td><td><a href="tools.html#first-party">Tools → First-party</a></td><td>All</td></tr><tr><td>Call external tools over MCP</td><td>A session lists MCP servers by URL; the host allowlists hosts and forwards an authority-minted identity header.</td><td><a href="tools.html#mcp">Tools → MCP</a></td><td>All</td></tr><tr><td>Return structured output</td><td><code>runAgent({ outputSchema })</code> forces the model to emit against a Zod schema and returns the validated object.</td><td><a href="tasks.html#one-shot">Tasks → One-shot</a></td><td>One-shot · Persistent (in handlers)</td></tr><tr><td>Run as a system, not a person</td><td>A <code>system</code> principal for ecosystem work with no owning user. Free on the internal bus, allowlisted over the API.</td><td><a href="tools.html#principals">Tools → Principals</a></td><td>Task · Persistent</td></tr><tr><td>Act on events, with pacing</td><td>Trigger rules route events to agents through atomic gates (cooldowns, once-per keys) with seeded, deadline-aware delays.</td><td><a href="agency.html#triggers">Agency → Triggers</a></td><td>Persistent</td></tr><tr><td>Pursue goals and keep promises</td><td>Typed agendas reconciled from observed state and commitments with an explicit lifecycle, both stored per agent.</td><td><a href="agency.html#agenda">Agency → Agenda</a></td><td>Persistent</td></tr><tr><td>Run later</td><td>A delayed task rides the bus-level <code>Schedule Event</code> primitive; no scheduler client or IAM role in the caller.</td><td><a href="tasks.html#trigger">Tasks → Triggering</a></td><td>Task · Persistent</td></tr></tbody></table></div>
+    <section class="ds-section" id="use-cases">
+      <span class="ds-kicker">In the wild</span>
+      <h2>What people build with it</h2>
+      <p class="ds-lede">These are real patterns running across the ecosystem today. The tag tells you which type each one is built on.</p>
+      <div class="ds-grid ds-grid-wide">
+        <div class="ds-link-card ag-usecase"><div class="ag-usecase-tags"><span class="status-badge status-badge-success">Persistent</span></div><h3>The one that started it all</h3><p>The AI managers in my fantasy football league weigh the offers that land on them, chase their goals week after week, follow through on what they say in the group chat, and check in three times a day. Each one is a <code>definePersistentAgent</code> running in the league’s own stack.</p></div>
+        <div class="ds-link-card ag-usecase"><div class="ag-usecase-tags"><span class="status-badge status-badge-primary">Chat</span></div><h3>In-app assistant</h3><p>A support or research chat that lives inside a dashboard. It’s a session with the app’s system prompt plus an MCP server scoped to the user’s own data with <code>authHeader</code>.</p></div>
+        <div class="ds-link-card ag-usecase"><div class="ag-usecase-tags"><span class="status-badge status-badge-neutral">One-shot</span> <span class="status-badge status-badge-primary">Task</span></div><h3>Content review engine</h3><p>Run a draft through grammar, fact-check, and style lenses all at once. Each lens is a <code>runAgent</code> call with its own model and schema, and one last call stitches them together. Wrap the whole thing in a task so a retry doesn’t pay for it twice.</p></div>
+        <div class="ds-link-card ag-usecase"><div class="ag-usecase-tags"><span class="status-badge status-badge-primary">Task</span></div><h3>Nightly digest</h3><p>A schedule fires <code>Run Agent Task</code> as a <code>system</code> principal and the result fans out to email or Slack. Nobody is signed in. Nobody needs to be.</p></div>
+        <div class="ds-link-card ag-usecase"><div class="ag-usecase-tags"><span class="status-badge status-badge-primary">Task</span></div><h3>Workflow step</h3><p>A Step Functions state or a Lambda calls <code>POST /agent/tasks</code> with <code>wait: true</code>. If it finishes in about 25 seconds, the answer comes back inline. If it takes longer, you get a ticket now and an event later.</p></div>
+        <div class="ds-link-card ag-usecase"><div class="ag-usecase-tags"><span class="status-badge status-badge-primary">Task</span></div><h3>Ecosystem automation</h3><p>Any first-party stack with <code>events:PutEvents</code> can ask for a run and react when it’s done. It never has to touch the agent’s table or IAM.</p></div>
+      </div>
+    </section>
+    <section class="ds-section" id="start">
+      <span class="ds-kicker">Quick start</span>
+      <h2>Copy, paste, go</h2>
+      <p class="ds-lede">Install it, then pick a tab.</p>
+<div class="demo-code ag-code"><pre data-lang="shell"><code>npm install @readysetcloud/agent</code></pre></div><p class="ag-aside">Node 22 or newer. If a Lambda doesn’t need the Strands runtime, import from <code>./memory</code> or <code>./agency</code> and it stays out of your bundle. Full details are on <a href="https://www.npmjs.com/package/@readysetcloud/agent">npm</a>.</p><div class="demo"><div class="demo-code"><pre data-lang="ts" data-label="Backend task"><code>import { requestAgentTask } from '@readysetcloud/agent/memory';
+
+// Fire and forget from any first-party Lambda. All it needs is events:PutEvents.
+const { taskId } = await requestAgentTask({
+  principal: { type: 'system', id: 'newsletter' },
+  request: 'Summarize this week’s new blog comments as three bullets.',
+});
+// Listen for "Agent Task Completed" with this taskId.</code></pre><pre data-lang="shell" data-label="Over the API"><code># As the signed-in caller. Waits up to ~25s for the answer.
+curl -X POST "$CORE_API_URL/agent/tasks" \
+  -H "Authorization: Bearer $ID_TOKEN" -H "Content-Type: application/json" \
+  -d '{"request":"Summarize this week’s new blog comments.","wait":true}'</code></pre><pre data-lang="tsx" data-label="Chat in React"><code>import { Chat } from '@readysetcloud/ui/chat';
+
+// getConnectionUrl returns the socket URL plus the bearer subprotocol (see the Chat guide).
+const { sessionId } = await authed('/agent/sessions', { systemPrompt });
+&lt;Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" /&gt;</code></pre><pre data-lang="ts" data-label="One-shot"><code>import { runAgent } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+const { output } = await runAgent({
+  input: draft,
+  systemPrompt: 'You are a grammar and spelling reviewer.',
+  outputSchema: z.object({ suggestions: z.array(z.object({ span: z.string(), fix: z.string() })) }),
+});</code></pre><pre data-lang="ts" data-label="Persistent agent"><code>import { definePersistentAgent } from '@readysetcloud/agent/agency';
+
+export const reviewer = definePersistentAgent({
+  name: 'reviewer',
+  profile: (agentId) =&gt; loadReviewer(agentId),          // persona + pacing, or null
+  rules: { 'Pull Request Opened': { kind: 'review', agents: ({ detail }) =&gt; detail.reviewers, request: ({ detail }) =&gt; `Review #${detail.pr}` } },
+  checkIn: { agents: () =&gt; listReviewerIds() },
+  tasks: { review: (ctx) =&gt; review(ctx), check_in: (ctx) =&gt; followUp(ctx) },
+  observe: async (ctx) =&gt; ({ needs: await openReviewRequests(ctx.agentId) }),
+});
+
+export const route = (event) =&gt; reviewer.route(event);            // your router Lambda
+export const task = (event) =&gt; reviewer.handleTask(event.detail); // your task Lambda</code></pre><pre data-lang="ts" data-label="Imports"><code>import { runAgent, createAssistant, runAgentTask } from '@readysetcloud/agent';  // the runtime
+import { requestAgentTask, createSession } from '@readysetcloud/agent/memory';   // Strands-free data plane
+import { routeTrigger, reconcileAgenda } from '@readysetcloud/agent/agency';     // Strands-free agency</code></pre></div></div>
     </section>
     <section class="ds-section" id="architecture">
-      <span class="ds-kicker">Architecture</span>
+      <span class="ds-kicker">Under the hood</span>
       <h2>How a request gets around</h2>
       <p class="ds-lede">Three rules shape everything here. Identity is verified at the edge. Behavior comes from data. Results leave as events.</p>
 
@@ -91,96 +188,7 @@
           </svg>
         </div>
         <figcaption>Every path checks identity at the edge, then runs the same <code>@readysetcloud/agent</code> core. Chat streams back over its socket. Tasks announce their result on the bus. The steps play in order, so pause it if you want to take in the whole picture.<ol class="ag-legend"><li data-step="1"><span class="ag-legend-num">1</span><span>Before connecting, the app creates a session (<code>POST /agent/sessions</code>) and asks for a socket URL (<code>POST /agent/connect</code>).</span></li><li data-step="2"><span class="ag-legend-num">2</span><span>The browser opens <code>wss://</code> with its Cognito ID token as the bearer subprotocol.</span></li><li data-step="3"><span class="ag-legend-num">3</span><span>The inbound JWT authorizer validates the token; the runtime reads the verified <code>sub</code>, loads the session, and refuses a non-owner.</span></li><li data-step="4"><span class="ag-legend-num">4</span><span><code>stream_event</code> frames, then <code>complete</code>, stream back over the same socket.</span></li><li data-step="5"><span class="ag-legend-num">5</span><span><code>POST /agent/tasks</code> records a <code>PENDING</code> task as the verified caller (or an allowlisted system)…</span></li><li data-step="6"><span class="ag-legend-num">6</span><span>…and emits <code>Run Agent Task</code> on the bus, then polls its own row for up to ~25 seconds.</span></li><li data-step="7"><span class="ag-legend-num">7</span><span>First-party backends emit <code>Run Agent Task</code> directly, now or later through <code>Schedule Event</code>. Persistent agents never come this way. They run in your stack under their own source.</span></li><li data-step="8"><span class="ag-legend-num">8</span><span>The task Lambda claims the task row (exactly one delivery wins) and runs one turn.</span></li><li data-step="9"><span class="ag-legend-num">9</span><span><code>Agent Task Completed</code> goes back on the bus for any consumer, success or failure.</span></li></ol></figcaption>
-      </figure><div class="ag-split"><div class="ds-grid"><div class="ds-link-card"><h3>Chat path</h3><p>Browser → <code>POST /agent/connect</code> → <code>wss://chat.&lt;domain&gt;</code> → AgentCore Runtime (NODE_22) → stream frames back. The runtime loads the session config, enforces that the verified caller owns it, and builds the assistant.</p></div><div class="ds-link-card"><h3>Task path</h3><p>API or event → <code>RunAgentTaskFunction</code> (Lambda) → conditional claim on the task row → build agent → run → <code>Agent Task Completed</code> event. Get the same event twice? The agent still runs once.</p></div></div></div>
-    </section>
-    <section class="ds-section" id="use-cases">
-      <span class="ds-kicker">Use cases</span>
-      <h2>What people build with it</h2>
-      <p class="ds-lede">These are real patterns running across the ecosystem today, and the pieces each one is made of.</p>
-<div class="ds-grid ds-grid-wide"><div class="ds-link-card"><h3>In-app assistant</h3><p>A support or research chat that lives inside a dashboard. That’s <em>chat</em>, a session with the app’s system prompt, and an MCP server scoped to the user’s own data with <code>authHeader</code>.</p></div><div class="ds-link-card"><h3>Content review engine</h3><p>Run a draft through grammar, fact-check, and style lenses all at once. Each lens is a <code>runAgent</code> call with its own model and schema, and one last call stitches them together. Wrap the whole thing in a task so a retry doesn’t pay for it twice.</p></div><div class="ds-link-card"><h3>Nightly digest</h3><p>A schedule fires <code>Run Agent Task</code> as a <code>system</code> principal and the result fans out to email or Slack. Nobody is signed in. Nobody needs to be.</p></div><div class="ds-link-card"><h3>Workflow step</h3><p>A Step Functions state or a Lambda calls <code>POST /agent/tasks</code> with <code>wait: true</code>. Finish in about 25 seconds and the answer comes back inline. Take longer and you get a ticket now and an event later.</p></div><div class="ds-link-card"><h3>Persistent persona</h3><p>This is the one that started it all. The AI managers in my fantasy football league weigh the offers that land on them, chase their goals week after week, follow through on what they say in the group chat, and check in three times a day. Each one is a <code>definePersistentAgent</code> running in the league’s own stack.</p></div><div class="ds-link-card"><h3>Ecosystem automation</h3><p>Any first-party stack with <code>events:PutEvents</code> can ask for a run and react when it’s done. It never has to touch the agent’s table or IAM.</p></div></div>
-    </section>
-    <section class="ds-section" id="start">
-      <span class="ds-kicker">Quick start</span>
-      <h2>Pick your entry point</h2>
-      <p class="ds-lede">Install the package, then grab the snippet that matches what you’re building.</p>
-
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Install</h3>
-          <p>Grab <a href="https://www.npmjs.com/package/@readysetcloud/agent"><code>@readysetcloud/agent</code></a> from npm. You’ll need Node 22 or newer. If a Lambda doesn’t need the Strands runtime, import from <code>./memory</code> or <code>./agency</code> and it stays out of your bundle.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="shell"><code>npm install @readysetcloud/agent</code></pre><pre data-lang="ts"><code>import { runAgent, createAssistant, runAgentTask } from '@readysetcloud/agent';  // the runtime
-import { requestAgentTask, createSession } from '@readysetcloud/agent/memory';   // Strands-free data plane
-import { routeTrigger, reconcileAgenda } from '@readysetcloud/agent/agency';     // Strands-free agency</code></pre>
-        </div>
-      </div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Backend: trigger a task</h3>
-          <p>Fire and forget from any first-party Lambda. All it needs is <code>events:PutEvents</code>.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { requestAgentTask } from '@readysetcloud/agent/memory';
-
-const { taskId } = await requestAgentTask({
-  principal: { type: 'system', id: 'newsletter' },
-  request: 'Summarize this week’s new blog comments as three bullets.',
-});
-// Listen for "Agent Task Completed" with this taskId.</code></pre><pre data-lang="shell"><code># Or over the API as the signed-in caller (waits up to ~25s for the result)
-curl -X POST "$CORE_API_URL/agent/tasks" \
-  -H "Authorization: Bearer $ID_TOKEN" -H "Content-Type: application/json" \
-  -d '{"request":"Summarize this week’s new blog comments.","wait":true}'</code></pre>
-        </div>
-      </div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Frontend: render chat</h3>
-          <p>Create a session, then give the chat component a function that returns the socket URL and the bearer subprotocol. That’s it.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="tsx"><code>import { Chat } from '@readysetcloud/ui/chat';
-const { sessionId } = await authed('/agent/sessions', { systemPrompt });
-&lt;Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" /&gt;</code></pre>
-        </div>
-      </div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Library: run one turn</h3>
-          <p>No table, no session. Build it, run it, validate it, done.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { runAgent } from '@readysetcloud/agent';
-import { z } from 'zod';
-
-const { output } = await runAgent({
-  input: draft,
-  systemPrompt: 'You are a grammar and spelling reviewer.',
-  outputSchema: z.object({ suggestions: z.array(z.object({ span: z.string(), fix: z.string() })) }),
-});</code></pre>
-        </div>
-      </div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Build tool: define a persistent agent</h3>
-          <p>One definition gets you both the router and the task handler. The full walkthrough is in <a href="agency.html#define">Agency → Define one</a>.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { definePersistentAgent } from '@readysetcloud/agent/agency';
-
-export const reviewer = definePersistentAgent({
-  name: 'reviewer',
-  profile: (agentId) =&gt; loadReviewer(agentId),          // persona + pacing, or null
-  rules: { 'Pull Request Opened': { kind: 'review', agents: ({ detail }) =&gt; detail.reviewers, request: ({ detail }) =&gt; `Review #${detail.pr}` } },
-  checkIn: { agents: () =&gt; listReviewerIds() },
-  tasks: { review: (ctx) =&gt; review(ctx), check_in: (ctx) =&gt; followUp(ctx) },
-  observe: async (ctx) =&gt; ({ needs: await openReviewRequests(ctx.agentId) }),
-});
-
-export const route = (event) =&gt; reviewer.route(event);            // your router Lambda
-export const task = (event) =&gt; reviewer.handleTask(event.detail); // your task Lambda</code></pre>
-        </div>
-      </div>
+      </figure><details class="ag-more" id="capabilities"><summary>Everything it can do, and where to read about it</summary><div class="ag-more-body"><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Capability</th><th>How</th><th>Where to read</th><th>Types</th></tr></thead><tbody><tr><td>Talk to a Bedrock model</td><td>Any Bedrock model id; the default is <code>us.amazon.nova-lite-v1:0</code>. Pin a model per session or per call.</td><td><a href="reference.html#env">Reference → Environment</a></td><td>All</td></tr><tr><td>Remember a conversation</td><td>Strands snapshots in DynamoDB, keyed by session, so a reconnect resumes exactly where it left off.</td><td><a href="chat.html#memory">Chat → Memory</a></td><td>Chat · Task</td></tr><tr><td>Remember a person across sessions</td><td>AgentCore Memory extracts facts and preferences per verified user and injects the relevant ones each turn. Chat runtime only.</td><td><a href="chat.html#memory">Chat → Memory</a></td><td>Chat</td></tr><tr><td>Call first-party tools</td><td>A host registry of named <code>tool()</code> factories a session opts into by name. Built-ins: <code>http_request</code>, <code>notebook</code>.</td><td><a href="tools.html#first-party">Tools → First-party</a></td><td>All</td></tr><tr><td>Call external tools over MCP</td><td>A session lists MCP servers by URL; the host allowlists hosts and forwards an authority-minted identity header.</td><td><a href="tools.html#mcp">Tools → MCP</a></td><td>All</td></tr><tr><td>Return structured output</td><td><code>runAgent({ outputSchema })</code> forces the model to emit against a Zod schema and returns the validated object.</td><td><a href="tasks.html#one-shot">Tasks → One-shot</a></td><td>One-shot · Persistent (in handlers)</td></tr><tr><td>Run as a system, not a person</td><td>A <code>system</code> principal for ecosystem work with no owning user. Free on the internal bus, allowlisted over the API.</td><td><a href="tools.html#principals">Tools → Principals</a></td><td>Task · Persistent</td></tr><tr><td>Act on events, with pacing</td><td>Trigger rules route events to agents through atomic gates (cooldowns, once-per keys) with seeded, deadline-aware delays.</td><td><a href="agency.html#triggers">Agency → Waking up</a></td><td>Persistent</td></tr><tr><td>Pursue goals and keep promises</td><td>Typed agendas reconciled from observed state and commitments with an explicit lifecycle, both stored per agent.</td><td><a href="agency.html#agenda">Agency → Goals</a></td><td>Persistent</td></tr><tr><td>Run later</td><td>A delayed task rides the bus-level <code>Schedule Event</code> primitive; no scheduler client or IAM role in the caller.</td><td><a href="tasks.html#later">Tasks → Later</a></td><td>Task · Persistent</td></tr></tbody></table></div></div></details>
     </section>
   </main>
 

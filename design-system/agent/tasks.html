@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tasks · Ready, Set, Cloud Agent</title>
-  <meta name="description" content="Autonomous agent tasks in Ready, Set, Cloud: how to trigger a run from an API, an event, or a schedule; principals; the idempotent lifecycle; and server-side one-shot runs with structured output.">
+  <meta name="description" content="Autonomous agent tasks in Ready, Set, Cloud, told as the life of one task: triggering from an API, an event, or a schedule; the idempotent claim; the completion event; and one-shot runs with structured output.">
   <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
   <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
   <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="../site.css">
   <link rel="stylesheet" href="agent.css">
 </head>
-<body>
+<body class="ag-page ag-page-story">
   <nav class="app-nav">
     <div class="app-nav-inner">
       <a class="app-nav-brand" href="../index.html">
@@ -44,16 +44,101 @@
         <span class="ds-kicker">Autonomous tasks</span>
         <h1 class="page-hero-title">Do something, then report back</h1>
         <p class="page-hero-subtitle">The same secure path as chat, minus the socket. Start one with an API call or an event, deliver it as many times as EventBridge feels like, and hear about the result on the bus.</p>
-        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">API or event</span><span class="page-hero-chip page-hero-chip-success">Idempotent</span><span class="page-hero-chip page-hero-chip-warning">user or system principal</span><span class="page-hero-chip">Structured output</span></div>
+        
+        
       </div>
     </header>
-    <ul class="ds-anchor-list"><li><a href="#model">The model</a></li><li><a href="#trigger">Triggering</a></li><li><a href="#lifecycle">Lifecycle</a></li><li><a href="#one-shot">One-shot runAgent</a></li></ul>
 
-    <section class="ds-section" id="model">
-      <span class="ds-kicker">Model</span>
-      <h2>Three things make a task</h2>
-      <p class="ds-lede">Chat needs a socket. A task needs a trigger, an identity, and somewhere to put the result. That’s the whole list.</p>
-<div class="ds-grid"><div class="ds-link-card"><h3>Trigger</h3><p>An API call (<code>POST /agent/tasks</code>) or a <code>Run Agent Task</code> event. Either way, it lands on the same consumer.</p></div><div class="ds-link-card"><h3>Identity</h3><p>A <code>Principal</code>. That’s <code>{ type: "user", id: sub }</code> when it’s a person and <code>{ type: "system", id: "booked" }</code> when it’s a service.</p></div><div class="ds-link-card"><h3>Result sink</h3><p>One envelope, <code>{ taskId, status, output?, error? }</code>, that shows up in the API response, on the task row, and in the <code>Agent Task Completed</code> event.</p></div></div>
+    <section class="ds-section" id="life">
+      <span class="ds-kicker">The life of a task</span>
+      <h2>Let’s follow one</h2>
+      <p class="ds-lede">Say your newsletter stack wants a summary of last week’s blog comments every Monday morning. Nobody is signed in, there’s no socket, and something downstream is waiting on the answer. Here’s everything that happens, in order.</p>
+      <ol class="ag-timeline">
+        <li class="ag-tl-stop">
+          <span class="ag-tl-time">0 ms</span>
+          <div class="ag-tl-card">
+            <h3>The request goes out</h3>
+            <p>Your Lambda calls <code>requestAgentTask</code>. It puts one <code>Run Agent Task</code> event on the bus and returns a <code>taskId</code> right away. All it needed was <code>events:PutEvents</code>.</p><p>The task carries an identity, its <strong>principal</strong>. This one is a service, so it runs as <code>system</code>. A task started by a signed-in person runs as their verified <code>sub</code> instead.</p>
+            <div class="demo-code ag-code"><pre data-lang="ts"><code>import { requestAgentTask } from '@readysetcloud/agent/memory';
+
+const { taskId } = await requestAgentTask({
+  principal: { type: 'system', id: 'newsletter' },
+  request: 'Summarize last week’s blog comments as three bullets.',
+  // optional: sessionId, systemPrompt, modelId, temperature, maxTokens, tools, mcpServers
+});</code></pre></div>
+          </div>
+        </li>
+        <li class="ag-tl-stop">
+          <span class="ag-tl-time">~20 ms</span>
+          <div class="ag-tl-card">
+            <h3>EventBridge delivers it. Maybe twice.</h3>
+            <p>EventBridge promises <em>at-least-once</em> delivery, and “at least” is doing a lot of work in that sentence 😅. Two copies of your event can land on two Lambda containers at the same moment. That’s fine. The next stop is built for exactly this.</p>
+            
+      <figure class="ag-figure" id="fig-race" data-anim="sequence"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 250" role="img" aria-labelledby="race-t" style="min-width:720px">
+            <title id="race-t">Two deliveries of the same task race for one claim</title>
+            <defs><marker id="race-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="race-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="race-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="race-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="race-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="race-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="race-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <text x="16" y="52" text-anchor="start" class="d-kicker">DELIVERY 1</text><text x="16" y="108" text-anchor="start" class="d-kicker">TASK ROW</text><text x="16" y="202" text-anchor="start" class="d-kicker">DELIVERY 2</text><path d="M110 48 L940 48" class="d-lifeline"/><path d="M110 198 L940 198" class="d-lifeline"/><rect x="110" y="92" width="70" height="28" rx="6" class="d-box k-neutral"/><text x="145" y="111" text-anchor="middle" class="d-sub">absent</text><g data-step="1"><rect x="180" y="92" width="520" height="28" rx="6" class="d-box k-primary"/><text x="440" y="111" text-anchor="middle" class="d-sub">RUNNING · owned by delivery 1</text><rect x="148.6" y="37" width="62.800000000000004" height="22" rx="11" class="d-pill k-success"/><text x="180" y="52" text-anchor="middle" class="d-pill-text k-success">claim ✓</text><path d="M180 59 L180 89" class="d-line k-success" marker-end="url(#race-ah-success)"/></g><g data-step="2"><rect x="218.6" y="187" width="62.800000000000004" height="22" rx="11" class="d-pill k-error"/><text x="250" y="202" text-anchor="middle" class="d-pill-text k-error">claim ✗</text><path d="M250 187 L250 123" class="d-line k-error d-dash" marker-end="url(#race-ah-error)"/><text x="258" y="160" text-anchor="start" class="d-label d-mono">ConditionalCheckFailed</text></g><g data-step="3"><path d="M278 198 L385 198" class="d-line" marker-end="url(#race-ah)"/><rect x="381.0" y="187" width="178.0" height="22" rx="11" class="d-pill k-neutral"/><text x="470" y="202" text-anchor="middle" class="d-pill-text k-neutral">return existing · RUNNING</text><rect x="289.0" y="37" width="82.0" height="22" rx="11" class="d-pill k-neutral"/><text x="330" y="52" text-anchor="middle" class="d-pill-text k-neutral">buildAgent</text></g><g data-step="4"><rect x="455.4" y="37" width="69.2" height="22" rx="11" class="d-pill k-neutral"/><text x="490" y="52" text-anchor="middle" class="d-pill-text k-neutral">run turn</text></g><g data-step="5"><rect x="700" y="92" width="240" height="28" rx="6" class="d-box k-success"/><text x="820" y="111" text-anchor="middle" class="d-sub">COMPLETED</text><rect x="659.0" y="37" width="82.0" height="22" rx="11" class="d-pill k-neutral"/><text x="700" y="52" text-anchor="middle" class="d-pill-text k-neutral">finishTask</text><path d="M700 59 L700 89" class="d-line" marker-end="url(#race-ah)"/></g><g data-step="6"><rect x="806.2" y="37" width="107.60000000000001" height="22" rx="11" class="d-pill k-warning"/><text x="860" y="52" text-anchor="middle" class="d-pill-text k-warning">emit Completed</text></g>
+          </svg>
+        </div>
+        <figcaption>EventBridge delivers at least once. Both deliveries try the same conditional write on <code>TASK#{taskId}</code>, DynamoDB lines them up, and only one gets to build the agent and run its tools. Hit replay to watch the race.</figcaption>
+      </figure>
+          </div>
+        </li>
+        <li class="ag-tl-stop">
+          <span class="ag-tl-time">~25 ms</span>
+          <div class="ag-tl-card">
+            <h3>Exactly one delivery claims it</h3>
+            <p><code>startTask</code> is a conditional write that moves the task row to <code>RUNNING</code>, but only from absent, <code>PENDING</code>, or <code>FAILED</code>. DynamoDB lines the writes up, so one delivery wins. The loser hands back the existing result or reports that it’s still running.</p><p>Before it even gets that far, a <code>TaskResultCache</code> in the container catches a duplicate that lands on the same instance. That’s purely a speed-up. A cache miss is always correct.</p>
+            
+      <figure class="ag-figure" id="fig-states">
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 300" role="img" aria-labelledby="states-t" style="min-width:720px">
+            <title id="states-t">Task row state machine</title>
+            <defs><marker id="states-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="states-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="states-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="states-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="states-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="states-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="states-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <rect x="30" y="120" width="130" height="52" rx="10" class="d-box d-dash"/><text x="95.0" y="143.5" text-anchor="middle" class="d-title">absent</text><text x="95.0" y="157.5" text-anchor="middle" class="d-sub">no row yet</text><rect x="250" y="30" width="160" height="52" rx="10" class="d-box k-neutral"/><text x="330.0" y="53.5" text-anchor="middle" class="d-title">PENDING</text><text x="330.0" y="67.5" text-anchor="middle" class="d-sub d-mono">createTask</text><rect x="480" y="120" width="160" height="52" rx="10" class="d-box k-primary"/><text x="560.0" y="143.5" text-anchor="middle" class="d-title">RUNNING</text><text x="560.0" y="157.5" text-anchor="middle" class="d-sub">one owner</text><rect x="760" y="30" width="170" height="52" rx="10" class="d-box k-success"/><text x="845.0" y="53.5" text-anchor="middle" class="d-title">COMPLETED</text><text x="845.0" y="67.5" text-anchor="middle" class="d-sub">output</text><rect x="760" y="210" width="170" height="52" rx="10" class="d-box k-error"/><text x="845.0" y="233.5" text-anchor="middle" class="d-title">FAILED</text><text x="845.0" y="247.5" text-anchor="middle" class="d-sub">error</text><path d="M95 117 C95 56, 160 56, 246 56" class="d-line" marker-end="url(#states-ah)"/><text x="150" y="50" text-anchor="middle" class="d-label d-mono">createTask</text><path d="M399.2 83.1 L490.8 118.9" class="d-line" marker-end="url(#states-ah)"/><text x="445.0" y="91.0" text-anchor="start" class="d-label">startTask · claim</text><path d="M163 146 L477 146" class="d-line" marker-end="url(#states-ah)"/><text x="320" y="162" text-anchor="middle" class="d-label d-mono">startTask · upsert</text><path d="M642.9 119.8 L759.8 82.9" class="d-line" marker-end="url(#states-ah)"/><text x="701.3" y="93.4" text-anchor="middle" class="d-label">finishTask</text><path d="M642.9 172.2 L759.8 209.1" class="d-line" marker-end="url(#states-ah)"/><text x="701.3" y="206.6" text-anchor="middle" class="d-label">finishTask</text><path d="M757 248 C640 285, 560 250, 560 176" class="d-line k-warning" marker-end="url(#states-ah-warning)"/><text x="640" y="288" text-anchor="middle" class="d-label d-mono">retry · claim again</text><rect x="250" y="210" width="210" height="58" rx="10" class="d-box k-error d-dash"/><text x="355" y="233" text-anchor="middle" class="d-sub">claim on RUNNING or COMPLETED</text><text x="355" y="251" text-anchor="middle" class="d-title">refused → return existing</text><path d="M477 172 L462 210" class="d-line k-error d-dash" marker-end="url(#states-ah-error)"/>
+          </svg>
+        </div>
+        <figcaption>Every arrow is a conditional write. <code>startTask</code> only claims from absent, <code>PENDING</code>, or <code>FAILED</code>, so a duplicate can never grab a task that’s running or done.</figcaption>
+      </figure>
+          </div>
+        </li>
+        <li class="ag-tl-stop">
+          <span class="ag-tl-time">~30 ms</span>
+          <div class="ag-tl-card">
+            <h3>The winner builds the agent and runs</h3>
+            <p>Only now does anything expensive happen. <code>buildAgent</code> loads the session config, connects MCP servers, and creates the assistant. A duplicate never got this far, so it cost next to nothing. Then the agent runs one buffered turn.</p>
+            
+          </div>
+        </li>
+        <li class="ag-tl-stop">
+          <span class="ag-tl-time">~8 s</span>
+          <div class="ag-tl-card">
+            <h3>The result is recorded</h3>
+            <p><code>finishTask</code> writes <code>COMPLETED</code> with the output, or <code>FAILED</code> with the error, and only if the row is still <code>RUNNING</code>. Completed rows stick around for 24 hours.</p>
+            <div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td><span class="status-badge status-badge-neutral">PENDING</span></td><td>Created by the API so a <code>GET</code> sees it before the runtime picks it up. Optional.</td></tr><tr><td><span class="status-badge status-badge-primary">RUNNING</span></td><td>Claimed by exactly one invocation.</td></tr><tr><td><span class="status-badge status-badge-success">COMPLETED</span></td><td>Finished; <code>output</code> holds the assistant text.</td></tr><tr><td><span class="status-badge status-badge-error">FAILED</span></td><td>The run threw; <code>error</code> holds the message. A retry may claim it again.</td></tr></tbody></table></div>
+          </div>
+        </li>
+        <li class="ag-tl-stop">
+          <span class="ag-tl-time">~8 s</span>
+          <div class="ag-tl-card">
+            <h3>Everyone hears about it</h3>
+            <p><code>Agent Task Completed</code> goes out no matter how it ended. Your newsletter stack listens for its <code>taskId</code> and carries on. Anything else that cares can listen too, without ever reading the agent’s table.</p>
+            <div class="demo-code ag-code"><pre data-lang="json"><code>{
+  "source": "readysetcloud.agent",
+  "detail-type": "Agent Task Completed",
+  "detail": { "taskId": "6d1f...", "status": "COMPLETED", "output": "• ...", "principal": { "type": "system", "id": "newsletter" } }
+}</code></pre></div>
+          </div>
+        </li>
+      </ol>
+    </section>
+    <section class="ds-section" id="trigger">
+      <span class="ds-kicker">Other ways in</span>
+      <h2>You don’t have to start from a Lambda</h2>
+      <p class="ds-lede">Every path ends up as the same event, landing on the same consumer, with the same result at the end. Pick based on who’s calling and whether they can wait.</p>
+
       <figure class="ag-figure" id="fig-fanin">
         <div class="ag-diagram-scroll">
           <svg viewBox="0 0 960 360" role="img" aria-labelledby="fanin-t" style="min-width:720px">
@@ -63,41 +148,17 @@
           </svg>
         </div>
         <figcaption>However a task starts, it becomes the same <code>Run Agent Task</code> event. However it ends, it becomes the same <code>Agent Task Completed</code> event. Only the API path reads the task row, and that’s so it can answer inline.<ol class="ag-legend"><li><span class="ag-legend-num">1</span><span><code>POST /agent/tasks</code> writes a <code>PENDING</code> row, emits the event, and polls the row for up to ~25s: <code>200</code> with the result, or <code>202</code> with a ticket.</span></li><li><span class="ag-legend-num">2</span><span>A first-party backend calls <code>requestAgentTask</code> and moves on.</span></li><li><span class="ag-legend-num">3</span><span><code>Schedule Event</code> publishes the same request at a later moment.</span></li><li><span class="ag-legend-num">4</span><span>A <code>routeTrigger</code> router with the default dispatcher emits one request per agent a rule concerns, carrying a <code>trigger</code>. (A persistent agent’s dispatcher uses its own source instead and never reaches this Lambda.)</span></li><li><span class="ag-legend-num">5</span><span>The consumer claims the row, runs, and records <code>COMPLETED</code> or <code>FAILED</code>.</span></li><li><span class="ag-legend-num">6</span><span>The result is announced on every outcome, so async consumers never depend on a waiting caller.</span></li></ol></figcaption>
-      </figure>
+      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Caller</th><th>Mechanism</th><th>Identity</th><th>Result</th></tr></thead><tbody><tr><td>A signed-in user from an app</td><td><code>POST /agent/tasks { request, sessionId?, wait?, system? }</code></td><td>The caller’s verified <code>sub</code>, or an allowlisted <code>system</code> id</td><td><code>200</code> with the result when it finishes within ~25s, else <code>202 { taskId, status }</code> and the event</td></tr><tr><td>A first-party backend</td><td><code>requestAgentTask()</code> emits <code>Run Agent Task</code></td><td>Asserted by the emitter (the bus is account-internal)</td><td><code>Agent Task Completed</code> event; optionally <code>GET /agent/tasks/{id}</code></td></tr><tr><td>A schedule or a delayed step</td><td><code>Schedule Event</code> wrapping a <code>Run Agent Task</code></td><td>As above</td><td>As above, at the scheduled time</td></tr><tr><td>A trigger router that targets the shared service</td><td><code>routeTrigger</code> → <code>eventBridgeDispatcher()</code> with its default source</td><td>Per agent, from <code>principal(agentId)</code></td><td>As above, with a <code>trigger</code> on the request</td></tr></tbody></table></div>
     </section>
-    <section class="ds-section" id="trigger">
-      <span class="ds-kicker">Triggering</span>
-      <h2>Four ways to kick one off</h2>
-      <p class="ds-lede">It comes down to two questions. Who’s calling, and can they wait around for the answer?</p>
-<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Caller</th><th>Mechanism</th><th>Identity</th><th>Result</th></tr></thead><tbody><tr><td>A signed-in user from an app</td><td><code>POST /agent/tasks { request, sessionId?, wait?, system? }</code></td><td>The caller’s verified <code>sub</code>, or an allowlisted <code>system</code> id</td><td><code>200</code> with the result when it finishes within ~25s, else <code>202 { taskId, status }</code> and the event</td></tr><tr><td>A first-party backend</td><td><code>requestAgentTask()</code> emits <code>Run Agent Task</code></td><td>Asserted by the emitter (the bus is account-internal)</td><td><code>Agent Task Completed</code> event; optionally <code>GET /agent/tasks/{id}</code></td></tr><tr><td>A schedule or a delayed step</td><td><code>Schedule Event</code> wrapping a <code>Run Agent Task</code></td><td>As above</td><td>As above, at the scheduled time</td></tr><tr><td>A trigger router that targets the shared service</td><td><code>routeTrigger</code> → <code>eventBridgeDispatcher()</code> with its default source</td><td>Per agent, from <code>principal(agentId)</code></td><td>As above, with a <code>trigger</code> on the request</td></tr></tbody></table></div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>From a backend</h3>
-          <p>Send it and move on. The stack that owns the agent runs it and tells everyone when it’s done.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { requestAgentTask } from '@readysetcloud/agent/memory';
+    <section class="ds-section" id="faq">
+      <span class="ds-kicker">What if…</span>
+      <h2>Questions you’ll have eventually</h2>
+      <div class="ag-faqs"><details class="ag-faq" id="wait" open><summary>…I can’t wait for an event? I want the answer now.</summary><div class="ag-more-body"><p>Call the API with <code>wait: true</code>. It writes a <code>PENDING</code> row, triggers the run, and polls that row until the REST timeout says stop. If the task finishes in about 25 seconds you get a <code>200</code> with the answer. If not, you get a <code>202</code> with the <code>taskId</code>, and the completion event shows up later like always.</p><div class="demo-code ag-code"><pre data-lang="shell"><code>curl -X POST "$CORE_API_URL/agent/tasks" \
+  -H "Authorization: Bearer $ID_TOKEN" -H "Content-Type: application/json" \
+  -d '{"request": "Draft release notes from the last 10 commits.", "wait": true}'
 
-const { taskId } = await requestAgentTask({
-  principal: { type: 'system', id: 'booked' },      // or { type: 'user', id: sub }
-  request: 'Summarize this week’s new blog comments',
-  // optional: sessionId, systemPrompt, modelId, temperature, maxTokens, tools, mcpServers
-});</code></pre><pre data-lang="json"><code>// The event it emits (source "readysetcloud.agent", detail-type "Run Agent Task")
-{
-  "taskId": "6d1f...",
-  "principal": { "type": "system", "id": "booked" },
-  "request": "Summarize this week’s new blog comments",
-  "trigger": { "kind": "digest", "eventId": "...", "detailType": "..." }   // present when a router sent it
-}</code></pre>
-        </div>
-      </div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Later, not now</h3>
-          <p>Need it to run tomorrow at 9? Wrap the task in the bus-level deferred-event primitive. Re-emit with the same <code>name</code> and the schedule moves instead of doubling up.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="json"><code>{
+# 200 { "taskId": "...", "status": "COMPLETED", "output": "..." }
+# 202 { "taskId": "...", "status": "RUNNING" }  → watch the event or GET /agent/tasks/{taskId}</code></pre></div></div></details><details class="ag-faq" id="later"><summary>…it should run tomorrow at 9?</summary><div class="ag-more-body"><p>Wrap the task in <code>Schedule Event</code>, the bus-level deferred-event primitive. Your caller doesn’t need a scheduler client or an IAM role for it. Re-emit with the same <code>name</code> and the schedule moves instead of doubling up.</p><div class="demo-code ag-code"><pre data-lang="json"><code>{
   "Source": "newsletter",
   "DetailType": "Schedule Event",
   "Detail": {
@@ -111,58 +172,9 @@ const { taskId } = await requestAgentTask({
       "detail": { "taskId": "digest-2026-10-07", "principal": { "type": "system", "id": "newsletter" }, "request": "..." }
     }
   }
-}</code></pre>
-        </div>
-      </div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>From an app, waiting for the answer</h3>
-          <p>The API writes a PENDING row, triggers the run, and polls that row until the REST timeout says stop.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="shell"><code>curl -X POST "$CORE_API_URL/agent/tasks" \
-  -H "Authorization: Bearer $ID_TOKEN" -H "Content-Type: application/json" \
-  -d '{"request": "Draft release notes from the last 10 commits.", "wait": true}'
+}</code></pre></div></div></details><details class="ag-faq" id="lifecycle"><summary>…the run fails halfway through?</summary><div class="ag-more-body"><p>The row ends as <code>FAILED</code> with the error message, and <code>Agent Task Completed</code> still goes out with <code>status: "FAILED"</code>, so nobody waits forever. If the same event gets delivered again, <code>FAILED</code> is one of the states a delivery is allowed to claim from, so a retry gets a clean second shot.</p></div></details><details class="ag-faq" id="as-system"><summary>…a person kicks it off, but it should act as a service?</summary><div class="ag-more-body"><p>Pass <code>system</code> on <code>POST /agent/tasks</code>. That’s a privilege, so it needs a grant in the <code>SystemTaskPrincipals</code> deploy parameter, and without one the request is refused. The person who launched it is recorded as <code>createdBy</code> so they can still read the result back. There’s more in <a href="tools.html#principals">Tools &amp; permissions</a>.</p></div></details><details class="ag-faq" id="own-host"><summary>…I want to run tasks in my own compute?</summary><div class="ag-more-body"><p>Go for it. The core doesn’t come with a runtime of its own. Anything that can install the package can consume the event with <code>runAgentTask</code>, and you get the same claim, the same cache, and the same completion event.</p><div class="demo-code ag-code"><pre data-lang="ts"><code>import { runAgentTask, createAssistant, getSessionConfig, TaskResultCache } from '@readysetcloud/agent';
 
-# 200 { "taskId": "...", "status": "COMPLETED", "output": "..." }
-# or 202 { "taskId": "...", "status": "RUNNING" }  → watch "Agent Task Completed" or GET /agent/tasks/{taskId}</code></pre>
-        </div>
-      </div>
-    </section>
-    <section class="ds-section" id="lifecycle">
-      <span class="ds-kicker">Lifecycle</span>
-      <h2>Deliver it twice, run it once</h2>
-      <p class="ds-lede">EventBridge promises <em>at-least-once</em> delivery, and “at least” is doing a lot of work in that sentence 😅. The task row is what makes a duplicate harmless.</p>
-<ol class="ag-steps"><li><strong>Warm cache.</strong><span>A <code>TaskResultCache</code> in the Lambda container catches a duplicate that lands on the same instance. It’s purely a speed-up. A miss is always correct.</span></li><li><strong>Durable claim.</strong><span><code>startTask</code> is a conditional write that moves the row to <code>RUNNING</code> from absent, <code>PENDING</code>, or <code>FAILED</code>. DynamoDB lines the writes up, so exactly one delivery wins. The rest hand back the existing result or report that it’s still running.</span></li><li><strong>Build after the claim.</strong><span>Only the winner calls <code>buildAgent</code>. A duplicate never loads config or connects to an MCP server, so it costs next to nothing.</span></li><li><strong>Run and record.</strong><span>One buffered turn (<code>handleTask</code>). Then <code>finishTask</code> writes <code>COMPLETED</code> or <code>FAILED</code>, but only if the row is still <code>RUNNING</code>.</span></li><li><strong>Emit.</strong><span><code>Agent Task Completed</code> goes out no matter how it ended. Async consumers get the same signal whether or not someone was still waiting on the API.</span></li></ol>
-      <figure class="ag-figure" id="fig-states">
-        <div class="ag-diagram-scroll">
-          <svg viewBox="0 0 960 300" role="img" aria-labelledby="states-t" style="min-width:720px">
-            <title id="states-t">Task row state machine</title>
-            <defs><marker id="states-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="states-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="states-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="states-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="states-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="states-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="states-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
-            <rect x="30" y="120" width="130" height="52" rx="10" class="d-box d-dash"/><text x="95.0" y="143.5" text-anchor="middle" class="d-title">absent</text><text x="95.0" y="157.5" text-anchor="middle" class="d-sub">no row yet</text><rect x="250" y="30" width="160" height="52" rx="10" class="d-box k-neutral"/><text x="330.0" y="53.5" text-anchor="middle" class="d-title">PENDING</text><text x="330.0" y="67.5" text-anchor="middle" class="d-sub d-mono">createTask</text><rect x="480" y="120" width="160" height="52" rx="10" class="d-box k-primary"/><text x="560.0" y="143.5" text-anchor="middle" class="d-title">RUNNING</text><text x="560.0" y="157.5" text-anchor="middle" class="d-sub">one owner</text><rect x="760" y="30" width="170" height="52" rx="10" class="d-box k-success"/><text x="845.0" y="53.5" text-anchor="middle" class="d-title">COMPLETED</text><text x="845.0" y="67.5" text-anchor="middle" class="d-sub">output</text><rect x="760" y="210" width="170" height="52" rx="10" class="d-box k-error"/><text x="845.0" y="233.5" text-anchor="middle" class="d-title">FAILED</text><text x="845.0" y="247.5" text-anchor="middle" class="d-sub">error</text><path d="M95 117 C95 56, 160 56, 246 56" class="d-line" marker-end="url(#states-ah)"/><text x="150" y="50" text-anchor="middle" class="d-label d-mono">createTask</text><path d="M399.2 83.1 L490.8 118.9" class="d-line" marker-end="url(#states-ah)"/><text x="445.0" y="91.0" text-anchor="start" class="d-label">startTask · claim</text><path d="M163 146 L477 146" class="d-line" marker-end="url(#states-ah)"/><text x="320" y="162" text-anchor="middle" class="d-label d-mono">startTask · upsert</text><path d="M642.9 119.8 L759.8 82.9" class="d-line" marker-end="url(#states-ah)"/><text x="701.3" y="93.4" text-anchor="middle" class="d-label">finishTask</text><path d="M642.9 172.2 L759.8 209.1" class="d-line" marker-end="url(#states-ah)"/><text x="701.3" y="206.6" text-anchor="middle" class="d-label">finishTask</text><path d="M757 248 C640 285, 560 250, 560 176" class="d-line k-warning" marker-end="url(#states-ah-warning)"/><text x="640" y="288" text-anchor="middle" class="d-label d-mono">retry · claim again</text><rect x="250" y="210" width="210" height="58" rx="10" class="d-box k-error d-dash"/><text x="355" y="233" text-anchor="middle" class="d-sub">claim on RUNNING or COMPLETED</text><text x="355" y="251" text-anchor="middle" class="d-title">refused → return existing</text><path d="M477 172 L462 210" class="d-line k-error d-dash" marker-end="url(#states-ah-error)"/>
-          </svg>
-        </div>
-        <figcaption>Every arrow is a conditional write. <code>startTask</code> only claims from absent, <code>PENDING</code>, or <code>FAILED</code>, so a duplicate can never grab a task that’s running or done.</figcaption>
-      </figure>
-      <figure class="ag-figure" id="fig-race" data-anim="sequence"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
-        <div class="ag-diagram-scroll">
-          <svg viewBox="0 0 960 250" role="img" aria-labelledby="race-t" style="min-width:720px">
-            <title id="race-t">Two deliveries of the same task race for one claim</title>
-            <defs><marker id="race-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="race-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="race-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="race-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="race-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="race-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="race-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
-            <text x="16" y="52" text-anchor="start" class="d-kicker">DELIVERY 1</text><text x="16" y="108" text-anchor="start" class="d-kicker">TASK ROW</text><text x="16" y="202" text-anchor="start" class="d-kicker">DELIVERY 2</text><path d="M110 48 L940 48" class="d-lifeline"/><path d="M110 198 L940 198" class="d-lifeline"/><rect x="110" y="92" width="70" height="28" rx="6" class="d-box k-neutral"/><text x="145" y="111" text-anchor="middle" class="d-sub">absent</text><g data-step="1"><rect x="180" y="92" width="520" height="28" rx="6" class="d-box k-primary"/><text x="440" y="111" text-anchor="middle" class="d-sub">RUNNING · owned by delivery 1</text><rect x="148.6" y="37" width="62.800000000000004" height="22" rx="11" class="d-pill k-success"/><text x="180" y="52" text-anchor="middle" class="d-pill-text k-success">claim ✓</text><path d="M180 59 L180 89" class="d-line k-success" marker-end="url(#race-ah-success)"/></g><g data-step="2"><rect x="218.6" y="187" width="62.800000000000004" height="22" rx="11" class="d-pill k-error"/><text x="250" y="202" text-anchor="middle" class="d-pill-text k-error">claim ✗</text><path d="M250 187 L250 123" class="d-line k-error d-dash" marker-end="url(#race-ah-error)"/><text x="258" y="160" text-anchor="start" class="d-label d-mono">ConditionalCheckFailed</text></g><g data-step="3"><path d="M278 198 L385 198" class="d-line" marker-end="url(#race-ah)"/><rect x="381.0" y="187" width="178.0" height="22" rx="11" class="d-pill k-neutral"/><text x="470" y="202" text-anchor="middle" class="d-pill-text k-neutral">return existing · RUNNING</text><rect x="289.0" y="37" width="82.0" height="22" rx="11" class="d-pill k-neutral"/><text x="330" y="52" text-anchor="middle" class="d-pill-text k-neutral">buildAgent</text></g><g data-step="4"><rect x="455.4" y="37" width="69.2" height="22" rx="11" class="d-pill k-neutral"/><text x="490" y="52" text-anchor="middle" class="d-pill-text k-neutral">run turn</text></g><g data-step="5"><rect x="700" y="92" width="240" height="28" rx="6" class="d-box k-success"/><text x="820" y="111" text-anchor="middle" class="d-sub">COMPLETED</text><rect x="659.0" y="37" width="82.0" height="22" rx="11" class="d-pill k-neutral"/><text x="700" y="52" text-anchor="middle" class="d-pill-text k-neutral">finishTask</text><path d="M700 59 L700 89" class="d-line" marker-end="url(#race-ah)"/></g><g data-step="6"><rect x="806.2" y="37" width="107.60000000000001" height="22" rx="11" class="d-pill k-warning"/><text x="860" y="52" text-anchor="middle" class="d-pill-text k-warning">emit Completed</text></g>
-          </svg>
-        </div>
-        <figcaption>EventBridge delivers at least once. Both deliveries try the same conditional write on <code>TASK#{taskId}</code>, DynamoDB lines them up, and only one gets to build the agent and run its tools. Hit replay to watch the race.</figcaption>
-      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td><span class="status-badge status-badge-neutral">PENDING</span></td><td>Created by the API so a <code>GET</code> sees it before the runtime picks it up. Optional.</td></tr><tr><td><span class="status-badge status-badge-primary">RUNNING</span></td><td>Claimed by exactly one invocation.</td></tr><tr><td><span class="status-badge status-badge-success">COMPLETED</span></td><td>Finished; <code>output</code> holds the assistant text.</td></tr><tr><td><span class="status-badge status-badge-error">FAILED</span></td><td>The run threw; <code>error</code> holds the message. A retry may claim it again.</td></tr></tbody></table></div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Running a task in your own host</h3>
-          <p>The core doesn’t come with a runtime of its own. Anything that can install the package can consume the event.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { runAgentTask, createAssistant, getSessionConfig, TaskResultCache } from '@readysetcloud/agent';
-
-const cache = new TaskResultCache();   // module scope — reused across warm invocations
+const cache = new TaskResultCache();   // module scope, reused across warm invocations
 
 export const handler = async ({ detail }) =&gt; {
   const { taskId, principal, request, sessionId } = detail;
@@ -175,22 +187,16 @@ export const handler = async ({ detail }) =&gt; {
       return { agent, cleanup: async () =&gt; { /* disconnect MCP clients */ } };
     },
   });
-};</code></pre>
-        </div>
+};</code></pre></div></div></details>
       </div>
     </section>
-    <section class="ds-section" id="one-shot">
-      <span class="ds-kicker">One-shot</span>
-      <h2><code>runAgent</code>: ask, validate, forget</h2>
-      <p class="ds-lede">For when you’re calling a model a bunch of times and want typed answers back instead of paragraphs.</p>
-
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Structured output</h3>
-          <p>Pass a Zod schema and the SDK makes the model answer in that shape. If the call resolves, the output is valid. Period.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { runAgent, tool } from '@readysetcloud/agent';
+    <section class="ds-section ag-callout-section" id="one-shot">
+      <div class="ag-callout">
+        <span class="ds-kicker">Don’t need any of that?</span>
+        <h2><code>runAgent</code>: ask, validate, forget</h2>
+        <p class="ds-lede">No task row, no event, no claim. Just one call that comes back with a typed answer. It’s what you want when you’re calling a model a bunch of times inside something bigger and you need structured output instead of paragraphs.</p>
+        <p>Pass a Zod schema and the SDK makes the model answer in that shape. If the call resolves, the output is valid. Period.</p>
+        <div class="demo-code ag-code"><pre data-lang="ts"><code>import { runAgent, tool } from '@readysetcloud/agent';
 import { z } from 'zod';
 
 const grammar = await runAgent({
@@ -214,9 +220,8 @@ const facts = await runAgent({
   tools: [searchBlog],
   maxIterations: 6,
   invocationState: { tenantId, sub },                 // injected by trusted code, read by handlers
-});</code></pre>
-        </div>
-      </div>
+});</code></pre></div>
+        
       <figure class="ag-figure" id="fig-fanout">
         <div class="ag-diagram-scroll">
           <svg viewBox="0 0 960 270" role="img" aria-labelledby="fanout-t" style="min-width:720px">
@@ -226,7 +231,10 @@ const facts = await runAgent({
           </svg>
         </div>
         <figcaption>Each lens is its own stateless <code>runAgent</code> call with its own model, schema, and tools, and they all run in parallel. Trusted context reaches the tools through <code>invocationState</code>. The model never sees it.</figcaption>
-      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Option</th><th>Effect</th></tr></thead><tbody><tr><td><code>outputSchema</code></td><td>Zod schema; <code>output</code> becomes the validated object and <code>structured</code> is true.</td></tr><tr><td><code>tools</code></td><td>First-party <code>tool()</code>s, an <code>McpClient</code>, or a sub-agent.</td></tr><tr><td><code>maxIterations</code></td><td>Caps the tool loop (maps to the SDK’s per-invocation turn limit).</td></tr><tr><td><code>modelId</code>, <code>temperature</code>, <code>maxTokens</code>, <code>region</code></td><td>Per-call model selection.</td></tr><tr><td><code>invocationState</code></td><td>Trusted values threaded to every tool’s <code>context.invocationState</code>. Not a tool input, so the model never sees or sets it.</td></tr></tbody></table></div><div class="ds-note">Need the orchestrator to be <strong>durable</strong>? Run the outer call as a task (<code>runAgentTask</code>) and let its lenses call <code>runAgent</code>. One heads-up: <code>runAgent</code> buffers the final answer. It doesn’t stream.</div>
+      </figure>
+        <div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Option</th><th>Effect</th></tr></thead><tbody><tr><td><code>outputSchema</code></td><td>Zod schema; <code>output</code> becomes the validated object and <code>structured</code> is true.</td></tr><tr><td><code>tools</code></td><td>First-party <code>tool()</code>s, an <code>McpClient</code>, or a sub-agent.</td></tr><tr><td><code>maxIterations</code></td><td>Caps the tool loop (maps to the SDK’s per-invocation turn limit).</td></tr><tr><td><code>modelId</code>, <code>temperature</code>, <code>maxTokens</code>, <code>region</code></td><td>Per-call model selection.</td></tr><tr><td><code>invocationState</code></td><td>Trusted values threaded to every tool’s <code>context.invocationState</code>. Not a tool input, so the model never sees or sets it.</td></tr></tbody></table></div>
+        <p class="ag-aside">Need the orchestrator to be durable? Run the outer call as a task and let its lenses call <code>runAgent</code>. One heads-up: <code>runAgent</code> buffers the final answer. It doesn’t stream.</p>
+      </div>
     </section>
   </main>
 

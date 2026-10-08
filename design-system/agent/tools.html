@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tools & permissions · Ready, Set, Cloud Agent</title>
-  <meta name="description" content="Identity, principals, first-party and MCP tools, allowlists, and isolation boundaries for the Ready, Set, Cloud agent service.">
+  <meta name="description" content="Security questions about the Ready, Set, Cloud agent, answered: identity, session ownership, memory isolation, system principals, first-party and MCP tools, allowlists, and what a run can reach.">
   <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
   <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
   <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="../site.css">
   <link rel="stylesheet" href="agent.css">
 </head>
-<body>
+<body class="ag-page ag-page-qa">
   <nav class="app-nav">
     <div class="app-nav-inner">
       <a class="app-nav-brand" href="../index.html">
@@ -43,17 +43,25 @@
       <div class="page-hero-content">
         <span class="ds-kicker">Tools & permissions</span>
         <h1 class="page-hero-title">What it can do, and as whom</h1>
-        <p class="page-hero-subtitle">Identity gets verified at the edge, tools are picked by name or allowlisted by host, and running as a system takes an explicit grant. Every control here fails closed. If it isn’t configured, it isn’t allowed.</p>
-        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-warning">Verified identity</span><span class="page-hero-chip page-hero-chip-primary">Opt-in allowlists</span><span class="page-hero-chip page-hero-chip-success">No shell, no filesystem</span></div>
+        <p class="page-hero-subtitle">These are the questions your security team is going to ask. I’d rather you hear the answers from me first.</p>
+        
+        
       </div>
     </header>
-    <ul class="ds-anchor-list"><li><a href="#identity">Identity</a></li><li><a href="#principals">Principals</a></li><li><a href="#first-party">First-party tools</a></li><li><a href="#mcp">MCP servers</a></li><li><a href="#isolation">Isolation</a></li></ul>
 
-    <section class="ds-section" id="identity">
-      <span class="ds-kicker">Identity</span>
-      <h2>Who the agent acts as</h2>
-      <p class="ds-lede">Always the verified caller or a trusted first-party assertion. Never something the client made up.</p>
-<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Surface</th><th>Identity</th><th>Verified by</th></tr></thead><tbody><tr><td>Chat</td><td>The Cognito <code>sub</code> in the bearer token on the socket</td><td>AgentCore’s inbound JWT authorizer, against the shared user pool</td></tr><tr><td><code>POST /agent/sessions</code>, <code>/agent/connect</code>, <code>/agent/tasks</code></td><td>The Cognito <code>sub</code> of the API caller</td><td>The CoreApi Cognito authorizer</td></tr><tr><td><code>Run Agent Task</code> event</td><td>The <code>principal</code> in the event detail</td><td>The account-internal bus: only first-party Lambdas can put events on it</td></tr><tr><td>Persistent agent task</td><td><code>{ type: system, id: &lt;type&gt;/&lt;agentId&gt; }</code></td><td><code>handleTask</code> in your stack: the trigger’s agent must belong to the type and match the principal</td></tr><tr><td>Session ownership</td><td>The <code>userId</code> stored at creation</td><td>The host compares it to the verified caller at connect and at task time and refuses a mismatch</td></tr></tbody></table></div>
+    <section class="ds-section" id="scorecard">
+      <span class="ds-kicker">The short version</span>
+      <h2>Seven questions, straight answers</h2>
+      <p class="ds-lede">Every control below fails closed. If it isn’t configured, it isn’t allowed. Tap a question for the long answer.</p>
+      <ul class="ag-board"><li><a href="#identity"><span class="ag-board-q">Can someone act as another user?</span><span class="status-badge status-badge-success ag-verdict">No</span></a></li><li><a href="#memory"><span class="ag-board-q">Can one person’s chat or memory leak to another?</span><span class="status-badge status-badge-success ag-verdict">No</span></a></li><li><a href="#principals"><span class="ag-board-q">Can an API caller run as a system?</span><span class="status-badge status-badge-warning ag-verdict">Only with a grant</span></a></li><li><a href="#first-party"><span class="ag-board-q">Can the model run shell commands or touch the disk?</span><span class="status-badge status-badge-success ag-verdict">No</span></a></li><li><a href="#mcp"><span class="ag-board-q">Can a session send the agent to any URL?</span><span class="status-badge status-badge-warning ag-verdict">Only allowlisted</span></a></li><li><a href="#auth-header"><span class="ag-board-q">Can an MCP server trust who’s calling?</span><span class="status-badge status-badge-primary ag-verdict">Yes</span></a></li><li><a href="#isolation"><span class="ag-board-q">What can a run reach?</span><span class="status-badge status-badge-neutral ag-verdict">Depends where it runs</span></a></li></ul>
+    </section>
+    <section class="ag-qa" id="identity">
+      <div class="ag-qa-head">
+        <h2>Can someone act as another user?</h2>
+        <span class="status-badge status-badge-success ag-verdict">No</span>
+      </div>
+      <p class="ag-qa-short">Identity is always the verified caller or a trusted first-party assertion. It’s never something the client made up.</p>
+      <div class="ag-qa-body"><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Surface</th><th>Identity</th><th>Verified by</th></tr></thead><tbody><tr><td>Chat</td><td>The Cognito <code>sub</code> in the bearer token on the socket</td><td>AgentCore’s inbound JWT authorizer, against the shared user pool</td></tr><tr><td><code>POST /agent/sessions</code>, <code>/agent/connect</code>, <code>/agent/tasks</code></td><td>The Cognito <code>sub</code> of the API caller</td><td>The CoreApi Cognito authorizer</td></tr><tr><td><code>Run Agent Task</code> event</td><td>The <code>principal</code> in the event detail</td><td>The account-internal bus: only first-party Lambdas can put events on it</td></tr><tr><td>Persistent agent task</td><td><code>{ type: system, id: &lt;type&gt;/&lt;agentId&gt; }</code></td><td><code>handleTask</code> in your stack: the trigger’s agent must belong to the type and match the principal</td></tr><tr><td>Session ownership</td><td>The <code>userId</code> stored at creation</td><td>The host compares it to the verified caller at connect and at task time and refuses a mismatch</td></tr></tbody></table></div>
       <figure class="ag-figure" id="fig-trust" data-anim="cycle"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
         <div class="ag-diagram-scroll">
           <svg viewBox="0 0 960 440" role="img" aria-labelledby="trust-t" style="min-width:820px">
@@ -63,13 +71,23 @@
           </svg>
         </div>
         <figcaption>Every crossing has a control, and every control fails closed. Inside the account, first-party emitters are trusted to say who a task runs as. From the outside, identity is always a verified token. The highlight steps through each control.<ol class="ag-legend"><li data-step="1"><span class="ag-legend-num">1</span><span>Cognito JWT on every CoreApi call: the caller’s <code>sub</code> becomes the identity.</span></li><li data-step="2"><span class="ag-legend-num">2</span><span>AgentCore’s inbound JWT authorizer on the socket, then the runtime’s session-owner check.</span></li><li data-step="3"><span class="ag-legend-num">3</span><span><code>McpAllowedHosts</code> when a session is created: an MCP URL outside the allowlist is rejected.</span></li><li data-step="4"><span class="ag-legend-num">4</span><span><code>SystemTaskPrincipals</code> before an API caller may run as a system id.</span></li><li data-step="5"><span class="ag-legend-num">5</span><span>Only first-party Lambdas can put events on the account-internal bus.</span></li><li data-step="6"><span class="ag-legend-num">6</span><span>Outbound MCP calls carry the authority-minted <code>authHeader</code>, applied after user headers.</span></li><li data-step="7"><span class="ag-legend-num">7</span><span><code>http_request</code> lets the model pick the URL. Turn it on deliberately and put a fence around egress.</span></li></ol></figcaption>
-      </figure><div class="ds-note">Leak or guess a <code>sessionId</code> and you still can’t resume someone else’s conversation. Memory is scoped by the verified id too, so recall never crosses users.</div>
+      </figure></div>
     </section>
-    <section class="ds-section" id="principals">
-      <span class="ds-kicker">Principals</span>
-      <h2>People and systems</h2>
-      <p class="ds-lede">Autonomous work runs as one of two identities, and they don’t get the same trust.</p>
-<div class="ds-grid"><div class="ds-link-card"><h3><code>{ type: "user", id: sub }</code></h3><p>A verified person. Session ownership and MCP identity propagation work exactly like they do in chat. This is the default for <code>POST /agent/tasks</code>.</p></div><div class="ds-link-card"><h3><code>{ type: "system", id: "booked" }</code></h3><p>A service with nobody behind it, for ecosystem work. Claiming one is a privilege. A first-party emitter on the internal bus gets it for free, but the public API has to be granted it.</p></div></div>
+    <section class="ag-qa" id="memory">
+      <div class="ag-qa-head">
+        <h2>Can one person’s chat or memory leak to another?</h2>
+        <span class="status-badge status-badge-success ag-verdict">No</span>
+      </div>
+      <p class="ag-qa-short">Sessions are owned, and memory is scoped by the verified id.</p>
+      <div class="ag-qa-body"><p>Every session stores its owner when it’s created, and the host compares that owner to the verified caller on every connect and every task. So leak or guess a <code>sessionId</code> and you still can’t resume someone else’s conversation.</p><p>Long-term memory is namespaced by the verified <code>sub</code> (<code>/facts/{sub}</code>, <code>/users/{sub}/preferences</code>), not by anything the client sends. Recall never crosses users.</p></div>
+    </section>
+    <section class="ag-qa" id="principals">
+      <div class="ag-qa-head">
+        <h2>Can an API caller run as a system?</h2>
+        <span class="status-badge status-badge-warning ag-verdict">Only with a grant</span>
+      </div>
+      <p class="ag-qa-short">Only with an explicit grant in a deploy parameter, the same way the MCP allowlist works.</p>
+      <div class="ag-qa-body"><p>Autonomous work runs as one of two identities, and they don’t get the same trust. <code>{ type: "user", id: sub }</code> is a verified person, and it’s the default for <code>POST /agent/tasks</code>. <code>{ type: "system", id: "booked" }</code> is a service with nobody behind it. A first-party emitter on the internal bus can claim a system principal for free, because only first-party code can reach that bus. Over the public API, claiming one is a privilege.</p>
       <figure class="ag-figure" id="fig-principal">
         <div class="ag-diagram-scroll">
           <svg viewBox="0 0 960 400" role="img" aria-labelledby="principal-t" style="min-width:720px">
@@ -79,30 +97,16 @@
           </svg>
         </div>
         <figcaption>The bus gets to assert a principal because only first-party code can reach it. The public API derives one from the verified token and only hands out a system id when an allowlist entry says so.</figcaption>
-      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Where</th><th>Gate</th></tr></thead><tbody><tr><td>Internal bus (<code>requestAgentTask</code>)</td><td>None: a first-party emitter is already trusted to assert a principal.</td></tr><tr><td><code>POST /agent/tasks { system }</code></td><td>The <code>SystemTaskPrincipals</code> deploy parameter: comma-separated <code>sub:systemId</code> grants; <code>sub:*</code> allows any id; empty rejects all. Fails closed.</td></tr><tr><td>Launcher record</td><td>When a person launches a system task over the API, their <code>sub</code> is stored as <code>createdBy</code> so they can still read the task back even though the run acts as the system.</td></tr></tbody></table></div>
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Granting a system principal</h3>
-          <p>You opt in explicitly, same as the MCP allowlist.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="shell"><code># sub abc-123 may run as "booked" only; svc-sub may run as any system id
-SystemTaskPrincipals="abc-123:booked,svc-sub:*"</code></pre>
-        </div>
-      </div>
+      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Where</th><th>Gate</th></tr></thead><tbody><tr><td>Internal bus (<code>requestAgentTask</code>)</td><td>None: a first-party emitter is already trusted to assert a principal.</td></tr><tr><td><code>POST /agent/tasks { system }</code></td><td>The <code>SystemTaskPrincipals</code> deploy parameter: comma-separated <code>sub:systemId</code> grants; <code>sub:*</code> allows any id; empty rejects all. Fails closed.</td></tr><tr><td>Launcher record</td><td>When a person launches a system task over the API, their <code>sub</code> is stored as <code>createdBy</code> so they can still read the task back even though the run acts as the system.</td></tr></tbody></table></div><div class="demo-code ag-code"><pre data-lang="shell"><code># sub abc-123 may run as "booked" only; svc-sub may run as any system id
+SystemTaskPrincipals="abc-123:booked,svc-sub:*"</code></pre></div></div>
     </section>
-    <section class="ds-section" id="first-party">
-      <span class="ds-kicker">First-party tools</span>
-      <h2>Tools a session picks by name</h2>
-      <p class="ds-lede">Turning on a tool that already ships is a data change. Writing a new one is the only time you touch code.</p>
-
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Register and select</h3>
-          <p>The registry lives in the host. The package ships the type, the resolver, and two built-ins to get you started.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>import { tool, builtinTools, resolveTools, createAssistant } from '@readysetcloud/agent';
+    <section class="ag-qa" id="first-party">
+      <div class="ag-qa-head">
+        <h2>Can the model run shell commands or touch the disk?</h2>
+        <span class="status-badge status-badge-success ag-verdict">No</span>
+      </div>
+      <p class="ag-qa-short">The SDK’s <code>bash</code> and <code>file_editor</code> are deliberately left out.</p>
+      <div class="ag-qa-body"><p>In a shared hosted runtime, shell exec <em>is</em> remote code execution, and filesystem access reaches the host’s disk. No thanks. A host that really wants them can import them from the SDK and register them itself, as an explicit choice that shows up in code review.</p><p>What a session <em>can</em> use is a registry of named first-party tools. Turning on a tool that already ships is a data change. Writing a new one is the only time you touch code.</p><div class="demo-code ag-code"><pre data-lang="ts"><code>import { tool, builtinTools, resolveTools, createAssistant } from '@readysetcloud/agent';
 import { z } from 'zod';
 
 // Host registry: built-ins plus the host’s own.
@@ -118,22 +122,15 @@ const TOOL_REGISTRY = {
 
 // A session opts in by name: { tools: ['http_request', 'get_current_time'] }
 const tools = resolveTools(config.tools, TOOL_REGISTRY, { sessionId, userId });
-const agent = createAssistant({ sessionId, tools: [...tools, ...mcpClients] });</code></pre>
-        </div>
-      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Built-in</th><th>What it does</th><th>Watch out</th></tr></thead><tbody><tr><td><code>http_request</code></td><td>Generic HTTP client. The web-search seam: point it at a search API and let the model read the JSON back. Also any public REST endpoint or webhook.</td><td>An outbound-request surface: the model chooses the URL. Front it with an allowlist or prefer a scoped MCP gateway when egress matters.</td></tr><tr><td><code>notebook</code></td><td>An in-invocation scratchpad the model writes to and re-reads across steps of a run.</td><td>State lives in the invocation, not on the host.</td></tr></tbody></table></div><div class="ds-note"><strong>What’s missing on purpose:</strong> the SDK’s <code>bash</code> and <code>file_editor</code>. In a shared hosted runtime, shell exec <em>is</em> remote code execution, and filesystem access reaches the host’s disk. No thanks. A host that really wants them can import them from the SDK and register them itself, as an explicit choice that shows up in code review.</div>
+const agent = createAssistant({ sessionId, tools: [...tools, ...mcpClients] });</code></pre></div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Built-in</th><th>What it does</th><th>Watch out</th></tr></thead><tbody><tr><td><code>http_request</code></td><td>Generic HTTP client. The web-search seam: point it at a search API and let the model read the JSON back. Also any public REST endpoint or webhook.</td><td>An outbound-request surface: the model chooses the URL. Front it with an allowlist or prefer a scoped MCP gateway when egress matters.</td></tr><tr><td><code>notebook</code></td><td>An in-invocation scratchpad the model writes to and re-reads across steps of a run.</td><td>State lives in the invocation, not on the host.</td></tr></tbody></table></div></div>
     </section>
-    <section class="ds-section" id="mcp">
-      <span class="ds-kicker">MCP servers</span>
-      <h2>External tools, allowlisted and identity-aware</h2>
-      <p class="ds-lede">This is the one place a session gets to point the runtime at an outbound URL, so it gets the most scrutiny.</p>
-
-      <div class="demo">
-        <div class="demo-header">
-          <h3>Attach a server to a session</h3>
-          <p>Keyed by label. The host connects to each one at build time and adds its tools alongside the first-party ones.</p>
-        </div>
-        <div class="demo-code">
-<pre data-lang="ts"><code>await createSession({
+    <section class="ag-qa" id="mcp">
+      <div class="ag-qa-head">
+        <h2>Can a session send the agent to any URL?</h2>
+        <span class="status-badge status-badge-warning ag-verdict">Only allowlisted</span>
+      </div>
+      <p class="ag-qa-short">Only hosts in <code>McpAllowedHosts</code>. An empty list rejects everything, so it’s opt-in.</p>
+      <div class="ag-qa-body"><p>Attaching an MCP server is the one place a session gets to point the runtime at an outbound URL, so it gets the most scrutiny. Servers are keyed by label, and the host connects to each one at build time and adds its tools alongside the first-party ones. Secrets never live in the session row, since users create those. They come from the host’s environment through <code>${VAR}</code> interpolation.</p><div class="demo-code ag-code"><pre data-lang="ts"><code>await createSession({
   userId,
   mcpServers: {
     blog: {
@@ -145,9 +142,15 @@ const agent = createAssistant({ sessionId, tools: [...tools, ...mcpClients] });<
       },
     },
   },
-});</code></pre>
-        </div>
+});</code></pre></div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Control</th><th>Owner</th><th>Rule</th></tr></thead><tbody><tr><td>SSRF allowlist</td><td>Host (<code>create-session</code>)</td><td>Rejects any <code>mcpServers</code> whose URL host is not in <code>McpAllowedHosts</code>. Empty rejects all, so it is opt-in.</td></tr><tr><td>Secrets</td><td>Host environment</td><td><code>${VAR}</code> in string fields resolves against the host’s env. A secret never belongs in the session row, which the user creates.</td></tr><tr><td><code>authHeader</code></td><td>An authority (a trusted server-side session creator)</td><td>Mints a token binding tenant, user, session, and a version; the runtime forwards it verbatim, applied after user headers so they cannot shadow it, with no interpolation. The MCP server verifies it with the shared secret.</td></tr></tbody></table></div><p>The other outbound door is the <code>http_request</code> built-in, which lets the model pick the URL. Turn it on deliberately, and put a fence around egress when that matters.</p></div>
+    </section>
+    <section class="ag-qa" id="auth-header">
+      <div class="ag-qa-head">
+        <h2>Can an MCP server trust who’s calling?</h2>
+        <span class="status-badge status-badge-primary ag-verdict">Yes</span>
       </div>
+      <p class="ag-qa-short">Yes, when a trusted authority mints an <code>authHeader</code> for the session.</p>
+      <div class="ag-qa-body"><p>The runtime is just a courier. A trusted server-side session creator mints a token that binds tenant, user, session, and a version. The runtime forwards it verbatim, after the user’s headers so they can’t shadow it, and never looks inside. The MCP server checks the signature with a shared secret.</p>
       <figure class="ag-figure" id="fig-authh" data-anim="sequence"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
         <div class="ag-diagram-scroll">
           <svg viewBox="0 0 960 250" role="img" aria-labelledby="authh-t" style="min-width:720px">
@@ -157,13 +160,15 @@ const agent = createAssistant({ sessionId, tools: [...tools, ...mcpClients] });<
           </svg>
         </div>
         <figcaption>The runtime is just a courier. It forwards the token verbatim as the configured header (here <code>x-booked-auth</code>) and never looks inside. The token binds tenant, user, session, and a version, so a leaked one can’t hop to another session, and the authority revokes it by bumping the version. Hit replay to follow the token.</figcaption>
-      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Control</th><th>Owner</th><th>Rule</th></tr></thead><tbody><tr><td>SSRF allowlist</td><td>Host (<code>create-session</code>)</td><td>Rejects any <code>mcpServers</code> whose URL host is not in <code>McpAllowedHosts</code>. Empty rejects all, so it is opt-in.</td></tr><tr><td>Secrets</td><td>Host environment</td><td><code>${VAR}</code> in string fields resolves against the host’s env. A secret never belongs in the session row, which the user creates.</td></tr><tr><td><code>authHeader</code></td><td>An authority (a trusted server-side session creator)</td><td>Mints a token binding tenant, user, session, and a version; the runtime forwards it verbatim, applied after user headers so they cannot shadow it, with no interpolation. The MCP server verifies it with the shared secret.</td></tr></tbody></table></div><div class="ds-note"><strong>The threat model, plainly:</strong> the HMAC proves the authority minted this token for user U. It does <em>not</em> prove the presenter is this runtime. That’s fine here because users can’t reach the config row, the host is allowlisted, and transport is TLS. The token gets replayed on every reconnect for the session’s ~30-day life, so bind it to the <code>sessionId</code> and include a <code>version</code> the authority can bump to revoke it.</div>
+      </figure><p><strong>The threat model, plainly:</strong> the HMAC proves the authority minted this token for user U. It does <em>not</em> prove the presenter is this runtime. That’s fine here because users can’t reach the config row, the host is allowlisted, and transport is TLS. The token gets replayed on every reconnect for the session’s ~30-day life, so bind it to the <code>sessionId</code> and include a <code>version</code> the authority can bump to revoke it.</p></div>
     </section>
-    <section class="ds-section" id="isolation">
-      <span class="ds-kicker">Isolation</span>
-      <h2>What a run can and can’t reach</h2>
-      <p class="ds-lede">The boundaries each place enforces, side by side.</p>
-<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Boundary</th><th>Chat runtime</th><th>Task Lambda</th><th>Library mode · persistent agents</th></tr></thead><tbody><tr><td>Bedrock</td><td>The deploy’s model grant</td><td>Same grant</td><td>Your stack’s</td></tr><tr><td>Table</td><td><code>AgentChatTable</code>, by session</td><td>Same table, by task and session</td><td>Any table via <code>tableName</code></td></tr><tr><td>Cross-session memory</td><td>AgentCore Memory, per verified user</td><td>None by default</td><td>Whatever <code>memoryManager</code> you pass</td></tr><tr><td>Outbound network</td><td>MCP hosts in the allowlist; <code>http_request</code> if enabled</td><td>Same</td><td>Yours</td></tr><tr><td>Identity</td><td>Verified JWT</td><td>Event principal or verified JWT</td><td>Yours</td></tr></tbody></table></div><div class="ds-note"><strong>Library mode</strong> means passing <code>tableName</code> and running the core in your own stack, which is exactly how every persistent agent runs. It doesn’t get the shared runtime’s guarantees for free. Your stack owns the Bedrock grant, the allowlist, and memory isolation.</div>
+    <section class="ag-qa" id="isolation">
+      <div class="ag-qa-head">
+        <h2>What can a run reach?</h2>
+        <span class="status-badge status-badge-neutral ag-verdict">Depends where it runs</span>
+      </div>
+      <p class="ag-qa-short">The shared runtime and task Lambda enforce their boundaries for you. In library mode, your stack owns them.</p>
+      <div class="ag-qa-body"><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Boundary</th><th>Chat runtime</th><th>Task Lambda</th><th>Library mode · persistent agents</th></tr></thead><tbody><tr><td>Bedrock</td><td>The deploy’s model grant</td><td>Same grant</td><td>Your stack’s</td></tr><tr><td>Table</td><td><code>AgentChatTable</code>, by session</td><td>Same table, by task and session</td><td>Any table via <code>tableName</code></td></tr><tr><td>Cross-session memory</td><td>AgentCore Memory, per verified user</td><td>None by default</td><td>Whatever <code>memoryManager</code> you pass</td></tr><tr><td>Outbound network</td><td>MCP hosts in the allowlist; <code>http_request</code> if enabled</td><td>Same</td><td>Yours</td></tr><tr><td>Identity</td><td>Verified JWT</td><td>Event principal or verified JWT</td><td>Yours</td></tr></tbody></table></div><p><strong>Library mode</strong> means passing <code>tableName</code> and running the core in your own stack, which is exactly how every persistent agent runs. It doesn’t get the shared runtime’s guarantees for free. Your stack owns the Bedrock grant, the allowlist, and memory isolation.</p></div>
     </section>
   </main>
 

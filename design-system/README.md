@@ -34,6 +34,17 @@ persistent-agent primitives, identity and permissions, and the contracts. They
 use the same chrome (`../site.css`, `../site.js`) plus `agent/agent.css` and
 `agent/agent.js`, so they restyle with the design system.
 
+Each page has its own format, matched to what a reader is doing there, so the
+pages don't read as one template repeated six times: the overview is a landing
+page with a "which agent do you need?" picker and tabbed quick starts, chat is
+a build-along tutorial, tasks follows one task through a timeline and then
+answers "what if…?" questions, agency is a long-form essay with a side table of
+contents, tools & permissions answers a security reviewer's questions with a
+verdict each, and the reference is a filterable lookup sheet. The format
+components live in the "Page formats" block of `agent.css`; the picker, table
+of contents highlight, and reference filter are in `agent.js`. Keep a new page
+or section in the format of the page it joins.
+
 Diagrams are inline SVG built from a small class vocabulary in `agent.css`
 (`d-box`, `d-line`, `d-pill`, `k-primary`, …) that uses token colors only, so
 they invert with dark mode like everything else. Motion is used only where it
