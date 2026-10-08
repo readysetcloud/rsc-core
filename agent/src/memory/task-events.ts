@@ -30,12 +30,34 @@ export const TASK_REQUEST_DETAIL_TYPE = 'Run Agent Task';
 /** `detail-type` the runtime emits when a run finishes (success or failure). */
 export const TASK_COMPLETED_DETAIL_TYPE = 'Agent Task Completed';
 
+/**
+ * Why a task was requested, when a trigger router woke the agent (see
+ * `@readysetcloud/agent/agency`): the rule's `kind`, the event behind it, and
+ * the rule's payload for the task. A host reads it to pick the task's behavior
+ * (which tools, which prompt, which agenda to reconcile); a plain request has
+ * none.
+ */
+export interface TaskTrigger {
+  /** The task kind the trigger rule named (`check_in`, `reply`, `review_offer`...). */
+  kind: string;
+  /** The agent the task is for, when a router woke a specific agent. */
+  agentId?: string;
+  /** The event that caused it. */
+  eventId: string;
+  detailType: string;
+  /** Rule-supplied fields the task needs (ids, deadlines); never the event's untrusted text. */
+  payload?: Record<string, unknown>;
+  /** True when the rule bypassed the agent's cooldown (a deadline). */
+  urgent?: boolean;
+}
+
 /** The `detail` payload of a "Run Agent Task" event. */
 export interface TaskRequestDetail {
   taskId: string;
   principal: Principal;
   request: string;
   sessionId?: string;
+  trigger?: TaskTrigger;
   systemPrompt?: string;
   modelId?: string;
   temperature?: number;
@@ -59,6 +81,8 @@ export interface RequestAgentTaskOptions {
   taskId?: string;
   /** Optional session to run within (history/continuity). */
   sessionId?: string;
+  /** Why the task was requested, when a trigger router woke the agent. */
+  trigger?: TaskTrigger;
   /** Per-run behavior overrides (default to the session's / package defaults). */
   systemPrompt?: string;
   modelId?: string;
@@ -91,6 +115,7 @@ export async function requestAgentTask(
     principal,
     request,
     ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
+    ...(options.trigger !== undefined ? { trigger: options.trigger } : {}),
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
     ...(options.modelId !== undefined ? { modelId: options.modelId } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Streaming AI chat in Ready, Set, Cloud apps: sessions, the connect handshake, the wire protocol, the React chat surface, and the two planes of memory.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link app-nav-link-active" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://www.npmjs.com/package/@readysetcloud/agent" aria-label="@readysetcloud/agent on npm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/></svg></a>
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Streaming chat</span>
+        <h1 class="page-hero-title">A conversation, streamed</h1>
+        <p class="page-hero-subtitle">A browser-direct WebSocket to the AgentCore runtime, authorized by the user’s Cognito token, configured by a session row, and remembered per person.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-primary">WebSocket</span><span class="page-hero-chip page-hero-chip-warning">Cognito bearer</span><span class="page-hero-chip page-hero-chip-success">Snapshots + AgentCore Memory</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#flow">How it works</a></li><li><a href="#session">Sessions</a></li><li><a href="#frontend">Frontend</a></li><li><a href="#wire">Wire protocol</a></li><li><a href="#memory">Memory</a></li></ul>
+
+    <section class="ds-section" id="flow">
+      <span class="ds-kicker">How it works</span>
+      <h2>Session, connect, stream</h2>
+      <p class="ds-lede">Four steps from a signed-in user to streamed tokens, with identity verified before any model call.</p>
+<ol class="ag-steps"><li><strong>Configure a session.</strong><span>A signed-in caller <code>POST /agent/sessions</code> (or backend code calls <code>createSession()</code>) with an optional system prompt, model, temperature, max tokens, title, named first-party <code>tools</code>, and external <code>mcpServers</code>. The row is <code>pk=SESSION#{id}, sk=CONFIG</code>, owned by the verified caller. This is the knob for behavior: the runtime is a generic host, so changing a prompt or a model is a data operation.</span></li><li><strong>Get the URL.</strong><span>The browser calls <code>POST /agent/connect</code> with the <code>sessionId</code> and receives the <code>wss://</code> URL. On custom-domain deploys that is <code>wss://chat.&lt;domain&gt;/ws</code>, a CloudFront proxy that hides the account id in the runtime ARN.</span></li><li><strong>Stream.</strong><span>The browser opens the socket presenting its Cognito ID token as an OAuth bearer in the <code>Sec-WebSocket-Protocol</code> header. The runtime’s inbound JWT authorizer validates it, the runtime reads the verified <code>sub</code>, loads the session config, refuses a mismatch with the owner, builds the assistant, and streams <code>stream_event</code> then <code>complete</code> frames.</span></li><li><strong>Remember.</strong><span>Conversation snapshots persist per session; AgentCore Memory extracts long-term facts and preferences per user and injects them on later turns.</span></li></ol>
+      <figure class="ag-figure" id="fig-seq" data-anim="sequence"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 600" role="img" aria-labelledby="seq-t" style="min-width:820px">
+            <title id="seq-t">Sequence of a chat: configure, connect, open, and one streamed turn</title>
+            <defs><marker id="seq-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="seq-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="seq-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="seq-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="seq-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="seq-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="seq-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <rect x="8" y="78" width="944" height="112" rx="8" class="d-band"/><text x="18" y="92" text-anchor="start" class="d-kicker">CONFIGURE</text><rect x="8" y="198" width="944" height="68" rx="8" class="d-band"/><text x="18" y="212" text-anchor="start" class="d-kicker">CONNECT</text><rect x="8" y="274" width="944" height="102" rx="8" class="d-band"/><text x="18" y="288" text-anchor="start" class="d-kicker">OPEN</text><rect x="8" y="384" width="944" height="206" rx="8" class="d-band"/><text x="18" y="398" text-anchor="start" class="d-kicker">TURN</text><line x1="90" y1="64" x2="90" y2="592" class="d-lifeline"/><rect x="12" y="12" width="156" height="52" rx="10" class="d-box"/><text x="90.0" y="35.5" text-anchor="middle" class="d-title">Browser</text><text x="90.0" y="49.5" text-anchor="middle" class="d-sub">Cognito user</text><line x1="285" y1="64" x2="285" y2="592" class="d-lifeline"/><rect x="207" y="12" width="156" height="52" rx="10" class="d-box k-warning"/><text x="285.0" y="35.5" text-anchor="middle" class="d-title">CoreApi</text><text x="285.0" y="49.5" text-anchor="middle" class="d-sub">Cognito authorizer</text><line x1="480" y1="64" x2="480" y2="592" class="d-lifeline"/><rect x="402" y="12" width="156" height="52" rx="10" class="d-box k-primary"/><text x="480.0" y="35.5" text-anchor="middle" class="d-title">AgentCore Runtime</text><text x="480.0" y="49.5" text-anchor="middle" class="d-sub">NODE_22</text><line x1="680" y1="64" x2="680" y2="592" class="d-lifeline"/><rect x="602" y="12" width="156" height="52" rx="10" class="d-box"/><text x="680.0" y="35.5" text-anchor="middle" class="d-title">DynamoDB</text><text x="680.0" y="49.5" text-anchor="middle" class="d-sub">agent table</text><line x1="870" y1="64" x2="870" y2="592" class="d-lifeline"/><rect x="792" y="12" width="156" height="52" rx="10" class="d-box"/><text x="870.0" y="35.5" text-anchor="middle" class="d-title">Bedrock · Memory</text><text x="870.0" y="49.5" text-anchor="middle" class="d-sub">model · AgentCore</text><g data-step="1"><path d="M94 108 L281 108" class="d-line" marker-end="url(#seq-ah)"/><text x="187.5" y="101" text-anchor="middle" class="d-label d-mono">POST /agent/sessions</text></g><g data-step="2"><path d="M289 142 L676 142" class="d-line" marker-end="url(#seq-ah)"/><text x="482.5" y="135" text-anchor="middle" class="d-label d-mono">put CONFIG · owner = sub</text></g><g data-step="3"><path d="M281 176 L94 176" class="d-line d-dash" marker-end="url(#seq-ah)"/><text x="187.5" y="169" text-anchor="middle" class="d-label d-mono">{ sessionId }</text></g><g data-step="4"><path d="M94 222 L281 222" class="d-line" marker-end="url(#seq-ah)"/><text x="187.5" y="215" text-anchor="middle" class="d-label d-mono">POST /agent/connect</text></g><g data-step="5"><path d="M281 254 L94 254" class="d-line d-dash" marker-end="url(#seq-ah)"/><text x="187.5" y="247" text-anchor="middle" class="d-label d-mono">{ wsUrl }</text></g><g data-step="6"><path d="M94 298 L476 298" class="d-line k-primary" marker-end="url(#seq-ah-primary)"/><text x="285.0" y="291" text-anchor="middle" class="d-label d-mono">open wss:// · bearer subprotocol</text><rect x="388" y="318" width="184" height="26" rx="6" class="d-box k-warning"/><text x="480" y="335" text-anchor="middle" class="d-sub">JWT authorizer validates the token</text></g><g data-step="7"><path d="M484 364 L676 364" class="d-line" marker-end="url(#seq-ah)"/><text x="580.0" y="357" text-anchor="middle" class="d-label d-mono">load CONFIG · owner == sub?</text></g><g data-step="8"><path d="M94 410 L476 410" class="d-line k-primary" marker-end="url(#seq-ah-primary)"/><text x="285.0" y="403" text-anchor="middle" class="d-label d-mono">{ request, session_id }</text></g><g data-step="9"><path d="M484 444 L866 444" class="d-line" marker-end="url(#seq-ah)"/><text x="675.0" y="437" text-anchor="middle" class="d-label d-mono">recall · invoke · tools</text></g><g data-step="10"><path d="M476 478 L94 478" class="d-line k-primary d-dash" marker-end="url(#seq-ah-primary)"/><text x="285.0" y="471" text-anchor="middle" class="d-label d-mono">stream_event × n</text></g><g data-step="11"><path d="M476 512 L94 512" class="d-line k-primary d-dash" marker-end="url(#seq-ah-primary)"/><text x="285.0" y="505" text-anchor="middle" class="d-label d-mono">complete</text></g><g data-step="12"><path d="M484 546 L676 546" class="d-line" marker-end="url(#seq-ah)"/><text x="580.0" y="539" text-anchor="middle" class="d-label d-mono">save snapshot</text></g><g data-step="13"><path d="M484 578 L866 578" class="d-line" marker-end="url(#seq-ah)"/><text x="675.0" y="571" text-anchor="middle" class="d-label d-mono">createEvent</text></g>
+          </svg>
+        </div>
+        <figcaption>Identity is checked twice: the CoreApi authorizer on the HTTP calls, and the runtime’s inbound JWT authorizer on the socket, after which the runtime compares the verified <code>sub</code> to the session owner. Replay to watch the messages arrive in order.</figcaption>
+      </figure>
+    </section>
+    <section class="ds-section" id="session">
+      <span class="ds-kicker">Sessions</span>
+      <h2>Dynamic configuration</h2>
+      <p class="ds-lede">One deployed host serves many differently-behaved agents. Everything about a session is data.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>systemPrompt</code></td><td>string</td><td>The persona and instructions. Defaults to the package prompt.</td></tr><tr><td><code>modelId</code></td><td>string</td><td>Bedrock model id (cross-region profile prefix included). Defaults to the deploy’s chat model.</td></tr><tr><td><code>temperature</code>, <code>maxTokens</code></td><td>number</td><td>Sampling controls; package defaults when unset.</td></tr><tr><td><code>title</code></td><td>string</td><td>Display name for the conversation.</td></tr><tr><td><code>tools</code></td><td>string[]</td><td>Names from the host’s first-party tool registry to enable for this session.</td></tr><tr><td><code>mcpServers</code></td><td>record</td><td>External MCP servers by label: <code>url</code>, <code>headers</code>, optional <code>authHeader</code>. Hosts must be allowlisted.</td></tr><tr><td><code>userId</code></td><td>string</td><td>Set by the host from the verified caller. The session’s owner; never client-supplied.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Create a session from a backend</h3>
+          <p>The verified user becomes the owner. The host enforces ownership at connect time.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { createSession, getSessionConfig } from '@readysetcloud/agent/memory';
+
+const { sessionId } = await createSession({
+  userId,                                   // verified caller — the OWNER
+  systemPrompt: 'You are a terse code reviewer.',
+  modelId: 'us.anthropic.claude-sonnet-4-...',
+  tools: ['http_request'],
+});
+
+// At connect, the host loads it and refuses a mismatch:
+const config = await getSessionConfig(sessionId);
+if (config &amp;&amp; config.userId !== verifiedSub) throw new Error('not your session');</code></pre>
+        </div>
+      </div><div class="ds-note"><code>createSession</code> is conditional on the session not already existing, so an owner can never be overwritten. A session with no config row runs with package defaults. The generated id is a UUID, which satisfies AgentCore’s session-id length requirement.</div>
+    </section>
+    <section class="ds-section" id="frontend">
+      <span class="ds-kicker">Frontend</span>
+      <h2>Rendering chat in an app</h2>
+      <p class="ds-lede">The app owns auth and injects a URL getter; the chat components never import app auth.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>@readysetcloud/ui/chat</h3>
+          <p>Create the session once, then return the URL plus the bearer subprotocol on every (re)connect.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="tsx"><code>import { Chat } from '@readysetcloud/ui/chat';
+import { useAuth } from '@readysetcloud/ui/auth';
+
+const { user, getToken } = useAuth();
+const authed = async (path, body) =&gt;
+  (await fetch(`${CORE_API_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${await getToken()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })).json();
+
+// base64url without padding — how AgentCore expects the bearer in the subprotocol.
+const b64url = (s) =&gt; btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+// 1. Create a session once (optionally set prompt/model), keep the id in state.
+const { sessionId } = await authed('/agent/sessions', { systemPrompt, modelId });
+
+// 2. Per (re)connect, return the URL + the Cognito ID token as an OAuth bearer subprotocol.
+const getConnectionUrl = async (sid?: string) =&gt; {
+  const { wsUrl } = await authed('/agent/connect', { sessionId: sid });
+  const token = await getToken();
+  return {
+    url: wsUrl,
+    protocols: [`base64UrlBearerAuthorization.${b64url(token)}`, 'base64UrlBearerAuthorization'],
+  };
+};
+
+// 3. Render.
+&lt;Chat sessionId={sessionId} userId={user.sub} getConnectionUrl={getConnectionUrl} title="Assistant" /&gt;;</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Export</th><th>Use</th></tr></thead><tbody><tr><td><code>Chat</code></td><td>The complete surface: message list, composer, streaming state, reconnect.</td></tr><tr><td><code>useAgentChat</code></td><td>The hook behind it, for a custom layout: messages, status, <code>send</code>.</td></tr><tr><td><code>WebSocketChatClient</code></td><td>The bare client: connect with a URL and protocols, listen for <code>ServerMessage</code>s.</td></tr><tr><td><code>ChatMessage</code></td><td>One rendered message (markdown-aware).</td></tr></tbody></table></div><div class="ds-note"><code>CORE_API_URL</code> is the SSM value at <code>/readysetcloud/api-url</code> (prod: <code>https://api.readysetcloud.io/core</code>). Omit the session body to take every default.</div>
+    </section>
+    <section class="ds-section" id="wire">
+      <span class="ds-kicker">Wire protocol</span>
+      <h2>What travels over the socket</h2>
+      <p class="ds-lede">Preserved verbatim from the original Python agent, so the shapes are stable.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Server to browser</h3>
+          <p>A turn is a series of <code>stream_event</code> frames, then one <code>complete</code>. Errors close the turn.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="json"><code>{ "type": "stream_event", "event": { "init_event_loop": true } }
+{ "type": "stream_event", "event": { "data": "Here" } }
+{ "type": "stream_event", "event": { "current_tool_use": { "name": "http_request", "tool_use_id": "..." } } }
+{ "type": "stream_event", "event": { "data": " is what I found." } }
+{ "type": "stream_event", "event": { "complete": true } }
+{ "type": "complete", "session_id": "..." }
+{ "type": "error", "error": "...", "message": "..." }</code></pre><pre data-lang="json"><code>// Browser to server: one request per turn. user_id is optional; the
+// runtime prefers the verified id from the connection.
+{ "request": "What shipped this week?", "session_id": "..." }</code></pre>
+        </div>
+      </div><div class="ds-note">A rejected token closes the socket with code <code>4401</code> or <code>1008</code>; the UI client surfaces both as an auth error rather than a reconnect loop.</div>
+    </section>
+    <section class="ds-section" id="memory">
+      <span class="ds-kicker">Memory</span>
+      <h2>Two planes of memory</h2>
+      <p class="ds-lede">Continuity within a conversation and recall across them are different problems with different stores.</p>
+<div class="ds-grid"><div class="ds-link-card"><h3>Conversation snapshots</h3><p><strong>Within and across a connection.</strong> Strands snapshots persist to the agent table at <code>pk=SESSION#{sessionId}</code> with a 30-day TTL, so a reconnect resumes exactly. Available to chat and to tasks tied to a session.</p></div><div class="ds-link-card"><h3>Cross-session memory</h3><p><strong>Across sessions, per person.</strong> The chat runtime hands each turn to AgentCore Memory; it extracts facts (<code>/facts/{sub}</code>) and preferences (<code>/users/{sub}/preferences</code>) scoped to the verified caller, and the Strands memory manager injects the relevant ones each turn, plus a <code>search_memory</code> tool for explicit lookups.</p></div></div>
+      <figure class="ag-figure" id="fig-mem">
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 340" role="img" aria-labelledby="mem-t" style="min-width:720px">
+            <title id="mem-t">Two memory planes: per-session snapshots and per-user AgentCore Memory</title>
+            <defs><marker id="mem-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="mem-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="mem-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="mem-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="mem-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="mem-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="mem-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <text x="16" y="40" text-anchor="start" class="d-kicker">CONVERSATIONS</text><text x="16" y="152" text-anchor="start" class="d-kicker">PLANE 1 · CONTINUITY</text><text x="16" y="270" text-anchor="start" class="d-kicker">PLANE 2 · RECALL</text><rect x="190" y="22" width="300" height="64" rx="10" class="d-box k-primary"/><text x="202" y="51.5" text-anchor="start" class="d-title">Session A</text><text x="202" y="65.5" text-anchor="start" class="d-sub">Monday · 4 turns</text><rect x="560" y="22" width="384" height="64" rx="10" class="d-box k-primary"/><text x="572" y="51.5" text-anchor="start" class="d-title">Session B</text><text x="572" y="65.5" text-anchor="start" class="d-sub">Thursday · same person, new session</text><circle cx="350" cy="54" r="7" class="d-dot k-primary"/><circle cx="384" cy="54" r="7" class="d-dot k-primary"/><circle cx="418" cy="54" r="7" class="d-dot k-primary"/><circle cx="452" cy="54" r="7" class="d-dot k-primary"/><circle cx="820" cy="54" r="7" class="d-dot k-primary"/><circle cx="854" cy="54" r="7" class="d-dot k-primary"/><circle cx="888" cy="54" r="7" class="d-dot k-primary"/><rect x="190" y="130" width="260" height="56" rx="10" class="d-box"/><text x="320.0" y="155.5" text-anchor="middle" class="d-title d-mono">SESSION#A</text><text x="320.0" y="169.5" text-anchor="middle" class="d-sub d-mono">SNAPSHOT · LATEST · MANIFEST</text><rect x="560" y="130" width="270" height="56" rx="10" class="d-box"/><text x="695.0" y="155.5" text-anchor="middle" class="d-title d-mono">SESSION#B</text><text x="695.0" y="169.5" text-anchor="middle" class="d-sub d-mono">SNAPSHOT · LATEST · MANIFEST</text><path d="M280 89 L280 127" class="d-line" marker-start="url(#mem-ah)" marker-end="url(#mem-ah)"/><text x="288" y="112" text-anchor="start" class="d-label">save · resume on reconnect</text><path d="M650 89 L650 127" class="d-line" marker-start="url(#mem-ah)" marker-end="url(#mem-ah)"/><rect x="190" y="226" width="754" height="98" rx="14" class="d-box k-success"/><text x="206" y="248" text-anchor="start" class="d-title">AgentCore Memory · actor = verified sub</text><rect x="206" y="262" width="230" height="48" rx="10" class="d-box"/><text x="321.0" y="283.5" text-anchor="middle" class="d-title d-mono">/facts/{sub}</text><text x="321.0" y="297.5" text-anchor="middle" class="d-sub">semantic facts</text><rect x="452" y="262" width="300" height="48" rx="10" class="d-box"/><text x="602.0" y="283.5" text-anchor="middle" class="d-title d-mono">/users/{sub}/preferences</text><text x="602.0" y="297.5" text-anchor="middle" class="d-sub">durable preferences and style</text><rect x="768" y="262" width="160" height="48" rx="10" class="d-box"/><text x="848.0" y="283.5" text-anchor="middle" class="d-title d-mono">search_memory</text><text x="848.0" y="297.5" text-anchor="middle" class="d-sub">explicit lookup tool</text><path d="M470 89 L470 223" class="d-line k-success d-dash" marker-end="url(#mem-ah-success)"/><text x="478" y="160" text-anchor="start" class="d-label d-mono">createEvent</text><text x="478" y="175" text-anchor="start" class="d-label">each turn</text><path d="M860 223 L860 89" class="d-line k-success" marker-end="url(#mem-ah-success)"/><text x="868" y="146" text-anchor="start" class="d-label">relevant</text><text x="868" y="161" text-anchor="start" class="d-label">records</text><text x="868" y="176" text-anchor="start" class="d-label">injected</text>
+          </svg>
+        </div>
+        <figcaption>Snapshots make a reconnect resume exactly; AgentCore Memory carries what it learned about the person into the next conversation. Tasks use only the first plane unless their host passes a memory manager.</figcaption>
+      </figure><div class="ds-note">Tasks run <strong>memory-light</strong> by default: snapshots only, no AgentCore Memory, so the task Lambda does not carry that dependency. A host that needs long-term recall in a task passes a <code>memoryManager</code> to <code>createAssistant</code>.</div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://www.npmjs.com/package/@readysetcloud/agent"><code>@readysetcloud/agent</code> on npm</a> (<a href="https://github.com/readysetcloud/rsc-core/tree/main/agent">source</a>) and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+  <script src="agent.js"></script>
+</body>
+</html>

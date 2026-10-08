@@ -319,6 +319,16 @@ that id in the **`SystemTaskPrincipals`** deploy parameter (comma-separated
 still `GET` the task even though the run acts as the system. See the [package
 README](agent/README.md#autonomous-tasks-non-chat-agents).
 
+**Persistent agents (a build tool, not hosted here).** The package also builds a
+fourth agent type: a long-lived agent woken by an app's own events and by
+scheduled check-ins, pacing itself like a person, pursuing durable goals, and
+keeping its promises. `definePersistentAgent` (`@readysetcloud/agent/agency`)
+turns one definition into a router and a task handler that the **app deploys in
+its own stack**; this service never hosts them. Their events use their own
+source (`agency.<name>`), so `RunAgentTaskFunction` never picks them up. Delayed
+triggers can ride the [deferred-event primitive](#deferred-events--publish-an-event-later)
+above. See [Persistent agents](agent/README.md#persistent-agents--a-build-tool-readysetcloudagentagency).
+
 ### Pieces
 
 | Piece | Where |

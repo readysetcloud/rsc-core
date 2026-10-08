@@ -1,8 +1,9 @@
 # Design system guide
 
-The GitHub Pages site for the Ready, Set, Cloud design system. Published by
-`.github/workflows/design-system-pages.yaml` on every push to `main` that
-touches this directory or `ui/`.
+The GitHub Pages site for the Ready, Set, Cloud design system, and, under
+[`agent/`](agent/), the guide to the agent service and `@readysetcloud/agent`.
+Published by `.github/workflows/design-system-pages.yaml` on every push to
+`main` that touches this directory, `ui/`, or `agent/README.md`.
 
 ## Staying in sync with the package
 
@@ -24,6 +25,27 @@ gallery pages), so AI agents can be pointed at
 `https://design.readysetcloud.io/llms.txt` instead of the repo. There is no
 separate doc to maintain — keep `ui/AGENTS.md` current and the published copy
 follows on the next deploy.
+
+## Agent guide (`agent/`)
+
+Six authored pages (`index`, `chat`, `tasks`, `agency`, `tools`, `reference`)
+that document the agent service: capabilities, how to trigger chat and tasks,
+persistent-agent primitives, identity and permissions, and the contracts. They
+use the same chrome (`../site.css`, `../site.js`) plus `agent/agent.css` and
+`agent/agent.js`, so they restyle with the design system.
+
+Diagrams are inline SVG built from a small class vocabulary in `agent.css`
+(`d-box`, `d-line`, `d-pill`, `k-primary`, …) that uses token colors only, so
+they invert with dark mode like everything else. Motion is used only where it
+teaches: a figure with `data-anim="sequence"` reveals its `data-step` groups in
+order (sequences, races), `data-anim="cycle"` highlights one step at a time
+alongside the matching legend item, and `d-flow` lines animate their dashes to
+show direction. `agent.js` drives the first two with a Play/Pause/Replay
+control; with `prefers-reduced-motion` or without JavaScript every step is
+simply shown. The build
+publishes `agent/README.md` verbatim at `/agent/llms.txt` as the LLM-readable
+companion. When a page and the package disagree, fix the page: the README and
+the code are the source of truth.
 
 ## Local preview
 

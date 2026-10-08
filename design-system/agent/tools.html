@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tools & permissions · Ready, Set, Cloud Agent</title>
+  <meta name="description" content="Identity, principals, first-party and MCP tools, allowlists, and isolation boundaries for the Ready, Set, Cloud agent service.">
+  <link rel="icon" type="image/svg+xml" href="../ui/assets/cloud-logo.svg">
+  <link rel="alternate" type="text/markdown" href="llms.txt" title="LLM-readable agent guide">
+  <script>const t = localStorage.getItem('rsc-ds-theme'); if (t) document.documentElement.dataset.theme = t;</script>
+  <link rel="stylesheet" href="../ui/styles/fonts.css">
+  <link rel="stylesheet" href="../ui/styles/index.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="agent.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a class="app-nav-brand" href="../index.html">
+        <span class="app-nav-brand-mark"></span>
+        <span class="app-nav-brand-name">Ready, Set, Cloud</span>
+      </a>
+      <button class="app-nav-menu-btn" type="button" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="app-nav-collapse">
+        <div class="app-nav-links">
+          <a class="app-nav-link" href="../index.html">Design system</a>
+          <span class="ag-nav-divider" aria-hidden="true"></span>
+          <a class="app-nav-link" href="index.html">Overview</a><a class="app-nav-link" href="chat.html">Chat</a><a class="app-nav-link" href="tasks.html">Tasks</a><a class="app-nav-link" href="agency.html">Agency</a><a class="app-nav-link app-nav-link-active" href="tools.html">Tools & permissions</a><a class="app-nav-link" href="reference.html">Reference</a>
+        </div>
+        <div class="app-nav-actions">
+          <a class="app-nav-icon-btn" href="https://www.npmjs.com/package/@readysetcloud/agent" aria-label="@readysetcloud/agent on npm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/></svg></a>
+          <a class="app-nav-icon-btn" href="https://github.com/readysetcloud/rsc-core/tree/main/agent" aria-label="@readysetcloud/agent on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="app-nav-icon-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="2"/></svg><svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="ds-shell">
+    <header class="page-hero">
+      <div class="page-hero-content">
+        <span class="ds-kicker">Tools & permissions</span>
+        <h1 class="page-hero-title">What it can do, and as whom</h1>
+        <p class="page-hero-subtitle">Identity is verified at the edge, tools are selected by name or allowlisted by host, and system-scoped work is an explicit grant. Every control here fails closed.</p>
+        <div class="page-hero-chips"><span class="page-hero-chip page-hero-chip-warning">Verified identity</span><span class="page-hero-chip page-hero-chip-primary">Opt-in allowlists</span><span class="page-hero-chip page-hero-chip-success">No shell, no filesystem</span></div>
+      </div>
+    </header>
+    <ul class="ds-anchor-list"><li><a href="#identity">Identity</a></li><li><a href="#principals">Principals</a></li><li><a href="#first-party">First-party tools</a></li><li><a href="#mcp">MCP servers</a></li><li><a href="#isolation">Isolation</a></li></ul>
+
+    <section class="ds-section" id="identity">
+      <span class="ds-kicker">Identity</span>
+      <h2>Who the agent acts as</h2>
+      <p class="ds-lede">Identity is always the verified caller or a trusted first-party assertion, never a client value.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Surface</th><th>Identity</th><th>Verified by</th></tr></thead><tbody><tr><td>Chat</td><td>The Cognito <code>sub</code> in the bearer token on the socket</td><td>AgentCore’s inbound JWT authorizer, against the shared user pool</td></tr><tr><td><code>POST /agent/sessions</code>, <code>/agent/connect</code>, <code>/agent/tasks</code></td><td>The Cognito <code>sub</code> of the API caller</td><td>The CoreApi Cognito authorizer</td></tr><tr><td><code>Run Agent Task</code> event</td><td>The <code>principal</code> in the event detail</td><td>The account-internal bus: only first-party Lambdas can put events on it</td></tr><tr><td>Persistent agent task</td><td><code>{ type: system, id: &lt;type&gt;/&lt;agentId&gt; }</code></td><td><code>handleTask</code> in your stack: the trigger’s agent must belong to the type and match the principal</td></tr><tr><td>Session ownership</td><td>The <code>userId</code> stored at creation</td><td>The host compares it to the verified caller at connect and at task time and refuses a mismatch</td></tr></tbody></table></div>
+      <figure class="ag-figure" id="fig-trust" data-anim="cycle"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 440" role="img" aria-labelledby="trust-t" style="min-width:820px">
+            <title id="trust-t">Trust boundaries and the controls that guard each crossing</title>
+            <defs><marker id="trust-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="trust-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="trust-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="trust-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="trust-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="trust-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="trust-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <rect x="10" y="20" width="190" height="410" rx="16" class="d-zone"/><text x="24" y="42" text-anchor="start" class="d-kicker">PUBLIC INTERNET</text><rect x="226" y="20" width="506" height="410" rx="16" class="d-zone"/><text x="240" y="42" text-anchor="start" class="d-kicker">READY, SET, CLOUD ACCOUNT</text><rect x="758" y="20" width="192" height="410" rx="16" class="d-zone"/><text x="772" y="42" text-anchor="start" class="d-kicker">EXTERNAL</text><rect x="30" y="70" width="150" height="56" rx="10" class="d-box"/><text x="105.0" y="95.5" text-anchor="middle" class="d-title">Browser</text><text x="105.0" y="109.5" text-anchor="middle" class="d-sub">chat user</text><rect x="30" y="230" width="150" height="56" rx="10" class="d-box"/><text x="105.0" y="255.5" text-anchor="middle" class="d-title">API caller</text><text x="105.0" y="269.5" text-anchor="middle" class="d-sub">app · workflow</text><rect x="520" y="70" width="190" height="56" rx="10" class="d-box k-primary"/><text x="615.0" y="95.5" text-anchor="middle" class="d-title">AgentCore Runtime</text><text x="615.0" y="109.5" text-anchor="middle" class="d-sub">chat</text><rect x="260" y="190" width="190" height="56" rx="10" class="d-box k-primary"/><text x="355.0" y="215.5" text-anchor="middle" class="d-title">CoreApi</text><text x="355.0" y="229.5" text-anchor="middle" class="d-sub">sessions · connect · tasks</text><rect x="260" y="300" width="190" height="56" rx="10" class="d-box k-warning"/><text x="355.0" y="325.5" text-anchor="middle" class="d-title">Event bus</text><text x="355.0" y="339.5" text-anchor="middle" class="d-sub">account-internal</text><rect x="520" y="300" width="190" height="56" rx="10" class="d-box k-primary"/><text x="615.0" y="325.5" text-anchor="middle" class="d-title">Task Lambda</text><text x="615.0" y="339.5" text-anchor="middle" class="d-sub d-mono">runAgentTask</text><rect x="520" y="190" width="190" height="56" rx="10" class="d-box"/><text x="615.0" y="215.5" text-anchor="middle" class="d-title">Bedrock</text><text x="615.0" y="229.5" text-anchor="middle" class="d-sub">model grant</text><rect x="260" y="372" width="190" height="46" rx="10" class="d-box"/><text x="355.0" y="399.5" text-anchor="middle" class="d-title">First-party backends</text><rect x="778" y="150" width="152" height="56" rx="10" class="d-box"/><text x="854.0" y="175.5" text-anchor="middle" class="d-title">MCP server</text><text x="854.0" y="189.5" text-anchor="middle" class="d-sub">allowlisted host</text><rect x="778" y="300" width="152" height="56" rx="10" class="d-box"/><text x="854.0" y="325.5" text-anchor="middle" class="d-title">Any URL</text><text x="854.0" y="339.5" text-anchor="middle" class="d-sub">http_request</text><path d="M453.0 328.0 L517.0 328.0" class="d-line" marker-end="url(#trust-ah)"/><path d="M615.0 129.0 L615.0 187.0" class="d-line d-dash" marker-end="url(#trust-ah)"/><path d="M615.0 297.0 L615.0 249.0" class="d-line d-dash" marker-end="url(#trust-ah)"/><g data-step="1"><path d="M166.0 127.3 L294.0 188.7" class="d-line" marker-end="url(#trust-ah)"/><path d="M183.0 245.5 L257.0 233.7" class="d-line" marker-end="url(#trust-ah)"/><circle cx="213" cy="230" r="10" class="d-num"/><text x="213" y="234" text-anchor="middle" class="d-num-text">1</text></g><g data-step="2"><path d="M183.0 98.0 L517.0 98.0" class="d-line k-primary" marker-end="url(#trust-ah-primary)"/><circle cx="213" cy="98" r="10" class="d-num"/><text x="213" y="102" text-anchor="middle" class="d-num-text">2</text></g><g data-step="3"><circle cx="355" cy="172" r="10" class="d-num"/><text x="355" y="176" text-anchor="middle" class="d-num-text">3</text></g><g data-step="4"><path d="M355.0 249.0 L355.0 297.0" class="d-line" marker-end="url(#trust-ah)"/><circle cx="355" cy="273" r="10" class="d-num"/><text x="355" y="277" text-anchor="middle" class="d-num-text">4</text></g><g data-step="5"><path d="M355.0 369.0 L355.0 359.0" class="d-line" marker-end="url(#trust-ah)"/><circle cx="380" cy="364" r="10" class="d-num"/><text x="380" y="368" text-anchor="middle" class="d-num-text">5</text></g><g data-step="6"><path d="M701.5 127.0 L775.2 151.6" class="d-line k-primary" marker-end="url(#trust-ah-primary)"/><path d="M662.2 298.4 L806.8 207.6" class="d-line k-primary" marker-end="url(#trust-ah-primary)"/><circle cx="745" cy="150" r="10" class="d-num"/><text x="745" y="154" text-anchor="middle" class="d-num-text">6</text></g><g data-step="7"><path d="M713.0 328.0 L775.0 328.0" class="d-line k-error d-dash" marker-end="url(#trust-ah-error)"/><circle cx="745" cy="328" r="10" class="d-num"/><text x="745" y="332" text-anchor="middle" class="d-num-text">7</text></g>
+          </svg>
+        </div>
+        <figcaption>Every crossing has a control, and every control fails closed. Inside the account, first-party emitters are trusted to assert a principal; from outside, identity is always a verified token. The highlight steps through each control.<ol class="ag-legend"><li data-step="1"><span class="ag-legend-num">1</span><span>Cognito JWT on every CoreApi call: the caller’s <code>sub</code> becomes the identity.</span></li><li data-step="2"><span class="ag-legend-num">2</span><span>AgentCore’s inbound JWT authorizer on the socket, then the runtime’s session-owner check.</span></li><li data-step="3"><span class="ag-legend-num">3</span><span><code>McpAllowedHosts</code> when a session is created: an MCP URL outside the allowlist is rejected.</span></li><li data-step="4"><span class="ag-legend-num">4</span><span><code>SystemTaskPrincipals</code> before an API caller may run as a system id.</span></li><li data-step="5"><span class="ag-legend-num">5</span><span>Only first-party Lambdas can put events on the account-internal bus.</span></li><li data-step="6"><span class="ag-legend-num">6</span><span>Outbound MCP calls carry the authority-minted <code>authHeader</code>, applied after user headers.</span></li><li data-step="7"><span class="ag-legend-num">7</span><span><code>http_request</code> lets the model choose a URL: enable it deliberately and bound egress.</span></li></ol></figcaption>
+      </figure><div class="ds-note">A leaked or guessed <code>sessionId</code> cannot resume someone else’s conversation, and memory is scoped by the verified id, so recall can never leak across users.</div>
+    </section>
+    <section class="ds-section" id="principals">
+      <span class="ds-kicker">Principals</span>
+      <h2>User tasks and system tasks</h2>
+      <p class="ds-lede">Two kinds of identity for autonomous work, with different trust.</p>
+<div class="ds-grid"><div class="ds-link-card"><h3><code>{ type: "user", id: sub }</code></h3><p>A verified person. Reuses session ownership and MCP identity propagation unchanged. The default for <code>POST /agent/tasks</code>.</p></div><div class="ds-link-card"><h3><code>{ type: "system", id: "booked" }</code></h3><p>A service with no owning user, for ecosystem work. Asserting one is privileged: free for a first-party emitter on the internal bus, gated over the public API.</p></div></div>
+      <figure class="ag-figure" id="fig-principal">
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 400" role="img" aria-labelledby="principal-t" style="min-width:720px">
+            <title id="principal-t">How a task’s principal is decided</title>
+            <defs><marker id="principal-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="principal-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="principal-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="principal-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="principal-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="principal-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="principal-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <rect x="16" y="160" width="140" height="56" rx="10" class="d-box"/><text x="86.0" y="192.5" text-anchor="middle" class="d-title">Task request</text><rect x="200" y="160" width="170" height="56" rx="10" class="d-box k-neutral"/><text x="285.0" y="192.5" text-anchor="middle" class="d-title">Arrived how?</text><rect x="430" y="30" width="260" height="60" rx="10" class="d-box k-success"/><text x="560.0" y="57.5" text-anchor="middle" class="d-title">Principal as asserted</text><text x="560.0" y="71.5" text-anchor="middle" class="d-sub">first-party emitter on the bus</text><rect x="430" y="160" width="200" height="56" rx="10" class="d-box k-neutral"/><text x="530.0" y="185.5" text-anchor="middle" class="d-title">system requested?</text><text x="530.0" y="199.5" text-anchor="middle" class="d-sub d-mono">body.system</text><rect x="700" y="160" width="244" height="60" rx="10" class="d-box k-success"/><text x="822.0" y="187.5" text-anchor="middle" class="d-title">user principal</text><text x="822.0" y="201.5" text-anchor="middle" class="d-sub d-mono">{ type: user, id: caller sub }</text><rect x="430" y="290" width="200" height="56" rx="10" class="d-box k-neutral"/><text x="530.0" y="315.5" text-anchor="middle" class="d-title">Grant exists?</text><text x="530.0" y="329.5" text-anchor="middle" class="d-sub d-mono">SystemTaskPrincipals</text><rect x="700" y="250" width="244" height="60" rx="10" class="d-box k-success"/><text x="822.0" y="277.5" text-anchor="middle" class="d-title">system principal</text><text x="822.0" y="291.5" text-anchor="middle" class="d-sub d-mono">createdBy = caller sub</text><rect x="700" y="330" width="244" height="56" rx="10" class="d-box k-error"/><text x="822.0" y="355.5" text-anchor="middle" class="d-title">403 · fails closed</text><text x="822.0" y="369.5" text-anchor="middle" class="d-sub">empty allowlist rejects all</text><path d="M159.0 188.0 L197.0 188.0" class="d-line" marker-end="url(#principal-ah)"/><path d="M347.9 158.7 L492.8 91.3" class="d-line" marker-end="url(#principal-ah)"/><text x="420.4" y="119.0" text-anchor="end" class="d-label">event</text><path d="M373.0 188.0 L427.0 188.0" class="d-line" marker-end="url(#principal-ah)"/><text x="400.0" y="180.0" text-anchor="middle" class="d-label">API</text><path d="M633.0 188.7 L697.0 189.1" class="d-line" marker-end="url(#principal-ah)"/><text x="665.0" y="180.9" text-anchor="middle" class="d-label">no</text><path d="M530.0 219.0 L530.0 287.0" class="d-line" marker-end="url(#principal-ah)"/><text x="530.0" y="253.6" text-anchor="start" class="d-label">yes</text><path d="M633.0 304.6 L697.0 296.3" class="d-line" marker-end="url(#principal-ah)"/><text x="665.0" y="294.4" text-anchor="middle" class="d-label">yes</text><path d="M633.0 332.1 L697.0 340.9" class="d-line" marker-end="url(#principal-ah)"/><text x="665.0" y="352.5" text-anchor="middle" class="d-label">no</text>
+          </svg>
+        </div>
+        <figcaption>The bus is trusted to assert a principal because only first-party code can reach it. The public API derives one from the verified token and grants a system id only through an explicit allowlist entry.</figcaption>
+      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Where</th><th>Gate</th></tr></thead><tbody><tr><td>Internal bus (<code>requestAgentTask</code>)</td><td>None: a first-party emitter is already trusted to assert a principal.</td></tr><tr><td><code>POST /agent/tasks { system }</code></td><td>The <code>SystemTaskPrincipals</code> deploy parameter: comma-separated <code>sub:systemId</code> grants; <code>sub:*</code> allows any id; empty rejects all. Fails closed.</td></tr><tr><td>Launcher record</td><td>When a person launches a system task over the API, their <code>sub</code> is stored as <code>createdBy</code> so they can still read the task back even though the run acts as the system.</td></tr></tbody></table></div>
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Granting a system principal</h3>
+          <p>Opt in explicitly, like the MCP allowlist.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="shell"><code># sub abc-123 may run as "booked" only; svc-sub may run as any system id
+SystemTaskPrincipals="abc-123:booked,svc-sub:*"</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="ds-section" id="first-party">
+      <span class="ds-kicker">First-party tools</span>
+      <h2>A registry a session selects from by name</h2>
+      <p class="ds-lede">Enabling a shipped tool per session is a data operation; authoring a new one is the only code change.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Register and select</h3>
+          <p>The registry lives in the host. The package ships the type, the resolver, and two built-ins.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>import { tool, builtinTools, resolveTools, createAssistant } from '@readysetcloud/agent';
+import { z } from 'zod';
+
+// Host registry: built-ins plus the host’s own.
+const TOOL_REGISTRY = {
+  ...builtinTools,                                   // http_request, notebook
+  get_current_time: () =&gt; tool({
+    name: 'get_current_time',
+    description: 'Returns the current server time as an ISO-8601 string.',
+    inputSchema: z.object({}),
+    callback: async () =&gt; new Date().toISOString(),
+  }),
+};
+
+// A session opts in by name: { tools: ['http_request', 'get_current_time'] }
+const tools = resolveTools(config.tools, TOOL_REGISTRY, { sessionId, userId });
+const agent = createAssistant({ sessionId, tools: [...tools, ...mcpClients] });</code></pre>
+        </div>
+      </div><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Built-in</th><th>What it does</th><th>Watch out</th></tr></thead><tbody><tr><td><code>http_request</code></td><td>Generic HTTP client. The web-search seam: point it at a search API and let the model read the JSON back. Also any public REST endpoint or webhook.</td><td>An outbound-request surface: the model chooses the URL. Front it with an allowlist or prefer a scoped MCP gateway when egress matters.</td></tr><tr><td><code>notebook</code></td><td>An in-invocation scratchpad the model writes to and re-reads across steps of a run.</td><td>State lives in the invocation, not on the host.</td></tr></tbody></table></div><div class="ds-note"><strong>Deliberately not exposed:</strong> the SDK’s <code>bash</code> and <code>file_editor</code>. In a shared hosted runtime, shell exec is remote code execution and filesystem access reaches the host’s disk. A host that wants them imports them from the SDK and registers them itself, as an explicit, auditable choice.</div>
+    </section>
+    <section class="ds-section" id="mcp">
+      <span class="ds-kicker">MCP servers</span>
+      <h2>External tools, allowlisted and identity-aware</h2>
+      <p class="ds-lede">The one place a session points the runtime at an outbound URL.</p>
+
+      <div class="demo">
+        <div class="demo-header">
+          <h3>Attach a server to a session</h3>
+          <p>Keyed by label. The host connects them at build time and attaches their tools beside the first-party ones.</p>
+        </div>
+        <div class="demo-code">
+<pre data-lang="ts"><code>await createSession({
+  userId,
+  mcpServers: {
+    blog: {
+      url: 'https://mcp.example.com/mcp',
+      headers: { 'x-api-version': '2025-01' },        // user-supplied; ${VAR} interpolated by the host
+      authHeader: {                                     // authority-minted, forwarded verbatim
+        name: 'x-booked-auth',
+        value: '&lt;base64url(payload)&gt;.&lt;sig&gt;',
+      },
+    },
+  },
+});</code></pre>
+        </div>
+      </div>
+      <figure class="ag-figure" id="fig-authh" data-anim="sequence"><button type="button" class="ag-anim-btn" data-anim-toggle hidden>Play</button>
+        <div class="ag-diagram-scroll">
+          <svg viewBox="0 0 960 250" role="img" aria-labelledby="authh-t" style="min-width:720px">
+            <title id="authh-t">authHeader: carrying verified identity to a per-tenant MCP server</title>
+            <defs><marker id="authh-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker><marker id="authh-ah-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-primary"/></marker><marker id="authh-ah-success" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-success"/></marker><marker id="authh-ah-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-warning"/></marker><marker id="authh-ah-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-error"/></marker><marker id="authh-ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head k-neutral"/></marker><pattern id="authh-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="d-hatch"/></pattern></defs>
+            <rect x="10" y="110" width="150" height="72" rx="10" class="d-box k-warning"/><text x="85.0" y="136.5" text-anchor="middle" class="d-title">Authority</text><text x="85.0" y="150.5" text-anchor="middle" class="d-sub">mints HMAC over</text><text x="85.0" y="164.5" text-anchor="middle" class="d-sub">tenant.user.session.v</text><rect x="208" y="110" width="150" height="72" rx="10" class="d-box"/><text x="283.0" y="136.5" text-anchor="middle" class="d-title">Session row</text><text x="283.0" y="150.5" text-anchor="middle" class="d-sub d-mono">mcpServers.blog</text><text x="283.0" y="164.5" text-anchor="middle" class="d-sub d-mono">.authHeader</text><rect x="406" y="110" width="150" height="72" rx="10" class="d-box k-primary"/><text x="481.0" y="136.5" text-anchor="middle" class="d-title">Runtime</text><text x="481.0" y="150.5" text-anchor="middle" class="d-sub">forwards verbatim</text><text x="481.0" y="164.5" text-anchor="middle" class="d-sub">after user headers</text><rect x="604" y="110" width="150" height="72" rx="10" class="d-box k-warning"/><text x="679.0" y="136.5" text-anchor="middle" class="d-title">MCP server</text><text x="679.0" y="150.5" text-anchor="middle" class="d-sub">verifies HMAC</text><text x="679.0" y="164.5" text-anchor="middle" class="d-sub">trusts tenant + user</text><rect x="802" y="110" width="148" height="72" rx="10" class="d-box k-success"/><text x="876.0" y="143.5" text-anchor="middle" class="d-title">Scoped results</text><text x="876.0" y="157.5" text-anchor="middle" class="d-sub">owner’s data only</text><g data-step="1"><path d="M85 107 C85 30, 679 30, 679 107" class="d-line k-warning d-dash" marker-start="url(#authh-ah-warning)" marker-end="url(#authh-ah-warning)"/><text x="382" y="44" text-anchor="middle" class="d-label">shared secret · never in the row, never in the runtime</text></g><g data-step="2"><path d="M163.0 146.0 L205.0 146.0" class="d-line" marker-end="url(#authh-ah)"/><text x="184.0" y="138.0" text-anchor="middle" class="d-label">store</text></g><g data-step="3"><path d="M361.0 146.0 L403.0 146.0" class="d-line" marker-end="url(#authh-ah)"/><text x="382.0" y="138.0" text-anchor="middle" class="d-label">load</text></g><g data-step="4"><path d="M559.0 146.0 L601.0 146.0" class="d-line k-primary" marker-end="url(#authh-ah-primary)"/><text x="580.0" y="138.0" text-anchor="middle" class="d-label">header</text></g><g data-step="5"><path d="M757.0 146.0 L799.0 146.0" class="d-line k-success" marker-end="url(#authh-ah-success)"/></g><g data-step="6"><path d="M679 185 C679 232, 481 232, 481 185" class="d-line d-dash" marker-end="url(#authh-ah)"/><text x="580" y="240" text-anchor="middle" class="d-label">tool results</text></g>
+          </svg>
+        </div>
+        <figcaption>The runtime is a courier: it forwards the token verbatim as the configured header (here <code>x-booked-auth</code>) and never interprets it. The token binds tenant, user, session, and a version, so a leak cannot move to another session and the authority can revoke by bumping the version. Replay to follow the token.</figcaption>
+      </figure><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Control</th><th>Owner</th><th>Rule</th></tr></thead><tbody><tr><td>SSRF allowlist</td><td>Host (<code>create-session</code>)</td><td>Rejects any <code>mcpServers</code> whose URL host is not in <code>McpAllowedHosts</code>. Empty rejects all, so it is opt-in.</td></tr><tr><td>Secrets</td><td>Host environment</td><td><code>${VAR}</code> in string fields resolves against the host’s env. A secret never belongs in the session row, which the user creates.</td></tr><tr><td><code>authHeader</code></td><td>An authority (a trusted server-side session creator)</td><td>Mints a token binding tenant, user, session, and a version; the runtime forwards it verbatim, applied after user headers so they cannot shadow it, with no interpolation. The MCP server verifies it with the shared secret.</td></tr></tbody></table></div><div class="ds-note"><strong>Threat model, stated plainly:</strong> the HMAC proves the authority minted this for user U; it does not prove the presenter is this runtime. That is acceptable because the config row is not user-reachable, the host is allowlisted, and transport is TLS. The token is replayed on every reconnect for the session’s ~30-day life, so bind it to the <code>sessionId</code> and include a <code>version</code> the authority can bump to revoke.</div>
+    </section>
+    <section class="ds-section" id="isolation">
+      <span class="ds-kicker">Isolation</span>
+      <h2>What a run can and cannot reach</h2>
+      <p class="ds-lede">The boundaries each surface enforces.</p>
+<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Boundary</th><th>Chat runtime</th><th>Task Lambda</th><th>Library mode · persistent agents</th></tr></thead><tbody><tr><td>Bedrock</td><td>The deploy’s model grant</td><td>Same grant</td><td>Your stack’s</td></tr><tr><td>Table</td><td><code>AgentChatTable</code>, by session</td><td>Same table, by task and session</td><td>Any table via <code>tableName</code></td></tr><tr><td>Cross-session memory</td><td>AgentCore Memory, per verified user</td><td>None by default</td><td>Whatever <code>memoryManager</code> you pass</td></tr><tr><td>Outbound network</td><td>MCP hosts in the allowlist; <code>http_request</code> if enabled</td><td>Same</td><td>Yours</td></tr><tr><td>Identity</td><td>Verified JWT</td><td>Event principal or verified JWT</td><td>Yours</td></tr></tbody></table></div><div class="ds-note"><strong>Library mode</strong> (passing <code>tableName</code> and running the core in your own stack), which is how every persistent agent runs, does not go through the shared runtime’s guarantees. Your stack owns the Bedrock grant, the allowlist, and memory isolation.</div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    <span>Ready, Set, Cloud Agent — documentation for <a href="https://www.npmjs.com/package/@readysetcloud/agent"><code>@readysetcloud/agent</code> on npm</a> (<a href="https://github.com/readysetcloud/rsc-core/tree/main/agent">source</a>) and the rsc-core agent service.</span>
+    <span>Shipped code wins: when a page and the package disagree, read the <a href="https://github.com/readysetcloud/rsc-core/blob/main/agent/README.md">package README</a>.</span>
+    <span>Building with an AI agent? Point it at <a href="llms.txt"><code>agent/llms.txt</code></a> — the full package guide in one markdown file.</span>
+  </footer>
+
+  <script src="../ui/dist/ui.global.js"></script>
+  <script src="../site.js"></script>
+  <script src="agent.js"></script>
+</body>
+</html>

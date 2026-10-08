@@ -107,6 +107,7 @@ export {
   TASK_REQUEST_DETAIL_TYPE,
   TASK_COMPLETED_DETAIL_TYPE,
   type TaskRequestDetail,
+  type TaskTrigger,
   type TaskCompletedDetail,
   type RequestAgentTaskOptions,
   type EmitTaskCompletedOptions,

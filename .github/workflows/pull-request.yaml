@@ -66,8 +66,34 @@ jobs:
           aws-access-key-id: ${{ secrets.STAGE_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.STAGE_SECRET_KEY }}
 
+      # Stage only: an agent/ change rolls a new AgentCore runtime version, and
+      # stage keeps hitting the per-runtime version quota. Delete old versions
+      # first so this deploy has room. Prod (deploy.yaml) never runs this, and
+      # the script refuses to run without PRUNE_AGENT_VERSIONS=stage.
+      - name: Prune old AgentCore runtime versions (stage only)
+        if: ${{ needs.changes.outputs.agent == 'true' }}
+        continue-on-error: true
+        env:
+          AWS_REGION: us-east-1
+          PRUNE_AGENT_VERSIONS: stage
+        run: |
+          RUNTIME_ID="$(aws cloudformation describe-stack-resource \
+            --stack-name rsc-core \
+            --logical-resource-id AgentCoreRuntime \
+            --query StackResourceDetail.PhysicalResourceId \
+            --output text 2>/dev/null || true)"
+          RUNTIME_ID="${RUNTIME_ID##*/}"
+          if [[ -z "${RUNTIME_ID}" || "${RUNTIME_ID}" == "None" ]]; then
+            echo "No AgentCore runtime in the stack yet; nothing to prune."
+            exit 0
+          fi
+          npm ci --ignore-scripts
+          node scripts/prune-agent-versions.mjs "${RUNTIME_ID}" 10
+
+      # Finishes a rollback that failed on the AgentCore version quota (skipping
+      # only that runtime update). Runs on every stage deploy, agent/ PRs
+      # included, so one quota failure can't leave the stack stuck for the next.
       - name: Recover known AgentCore rollback failure
-        if: ${{ needs.changes.outputs.agent != 'true' }}
         run: |
           STACK_STATUS="$(aws cloudformation describe-stacks \
             --stack-name rsc-core \
@@ -198,8 +224,34 @@ jobs:
           aws-access-key-id: ${{ secrets.DEPENDABOT_STAGE_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.DEPENDABOT_STAGE_SECRET_KEY }}
 
+      # Stage only: an agent/ change rolls a new AgentCore runtime version, and
+      # stage keeps hitting the per-runtime version quota. Delete old versions
+      # first so this deploy has room. Prod (deploy.yaml) never runs this, and
+      # the script refuses to run without PRUNE_AGENT_VERSIONS=stage.
+      - name: Prune old AgentCore runtime versions (stage only)
+        if: ${{ needs.changes.outputs.agent == 'true' }}
+        continue-on-error: true
+        env:
+          AWS_REGION: us-east-1
+          PRUNE_AGENT_VERSIONS: stage
+        run: |
+          RUNTIME_ID="$(aws cloudformation describe-stack-resource \
+            --stack-name rsc-core \
+            --logical-resource-id AgentCoreRuntime \
+            --query StackResourceDetail.PhysicalResourceId \
+            --output text 2>/dev/null || true)"
+          RUNTIME_ID="${RUNTIME_ID##*/}"
+          if [[ -z "${RUNTIME_ID}" || "${RUNTIME_ID}" == "None" ]]; then
+            echo "No AgentCore runtime in the stack yet; nothing to prune."
+            exit 0
+          fi
+          npm ci --ignore-scripts
+          node scripts/prune-agent-versions.mjs "${RUNTIME_ID}" 10
+
+      # Finishes a rollback that failed on the AgentCore version quota (skipping
+      # only that runtime update). Runs on every stage deploy, agent/ PRs
+      # included, so one quota failure can't leave the stack stuck for the next.
       - name: Recover known AgentCore rollback failure
-        if: ${{ needs.changes.outputs.agent != 'true' }}
         run: |
           STACK_STATUS="$(aws cloudformation describe-stacks \
             --stack-name rsc-core \
