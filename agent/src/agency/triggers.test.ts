@@ -142,6 +142,16 @@ describe('routeTrigger', () => {
     expect(sent[0]!.runAt.getTime()).toBe(now.getTime() + sent[0]!.delayMs);
   });
 
+  it('treats a custom delay as zero when response delays are off', async () => {
+    const custom: TriggerRuleMap = { Ping: { kind: 'ping', agents: () => ['a1'], request: () => 'ping', delay: () => 5000 } };
+    const off = deps({ rules: custom });
+    await routeTrigger(off.d, event('Ping', {}));
+    expect(off.sent[0]?.delayMs).toBe(0);
+    const on = deps({ rules: custom, responseDelays: true });
+    await routeTrigger(on.d, event('Ping', {}, 'evt-9'));
+    expect(on.sent[0]?.delayMs).toBe(5000);
+  });
+
   it('logs every decision', async () => {
     const log = vi.fn();
     const { d } = deps({ log });
@@ -165,15 +175,25 @@ describe('dynamoTriggerGates', () => {
     expect(await gates.admit({ slot: 'a1#reply', owner: 't2', now, windowMs: 120_000 })).toBe(false);
   });
 
-  it('a once-per key never reopens; an urgent gate has no condition', async () => {
+  it('a once-per key never reopens, and never expires; an urgent gate has no condition', async () => {
     const gates = dynamoTriggerGates();
     ddbSend.mockResolvedValue({});
     await gates.admit({ slot: 'rule#scout#2026-10-07', owner: 'e1', now, windowMs: null });
     expect(ddbSend.mock.calls[0][0].input.ConditionExpression).toBe('attribute_not_exists(pk) OR #owner = :owner');
+    expect(ddbSend.mock.calls[0][0].input.UpdateExpression).toMatch(/ REMOVE expiresAt$/);
+    expect(ddbSend.mock.calls[0][0].input.ExpressionAttributeValues[':ttl']).toBeUndefined();
     await gates.admit({ slot: 'a1#review', owner: 't1', now, windowMs: 0 });
     expect(ddbSend.mock.calls[1][0].input.ConditionExpression).toBeUndefined();
     ddbSend.mockRejectedValueOnce(new Error('boom'));
     await expect(gates.admit({ slot: 'x', owner: 'y', now, windowMs: 1 })).rejects.toThrow('boom');
+  });
+
+  it('never expires a windowed gate before its window passes', async () => {
+    const gates = dynamoTriggerGates({ ttlMs: 60_000 });
+    ddbSend.mockResolvedValue({});
+    const windowMs = 90 * 24 * 3600_000;
+    await gates.admit({ slot: 'a1#season', owner: 't1', now, windowMs });
+    expect(ddbSend.mock.calls[0][0].input.ExpressionAttributeValues[':ttl']).toBe(Math.floor((now.getTime() + windowMs) / 1000));
   });
 
   it('releases only the owner’s slot', async () => {
@@ -233,6 +253,16 @@ describe('eventBridgeDispatcher', () => {
     const detail = JSON.parse(entry.Detail);
     expect(detail).toMatchObject({ name: task.taskId, at: '2026-10-07T12:00:05.000Z', whenPast: 'send' });
     expect(detail.event).toMatchObject({ source: 'readysetcloud.agent', detailType: 'Run Agent Task', detail: { taskId: task.taskId, trigger: task.trigger } });
+  });
+
+  it('throws when EventBridge rejects the entry, so the router is retried instead of losing the task', async () => {
+    ebSend.mockResolvedValueOnce({ FailedEntryCount: 1, Entries: [{ ErrorCode: 'ThrottlingException', ErrorMessage: 'slow down' }] });
+    const dispatch = eventBridgeDispatcher();
+    await expect(dispatch(task)).rejects.toMatchObject({ name: 'PutEventsEntryError', code: 'ThrottlingException' });
+    // Through the router: the failure propagates rather than being recorded as requested.
+    ebSend.mockResolvedValueOnce({ FailedEntryCount: 1, Entries: [{ ErrorCode: 'InternalFailure' }] });
+    const { d } = deps({ dispatch: eventBridgeDispatcher() });
+    await expect(routeTrigger(d, event('Offer Made', { toAgent: 'a1', offerId: 'o1', expiresAt: '' }))).rejects.toThrow(/InternalFailure/);
   });
 
   it('publishes under its own source when given one, so the shared task Lambda ignores it', async () => {

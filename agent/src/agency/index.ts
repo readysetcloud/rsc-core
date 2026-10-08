@@ -136,4 +136,6 @@ export {
   type PersistentTaskHandler,
 } from './persistent.js';
 
+export { putEvents, PutEventsEntryError } from './put-events.js';
+
 export type { TaskTrigger } from '../memory/task-events.js';

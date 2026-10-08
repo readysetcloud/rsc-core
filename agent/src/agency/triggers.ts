@@ -1,11 +1,10 @@
 import { DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { ddb, requireTableName } from '../aws/ddb.js';
-import { eventBridge } from '../aws/events.js';
 import { TASK_EVENT_SOURCE, TASK_REQUEST_DETAIL_TYPE, type TaskRequestDetail, type TaskTrigger } from '../memory/task-events.js';
 import type { Principal } from '../memory/tasks.js';
 import { hashString } from './random.js';
-import { responseDelay, IMMEDIATE_RESPONSE, type ResponseDelayInput, type ResponseDelayLever } from './response-delay.js';
+import { putEvents } from './put-events.js';
+import { responseDelay, type ResponseDelayInput, type ResponseDelayLever } from './response-delay.js';
 
 // The trigger router: how events become an agent's reasons to act.
 //
@@ -128,7 +127,9 @@ export function gateCutoff(gate: TriggerGate & { windowMs: number }): string {
 /**
  * Gates in DynamoDB: one item per slot (`pk=TRIGGER#{slot}`, `sk=GATE`), taken by a conditional
  * update. Slots are namespaced by the caller (`agent-1#reply`); use a `prefix` to keep several
- * routers apart in one table.
+ * routers apart in one table. A windowed gate expires `ttlMs` (default 30 days) after it was last
+ * taken, and never before its own window has passed; a once-per gate (`windowMs: null`) never
+ * expires, so its key is never admitted again.
  */
 export function dynamoTriggerGates(options: { tableName?: string; prefix?: string; ttlMs?: number } = {}): TriggerGates {
   const key = (slot: string) => ({ pk: `TRIGGER#${options.prefix ? `${options.prefix}#` : ''}${slot}`, sk: 'GATE' });
@@ -136,17 +137,20 @@ export function dynamoTriggerGates(options: { tableName?: string; prefix?: strin
   const ttlMs = options.ttlMs ?? 30 * 24 * 60 * 60_000;
   return {
     async admit(gate) {
+      const ttl = gate.windowMs === null ? null : Math.floor((gate.now.getTime() + Math.max(ttlMs, gate.windowMs)) / 1000);
       const update = {
         TableName: TableName(),
         Key: key(gate.slot),
-        UpdateExpression: 'SET entity = :entity, slot = :slot, lastTriggeredAt = :now, #owner = :owner, expiresAt = :ttl',
+        UpdateExpression:
+          'SET entity = :entity, slot = :slot, lastTriggeredAt = :now, #owner = :owner' +
+          (ttl === null ? ' REMOVE expiresAt' : ', expiresAt = :ttl'),
         ExpressionAttributeNames: { '#owner': 'owner' },
         ExpressionAttributeValues: {
           ':entity': 'TriggerGate',
           ':slot': gate.slot,
           ':now': gate.now.toISOString(),
           ':owner': gate.owner,
-          ':ttl': Math.floor((gate.now.getTime() + ttlMs) / 1000),
+          ...(ttl === null ? {} : { ':ttl': ttl }),
         },
       };
       const command =
@@ -249,7 +253,10 @@ export interface TriggerRouterDeps {
   principal(agentId: string): Principal;
   /** Sends the task; `eventBridgeDispatcher` is the usual one. */
   dispatch(task: TriggerDispatch): Promise<void>;
-  /** Human-like delays on (production) or off (tests, local dev, replays): default off. */
+  /**
+   * Human-like delays on (production) or off (tests, local dev, replays): default off. Off means
+   * every delay is zero, a rule's own `delay` included, so nothing goes through `Schedule Event`.
+   */
   responseDelays?: boolean;
   /** Only events from these sources are triggers; others are ignored. Default: any source. */
   sources?: readonly string[];
@@ -320,17 +327,9 @@ async function routeRule(deps: TriggerRouterDeps, event: TriggerEvent, rule: Tri
       record({ ...base, decision: 'cooldown' });
       continue;
     }
+    // Off (tests, local runs, replays): every delay is zero, a rule's own delay included.
     const delayMs =
-      rule.urgent || rule.delay === undefined
-        ? 0
-        : Math.max(
-            0,
-            rule.delay({
-              ...input,
-              index,
-              pacing: deps.responseDelays === true ? pacing : { ...pacing, responseDelay: IMMEDIATE_RESPONSE },
-            }),
-          );
+      rule.urgent || rule.delay === undefined || deps.responseDelays !== true ? 0 : Math.max(0, rule.delay({ ...input, index }));
     const payload = rule.payload?.(input);
     await deps.dispatch({
       taskId,
@@ -402,8 +401,8 @@ export function eventBridgeDispatcher(options: EventBridgeDispatcherOptions = {}
             }),
           }
         : { Source: source, DetailType: TASK_REQUEST_DETAIL_TYPE, Detail: JSON.stringify(detail) };
-    await eventBridge.send(new PutEventsCommand({
-      Entries: [{ ...entry, ...(options.eventBusName ? { EventBusName: options.eventBusName } : {}) }],
-    }));
+    // Throws when EventBridge rejects the entry, so the router's invocation fails and is retried
+    // instead of recording a task that was never sent.
+    await putEvents([{ ...entry, ...(options.eventBusName ? { EventBusName: options.eventBusName } : {}) }]);
   };
 }

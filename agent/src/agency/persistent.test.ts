@@ -263,6 +263,25 @@ describe('definePersistentAgent', () => {
     expect(() => setup({ taskCap: null })).not.toThrow();
   });
 
+  it('delivers a completion that failed to publish on the next delivery of the task', async () => {
+    const { agent, sent, detailOf, seen } = setup({ onComplete: undefined });
+    ebSend.mockResolvedValue({});
+    await agent.route({ id: 'e1', 'detail-type': 'Pull Request Opened', detail: { pr: 7, reviewers: ['rev-1'] } });
+    const d = detailOf(sent[0]!);
+    ebSend.mockResolvedValueOnce({ FailedEntryCount: 1, Entries: [{ ErrorCode: 'InternalFailure' }] });
+    await expect(agent.handleTask(d)).rejects.toMatchObject({ name: 'PutEventsEntryError' });
+    const { isRetryableError } = await import('./persistent.js');
+    expect(isRetryableError(Object.assign(new Error('x'), { code: 'InternalFailure' }))).toBe(true);
+    // The retry finds the stored result, publishes the completion it owed, and runs nothing again.
+    expect(await agent.handleTask(d)).toMatchObject({ status: 'COMPLETED', output: 'reviewed 7' });
+    expect(seen).toHaveLength(1);
+    const completions = ebSend.mock.calls.map((c) => c[0].input.Entries[0]).filter((e) => e.DetailType === 'Agent Task Completed');
+    expect(completions).toHaveLength(2); // the rejected one, then the redelivered one
+    // Delivered once: a further duplicate publishes nothing more.
+    await agent.handleTask(d);
+    expect(ebSend.mock.calls.map((c) => c[0].input.Entries[0]).filter((e) => e.DetailType === 'Agent Task Completed')).toHaveLength(2);
+  });
+
   it('isolates state by scope', async () => {
     let tenure = 'season-1';
     const { agent, sent, detailOf, seen } = setup({ scope: () => tenure });

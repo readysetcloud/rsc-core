@@ -1,5 +1,3 @@
-import { PutEventsCommand } from '@aws-sdk/client-eventbridge';
-import { eventBridge } from '../aws/events.js';
 import { finishTask, startTask, toTaskResult, type AgentTaskResult, type Principal } from '../memory/tasks.js';
 import { TASK_COMPLETED_DETAIL_TYPE, type TaskRequestDetail, type TaskTrigger } from '../memory/task-events.js';
 import { AGENDA_LIMITS, agendaLines, emptyAgenda, reconcileAgenda, type Agenda, type AgendaGoal, type AgendaLimits, type AgendaNeed } from './agenda.js';
@@ -19,6 +17,7 @@ import {
   type OpenOutcome,
 } from './commitments.js';
 import type { ResponseDelayInput } from './response-delay.js';
+import { putEvents } from './put-events.js';
 import { readAgentState, updateAgentState } from './state-store.js';
 import {
   dynamoTriggerGates,
@@ -87,6 +86,7 @@ const RETRYABLE_ERRORS = new Set([
   'RequestTimeout',
   'RequestTimeoutException',
   'TimeoutError',
+  'InternalException',
   'AgentStateConflictError',
   'ECONNRESET',
   'ECONNREFUSED',
@@ -423,15 +423,38 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
   const onComplete =
     definition.onComplete ??
     (async (result: AgentTaskResult, context: { agentId: string; principal: Principal; kind: string }) => {
-      await eventBridge.send(new PutEventsCommand({
-        Entries: [{
-          Source: source,
-          DetailType: TASK_COMPLETED_DETAIL_TYPE,
-          Detail: JSON.stringify({ ...result, principal: context.principal, agentType: name, agentId: context.agentId, kind: context.kind }),
-          ...bus,
-        }],
-      }));
+      await putEvents([{
+        Source: source,
+        DetailType: TASK_COMPLETED_DETAIL_TYPE,
+        Detail: JSON.stringify({ ...result, principal: context.principal, agentType: name, agentId: context.agentId, kind: context.kind }),
+        ...bus,
+      }]);
     });
+
+  // Completion delivery survives a failed onComplete: the result is already stored as final, so a
+  // redelivery stops at the claim. A failed delivery is recorded here and retried by the next
+  // delivery of the same task.
+  type Undelivered = { results: { result: AgentTaskResult; kind: string }[] };
+  const undeliveredKey = (agentId: string): PersistentStateKey => ({ agentId, name: `${name}.undelivered` });
+  async function complete(result: AgentTaskResult, context: { agentId: string; principal: Principal; kind: string }) {
+    try {
+      await onComplete(result, context);
+    } catch (err) {
+      await store.update<Undelivered>(undeliveredKey(context.agentId), (current) => ({
+        results: [...(current?.results ?? []).filter((r) => r.result.taskId !== result.taskId), { result, kind: context.kind }].slice(-50),
+      }));
+      definition.log?.({ agentType: name, agentId: context.agentId, taskId: result.taskId, decision: 'completion_undelivered', error: message(err) });
+      throw err;
+    }
+  }
+  async function redeliver(agentId: string, principal: Principal, taskId: string) {
+    const pending = (await store.read<Undelivered>(undeliveredKey(agentId)))?.results.find((r) => r.result.taskId === taskId);
+    if (pending === undefined) return;
+    await onComplete(pending.result, { agentId, principal, kind: pending.kind });
+    await store.update<Undelivered>(undeliveredKey(agentId), (current) => ({
+      results: (current?.results ?? []).filter((r) => r.result.taskId !== taskId),
+    }));
+  }
 
   // Rules, with the check-in rule added for this type's own heartbeat.
   const rules: TriggerRuleMap = { ...(definition.rules ?? {}) };
@@ -500,7 +523,11 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
     if (profile === null) return fail(`Unknown ${name} agent`);
 
     const claim = await store.claim({ taskId, principal, request: detail.request });
-    if (!claim.claimed) return claim.existing ?? { taskId, status: 'RUNNING' };
+    if (!claim.claimed) {
+      if (claim.existing !== null && (claim.existing.status === 'COMPLETED' || claim.existing.status === 'FAILED'))
+        await redeliver(agentId, principal, taskId);
+      return claim.existing ?? { taskId, status: 'RUNNING' };
+    }
 
     if (!(await admitTask(agentId, taskId))) {
       const capped: AgentTaskResult = {
@@ -510,7 +537,7 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
       };
       definition.log?.({ agentType: name, agentId, taskId, decision: 'task_cap' });
       await store.finish(capped);
-      await onComplete(capped, { agentId, principal, kind: trigger.kind });
+      await complete(capped, { agentId, principal, kind: trigger.kind });
       return capped;
     }
 
@@ -654,7 +681,7 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
       result = { taskId, status: 'FAILED', error: message(err) };
     }
     await store.finish(result);
-    await onComplete(result, { agentId, principal, kind: trigger.kind });
+    await complete(result, { agentId, principal, kind: trigger.kind });
     return result;
   }
 
@@ -682,7 +709,7 @@ export function definePersistentAgent<P = unknown, N = Record<string, unknown>, 
     handleTask,
     checkInEvent,
     async emitCheckIn(now?: Date) {
-      await eventBridge.send(new PutEventsCommand({ Entries: [checkInEvent(now)] }));
+      await putEvents([checkInEvent(now)]);
     },
   };
 }
