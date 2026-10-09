@@ -35,11 +35,11 @@
     "sharp": "^0.35.5"
   },
   "dependencies": {
-    "@aws-lambda-powertools/parameters": "^2.35.0",
+    "@aws-lambda-powertools/parameters": "^2.36.0",
     "@gomomento/sdk": "^1.118.1",
     "@readysetcloud/agent": "file:agent",
     "@sendgrid/mail": "^8.1.6",
     "octokit": "^5.0.5",
-    "openai": "^7.28.0"
+    "openai": "^7.30.0"
   }
 }
