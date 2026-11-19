@@ -9,7 +9,8 @@ describe('readySetCloudServices', () => {
       'outboxed',
       'bootcamp',
       'olivias-garden-foundation',
-      'fantasy'
+      'fantasy',
+      'updraft'
     ]);
   });
 });
@@ -19,5 +20,13 @@ describe('fantasy service entry', () => {
     const fantasy = readySetCloudServices.find((service) => service.id === 'fantasy');
     expect(fantasy?.href).toBe('https://fantasy.readysetcloud.io');
     expect(fantasy?.active).toBe(true);
+  });
+});
+
+describe('updraft service entry', () => {
+  it('is live in the launcher', () => {
+    const updraft = readySetCloudServices.find((service) => service.id === 'updraft');
+    expect(updraft?.href).toBe('https://updraft.readysetcloud.io');
+    expect(updraft?.active).toBe(true);
   });
 });
