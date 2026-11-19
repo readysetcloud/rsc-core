@@ -59,6 +59,16 @@
       "category": "Games",
       "external": true,
       "active": true
+    },
+    {
+      "id": "updraft",
+      "name": "Updraft",
+      "href": "https://updraft.readysetcloud.io",
+      "description": "Turns labeled GitHub issues into draft pull requests written by coding agents.",
+      "shortName": "UD",
+      "category": "Developer Tools",
+      "external": true,
+      "active": true
     }
   ]
 }
